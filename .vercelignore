@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# ローカルファイル
+uploads/
+*.html
+suikankyo.html
+suikankyo_edited.html
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# テスト
+test_*.py
+*_test.py
+
+# その他
+.git/
+.gitignore
+README.md
+

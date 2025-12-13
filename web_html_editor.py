@@ -19,7 +19,13 @@ from flask import Flask, render_template_string, request, jsonify, send_from_dir
 from html_editor import HTMLEditor
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'uploads'
+
+# Vercel環境では/tmpディレクトリを使用
+if os.environ.get('VERCEL'):
+    app.config['UPLOAD_FOLDER'] = '/tmp/uploads'
+else:
+    app.config['UPLOAD_FOLDER'] = 'uploads'
+
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB制限
 
 html_editor = None
@@ -27,7 +33,14 @@ html_file_path = None
 
 # アップロードフォルダを作成
 UPLOAD_DIR = Path(app.config['UPLOAD_FOLDER'])
-UPLOAD_DIR.mkdir(exist_ok=True)
+try:
+    UPLOAD_DIR.mkdir(exist_ok=True, parents=True)
+except Exception as e:
+    # Vercel環境などでディレクトリ作成に失敗した場合は警告のみ
+    if os.environ.get('VERCEL'):
+        pass  # Vercel環境では/tmpは既に存在する
+    else:
+        print(f"Warning: Could not create upload directory: {e}", file=sys.stderr)
 
 
 # HTMLエディタのテンプレート
