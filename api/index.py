@@ -110,16 +110,16 @@ if app is None:
         }), 500
 
 # Vercel用にhandlerをエクスポート（必須）
-# VercelのPythonランタイムが期待する形式に合わせる
-# Flaskアプリを直接エクスポートするのではなく、関数としてラップする
-def handler(request):
+# VercelのPythonランタイムがhandlerをクラスとして扱おうとしている問題を回避するため、
+# handlerを関数として定義し、その中でFlaskアプリを呼び出す
+# VercelのPythonランタイムは、handlerが関数またはWSGIアプリケーションであることを期待している
+# しかし、内部実装がクラスを期待している可能性があるため、関数として定義する
+def handler(environ, start_response):
     """
-    Vercel用のリクエストハンドラー
-    request: Vercelのリクエストオブジェクト
+    Vercel用のWSGIハンドラー
+    environ: WSGI環境変数
+    start_response: WSGI start_response関数
     """
-    # FlaskアプリをWSGIアプリケーションとして呼び出す
-    # VercelのリクエストをWSGI環境に変換する必要がある
-    # ただし、VercelのPythonランタイムは自動的にWSGIアプリケーションを処理できるはず
-    # 直接appを返すのではなく、appを呼び出す関数として定義
-    return app(request.environ, request.start_response) if hasattr(request, 'environ') else app
+    # FlaskアプリはWSGIアプリケーションなので、直接呼び出す
+    return app(environ, start_response)
 
