@@ -406,6 +406,7 @@ EDITOR_TEMPLATE = r"""
         <div class="toolbar" id="mainToolbar" style="display: flex !important;">
             <button class="btn btn-primary" onclick="saveFile()" id="saveBtn" {% if not filename %}disabled{% endif %}>💾 保存</button>
             <button class="btn btn-success" onclick="reloadFile()" id="reloadBtn" {% if not filename %}disabled{% endif %}>🔄 再読み込み</button>
+            <button class="btn btn-danger" onclick="clearEditor()" id="clearBtn">🗑️ クリア</button>
             <button class="btn btn-info" onclick="showStructure()" id="structureBtn" {% if not filename %}disabled{% endif %}>📊 構造情報</button>
             <button class="btn btn-warning" onclick="validateHTML()" id="validateBtn" {% if not filename %}disabled{% endif %}>⚠️ 構文チェック</button>
             <button class="btn btn-info" onclick="showSearch()" id="searchBtn" {% if not filename %}disabled{% endif %}>🔍 検索・置換</button>
@@ -702,6 +703,26 @@ EDITOR_TEMPLATE = r"""
             } catch (error) {
                 showStatus('エラー: ' + error.message, 'error');
             }
+        };
+        
+        // HTMLソースをクリア（グローバル関数として明示的に定義）
+        window.clearEditor = function clearEditor() {
+            const editor = getEditor();
+            if (!editor) {
+                console.error('エディタ要素が見つかりません');
+                showStatus('エディタが見つかりません', 'error');
+                return;
+            }
+            
+            // 確認ダイアログを表示
+            if (!confirm('HTMLソースをクリアしますか？この操作は取り消せません。')) {
+                return;
+            }
+            
+            // エディタの内容をクリア
+            editor.value = '';
+            updatePreview();
+            showStatus('HTMLソースをクリアしました', 'success');
         };
         
         // 構造情報を表示
