@@ -1548,11 +1548,13 @@ def main():
         default='127.0.0.1',
         help='ホストアドレス (デフォルト: 127.0.0.1)'
     )
+    # RailwayやHerokuなどのクラウド環境では環境変数PORTを使用
+    default_port = int(os.environ.get('PORT', 5000))
     parser.add_argument(
         '--port',
         type=int,
-        default=5000,
-        help='ポート番号 (デフォルト: 5000)'
+        default=default_port,
+        help=f'ポート番号 (デフォルト: {default_port}, 環境変数PORTが設定されている場合はそれを使用)'
     )
     parser.add_argument(
         '--debug',
@@ -1596,7 +1598,12 @@ def main():
         print(f"\n終了するには Ctrl+C を押してください")
         print(f"{'='*60}\n")
         
-        app.run(host=args.host, port=args.port, debug=args.debug)
+        # RailwayやHerokuなどのクラウド環境では0.0.0.0でリッスン
+        host = args.host
+        if os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('DYNO'):
+            host = '0.0.0.0'
+        
+        app.run(host=host, port=args.port, debug=args.debug)
     
     except KeyboardInterrupt:
         print("\n\nプログラムを終了します。")
