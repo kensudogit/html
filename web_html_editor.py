@@ -603,9 +603,32 @@ EDITOR_TEMPLATE = r"""
             const preview = document.getElementById('preview');
             if (!editor || !preview) return;
             
-            const content = editor.value;
-            const blob = new Blob([content], { type: 'text/html' });
+            let content = editor.value;
+            
+            // CSSの読み込みを修正: rel="preload" を rel="stylesheet" に変換
+            // これにより、Blob URLのコンテキストでもCSSが正しく読み込まれる
+            content = content.replace(
+                /<link\s+rel=["']preload["']\s+href=["']([^"']+)["']\s+as=["']style["']\s+onload=["']([^"']*)["']/gi,
+                '<link rel="stylesheet" href="$1"'
+            );
+            
+            // 相対パスのCSS/JS/画像を絶対URLに変換（オプション）
+            // 現在のページのベースURLを取得
+            const baseUrl = window.location.origin;
+            
+            // 相対パスを絶対URLに変換（必要に応じて）
+            // content = content.replace(/href=["'](?!https?:\/\/)([^"']+)["']/gi, 'href="' + baseUrl + '/$1"');
+            // content = content.replace(/src=["'](?!https?:\/\/)([^"']+)["']/gi, 'src="' + baseUrl + '/$1"');
+            
+            const blob = new Blob([content], { type: 'text/html;charset=utf-8' });
             const url = URL.createObjectURL(blob);
+            
+            // 以前のBlob URLを解放（メモリリークを防ぐ）
+            if (preview.dataset.blobUrl) {
+                URL.revokeObjectURL(preview.dataset.blobUrl);
+            }
+            preview.dataset.blobUrl = url;
+            
             preview.src = url;
         }
         
