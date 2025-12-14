@@ -1740,8 +1740,8 @@ EDITOR_TEMPLATE = r"""
             }
         }
         
-        // 要素を検索
-        async function searchElement() {
+        // 要素を検索（グローバル関数として明示的に定義）
+        window.searchElement = async function searchElement() {
             const editor = getEditor();
             if (!editor) {
                 showStatus('エディタが見つかりません', 'error');
@@ -1849,10 +1849,15 @@ EDITOR_TEMPLATE = r"""
             }
         }
         
-        // 検索モーダルを表示
-        function showSearch() {
-            document.getElementById('searchModal').style.display = 'block';
-        }
+        // 検索モーダルを表示（グローバル関数として明示的に定義）
+        window.showSearch = function showSearch() {
+            const modal = document.getElementById('searchModal');
+            if (modal) {
+                modal.style.display = 'block';
+            } else {
+                console.error('検索モーダルが見つかりません');
+            }
+        };
         
         // 検索・置換を実行（グローバル関数として明示的に定義）
         window.performSearchReplace = function performSearchReplace() {
@@ -1871,11 +1876,21 @@ EDITOR_TEMPLATE = r"""
             }
             
             const content = editor.value;
-            if (content.includes(searchText)) {
-                const newContent = content.replace(new RegExp(searchText, 'g'), replaceText);
+            
+            // 検索文字列をエスケープ（正規表現の特殊文字を処理）
+            const escapedSearchText = searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(escapedSearchText, 'g');
+            
+            if (regex.test(content)) {
+                // 置換を実行
+                const newContent = content.replace(regex, replaceText);
                 editor.value = newContent;
                 updatePreview();
-                showStatus('置換しました', 'success');
+                
+                // 置換された箇所の数をカウント
+                const matches = content.match(regex);
+                const count = matches ? matches.length : 0;
+                showStatus(`${count}箇所を置換しました`, 'success');
                 closeModal('searchModal');
             } else {
                 showStatus('検索文字列が見つかりませんでした', 'error');
