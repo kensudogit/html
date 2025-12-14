@@ -99,7 +99,7 @@ EDITOR_TEMPLATE = r"""
             margin-bottom: 20px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             display: flex !important;
-            gap: 10px;
+            gap: 4px;
             flex-wrap: wrap;
             align-items: center;
             overflow-x: auto;
@@ -585,14 +585,14 @@ EDITOR_TEMPLATE = r"""
     
     <div class="container">
         <!-- ファイル操作ボタン（常に表示、別ツールバー） -->
-        <div id="fileToolbar" style="background: #f0f4f8; padding: 15px; border-radius: 8px; margin-bottom: 15px; display: flex !important; gap: 10px; align-items: center; flex-wrap: wrap; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-            <button class="btn btn-primary" onclick="showUploadModal()" id="uploadBtnMain" style="font-weight: 600; padding: 12px 24px; background: #667eea; border: 2px solid #5568d3; color: white; display: inline-block !important; visibility: visible !important; opacity: 1 !important; position: relative !important; z-index: 100 !important; margin-right: 10px; flex-shrink: 0; cursor: pointer;">
+        <div id="fileToolbar" style="background: #f0f4f8; padding: 15px; border-radius: 8px; margin-bottom: 15px; display: flex !important; gap: 4px; align-items: center; flex-wrap: wrap; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+            <button class="btn btn-primary" onclick="showUploadModal()" id="uploadBtnMain" style="font-weight: 600; padding: 12px 24px; background: #667eea; border: 2px solid #5568d3; color: white; display: inline-block !important; visibility: visible !important; opacity: 1 !important; position: relative !important; z-index: 100 !important; flex-shrink: 0; cursor: pointer;">
                 📤 ファイルをアップロード
             </button>
-            <button class="btn btn-success" onclick="downloadFile()" id="downloadBtn" {% if not filename %}disabled{% endif %} style="font-weight: 600; padding: 12px 24px; background: #48bb78; border-color: #38a169; color: white; display: inline-block !important; visibility: visible !important; opacity: {% if filename %}1{% else %}0.5{% endif %} !important; position: relative !important; z-index: 100 !important; margin-right: 10px; flex-shrink: 0; cursor: {% if filename %}pointer{% else %}not-allowed{% endif %};">
+            <button class="btn btn-success" onclick="downloadFile()" id="downloadBtn" {% if not filename %}disabled{% endif %} style="font-weight: 600; padding: 12px 24px; background: #48bb78; border-color: #38a169; color: white; display: inline-block !important; visibility: visible !important; opacity: {% if filename %}1{% else %}0.5{% endif %} !important; position: relative !important; z-index: 100 !important; flex-shrink: 0; cursor: {% if filename %}pointer{% else %}not-allowed{% endif %};">
                 ⬇️ ダウンロード
             </button>
-            <button class="btn btn-info" onclick="showFileList()" id="fileListBtn" style="display: inline-block !important; visibility: visible !important; margin-right: 10px; flex-shrink: 0;">📁 ファイル一覧</button>
+            <button class="btn btn-info" onclick="showFileList()" id="fileListBtn" style="display: inline-block !important; visibility: visible !important; flex-shrink: 0;">📁 ファイル一覧</button>
         </div>
         
         <!-- 編集操作ボタン -->
@@ -1432,7 +1432,7 @@ EDITOR_TEMPLATE = r"""
             }
             
             if (toolbar) {
-                toolbar.style.cssText = 'display: flex !important; gap: 10px; flex-wrap: wrap; align-items: center; overflow-x: auto; background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); min-height: 60px;';
+                toolbar.style.cssText = 'display: flex !important; gap: 4px; flex-wrap: wrap; align-items: center; overflow-x: auto; background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); min-height: 60px;';
                 console.log('Toolbar styled');
             }
         }
