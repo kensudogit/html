@@ -387,19 +387,6 @@ EDITOR_TEMPLATE = r"""
                 <h1>📝 HTMLエディタ</h1>
                 <p>ファイル: {{ filename if filename else 'ファイルを選択してください' }}</p>
             </div>
-            <div>
-                <button class="btn btn-primary" onclick="showUploadModal()" style="font-weight: 600; padding: 12px 24px; font-size: 16px; margin-right: 10px;">
-                    📤 ファイルをアップロード
-                </button>
-                {% if filename %}
-                <button class="btn btn-success" onclick="downloadFile()" style="font-weight: 600; padding: 12px 24px; font-size: 16px; margin-right: 10px; background: #48bb78; border-color: #38a169;">
-                    ⬇️ ダウンロード
-                </button>
-                {% endif %}
-                <button class="btn btn-info" onclick="showFileList()" style="padding: 12px 20px;">
-                    📁 ファイル一覧
-                </button>
-            </div>
         </div>
     </div>
     

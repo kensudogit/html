@@ -1,0 +1,48 @@
+# パッケージング時に除外するファイル・フォルダ
+
+# 仮想環境
+venv/
+env/
+ENV/
+.venv/
+
+# Pythonキャッシュ
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# アップロードファイル
+uploads/
+*.html.bak
+*.htm.bak
+
+# IDE設定
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OSファイル
+.DS_Store
+Thumbs.db
+
+# Vercel関連（ローカル実行には不要）
+.vercel/
+vercel.json
+api/
+VERCEL_DEPLOY.md
+
+# テスト・開発用ファイル
+test_structure.py
+html_edit_interactive.py
+suikankyo.html
+
+# 環境変数
+.env
+.env*.local
+
+# ログファイル
+*.log
+

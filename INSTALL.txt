@@ -1,0 +1,32 @@
+========================================
+HTMLエディタ インストール手順
+========================================
+
+【簡単セットアップ】
+
+1. このフォルダを他のPCにコピー
+
+2. コマンドプロンプト（Windows）またはターミナル（macOS/Linux）を開く
+
+3. このフォルダに移動
+
+4. 以下のコマンドを実行：
+
+   Windows:
+   python -m venv venv
+   venv\Scripts\activate
+   pip install -r requirements.txt
+   python web_html_editor.py
+
+   macOS/Linux:
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   python3 web_html_editor.py
+
+5. ブラウザで http://localhost:5000 にアクセス
+
+詳細な手順は SETUP.md を参照してください。
+
+========================================
+
