@@ -1135,11 +1135,80 @@ EDITOR_TEMPLATE = r"""
                                 border-left: 3px solid #38a169 !important;
                                 box-shadow: 0 0 0 2px rgba(56, 161, 105, 0.2) !important;
                             }
+                            /* 要素識別バッジ（比較用） */
+                            .element-badge {
+                                display: inline-block !important;
+                                position: absolute !important;
+                                top: -8px !important;
+                                left: -8px !important;
+                                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+                                color: white !important;
+                                font-size: 10px !important;
+                                font-weight: 700 !important;
+                                padding: 2px 6px !important;
+                                border-radius: 4px !important;
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
+                                z-index: 1000 !important;
+                                pointer-events: none !important;
+                                white-space: nowrap !important;
+                                max-width: 200px !important;
+                                overflow: hidden !important;
+                                text-overflow: ellipsis !important;
+                            }
+                            .element-badge.tag {
+                                background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%) !important;
+                            }
+                            .element-badge.id {
+                                background: linear-gradient(135deg, #48bb78 0%, #38a169 100%) !important;
+                            }
+                            .element-badge.class {
+                                background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+                            }
+                            /* 要素に相対位置を設定 */
+                            label, input, select, textarea, button, div, span, p, h1, h2, h3, h4, h5, h6 {
+                                position: relative !important;
+                            }
+                            /* ツールチップスタイル */
+                            .element-tooltip {
+                                position: absolute !important;
+                                bottom: 100% !important;
+                                left: 0 !important;
+                                margin-bottom: 5px !important;
+                                background: rgba(0, 0, 0, 0.9) !important;
+                                color: white !important;
+                                padding: 6px 10px !important;
+                                border-radius: 4px !important;
+                                font-size: 11px !important;
+                                white-space: nowrap !important;
+                                z-index: 10000 !important;
+                                pointer-events: none !important;
+                                opacity: 0 !important;
+                                transition: opacity 0.2s ease !important;
+                                box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+                            }
+                            .element-tooltip::after {
+                                content: '' !important;
+                                position: absolute !important;
+                                top: 100% !important;
+                                left: 10px !important;
+                                border: 5px solid transparent !important;
+                                border-top-color: rgba(0, 0, 0, 0.9) !important;
+                            }
+                            label:hover .element-tooltip,
+                            input:hover .element-tooltip,
+                            select:hover .element-tooltip,
+                            textarea:hover .element-tooltip,
+                            button:hover .element-tooltip {
+                                opacity: 1 !important;
+                            }
                         `;
                         if (!previewDoc.head.querySelector('style[data-preview-highlight]')) {
                             style.setAttribute('data-preview-highlight', 'true');
                             previewDoc.head.appendChild(style);
                         }
+                        
+                        // プレビュー内の要素に識別情報を追加（比較用）
+                        addElementIdentifiers(previewDoc);
                         
                         // プレビュー更新後にハイライトを再適用
                         setTimeout(function() {
@@ -1151,6 +1220,63 @@ EDITOR_TEMPLATE = r"""
                     console.log('Preview styling: ' + e.message);
                 }
             };
+        }
+        
+        // プレビュー内の要素に識別情報を追加（比較用）
+        function addElementIdentifiers(previewDoc) {
+            if (!previewDoc || !previewDoc.body) return;
+            
+            // 識別対象の要素を取得（主要なフォーム要素と構造要素）
+            const elementsToIdentify = previewDoc.querySelectorAll('label, input, select, textarea, button, div[id], div[class], span[id], span[class], p[id], p[class], h1, h2, h3, h4, h5, h6');
+            
+            elementsToIdentify.forEach(function(element) {
+                // 既に識別情報が追加されている場合はスキップ
+                if (element.dataset.identifierAdded === 'true') return;
+                
+                const tagName = element.tagName.toLowerCase();
+                const id = element.id || '';
+                const className = element.className || '';
+                const classes = className ? className.split(/\s+/).filter(c => c && c !== 'element-badge' && c !== 'element-tooltip').slice(0, 3) : [];
+                
+                // 識別情報を収集
+                const identifiers = [];
+                
+                // タグ名
+                identifiers.push({ type: 'tag', value: tagName, label: tagName.toUpperCase() });
+                
+                // ID
+                if (id) {
+                    identifiers.push({ type: 'id', value: id, label: '#' + id });
+                }
+                
+                // クラス（最大3つまで）
+                if (classes.length > 0) {
+                    classes.forEach(cls => {
+                        identifiers.push({ type: 'class', value: cls, label: '.' + cls });
+                    });
+                }
+                
+                // 識別情報がある場合のみバッジを追加
+                if (identifiers.length > 0) {
+                    // 最初の識別情報をバッジとして表示
+                    const primaryIdentifier = identifiers[0];
+                    const badge = previewDoc.createElement('span');
+                    badge.className = 'element-badge ' + primaryIdentifier.type;
+                    badge.textContent = primaryIdentifier.label;
+                    badge.title = identifiers.map(i => i.label).join(' ');
+                    element.appendChild(badge);
+                    
+                    // すべての識別情報をツールチップとして表示
+                    if (identifiers.length > 1) {
+                        const tooltip = previewDoc.createElement('div');
+                        tooltip.className = 'element-tooltip';
+                        tooltip.textContent = identifiers.map(i => i.label).join(' ');
+                        element.appendChild(tooltip);
+                    }
+                    
+                    element.dataset.identifierAdded = 'true';
+                }
+            });
         }
         
         // プレビュー内の要素をハイライト
