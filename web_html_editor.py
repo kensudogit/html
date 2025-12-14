@@ -1076,6 +1076,9 @@ EDITOR_TEMPLATE = r"""
                             previewDoc.head.appendChild(style);
                         }
                         
+                        // プレビュー内の要素をリードオンリーのテキストボックスに変換
+                        convertElementsToReadOnlyInputs(previewDoc);
+                        
                         // プレビュー更新後にハイライトを再適用
                         setTimeout(function() {
                             highlightPreviewElement();
@@ -1086,6 +1089,138 @@ EDITOR_TEMPLATE = r"""
                     console.log('Preview styling: ' + e.message);
                 }
             };
+        }
+        
+        // プレビュー内の要素をリードオンリーのテキストボックスに変換
+        function convertElementsToReadOnlyInputs(previewDoc) {
+            if (!previewDoc || !previewDoc.body) return;
+            
+            // 変換対象の要素を取得
+            const elementsToConvert = previewDoc.querySelectorAll('label, input, select, textarea, button, a, span[class*="label"], div[class*="label"]');
+            
+            elementsToConvert.forEach(function(element) {
+                // 既に変換済みの場合はスキップ
+                if (element.dataset.convertedToInput === 'true') return;
+                
+                // 元の要素の情報を保存
+                const originalTag = element.tagName.toLowerCase();
+                const originalId = element.id || '';
+                const originalClass = element.className || '';
+                const originalText = element.textContent || element.value || '';
+                const originalFor = element.getAttribute('for') || '';
+                
+                // テキストボックスの値を決定
+                let inputValue = '';
+                if (originalTag === 'input' || originalTag === 'textarea') {
+                    inputValue = element.value || element.placeholder || '';
+                } else if (originalTag === 'select') {
+                    const selectedOption = element.options[element.selectedIndex];
+                    inputValue = selectedOption ? selectedOption.text : '';
+                } else {
+                    inputValue = originalText.trim() || element.getAttribute('title') || element.getAttribute('aria-label') || '';
+                }
+                
+                // ラベルの場合は、for属性の値も含める
+                if (originalTag === 'label' && originalFor) {
+                    const targetElement = previewDoc.getElementById(originalFor);
+                    if (targetElement) {
+                        inputValue = inputValue + ' (for: ' + originalFor + ')';
+                    }
+                }
+                
+                // テキストボックスを作成
+                const input = previewDoc.createElement('input');
+                input.type = 'text';
+                input.readOnly = true;
+                input.value = inputValue || '(空)';
+                input.className = 'preview-readonly-input ' + originalClass;
+                input.style.cssText = `
+                    width: 100%;
+                    padding: 8px 12px;
+                    margin: 4px 0;
+                    border: 2px solid #e2e8f0;
+                    border-radius: 4px;
+                    background-color: #f7fafc;
+                    color: #2d3748;
+                    font-size: 14px;
+                    font-family: inherit;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    box-sizing: border-box;
+                `;
+                
+                // 元の要素の属性を保持
+                if (originalId) {
+                    input.id = 'preview-input-' + originalId;
+                    input.dataset.originalId = originalId;
+                }
+                if (originalFor) {
+                    input.dataset.originalFor = originalFor;
+                }
+                input.dataset.originalTag = originalTag;
+                input.dataset.convertedToInput = 'true';
+                
+                // フォーカス時のスタイル
+                input.addEventListener('focus', function() {
+                    this.style.borderColor = '#667eea';
+                    this.style.backgroundColor = '#edf2f7';
+                    this.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
+                    
+                    // エディタ内の対応する要素をハイライト
+                    highlightEditorElement(originalId, originalFor, originalTag, originalClass);
+                });
+                
+                input.addEventListener('blur', function() {
+                    this.style.borderColor = '#e2e8f0';
+                    this.style.backgroundColor = '#f7fafc';
+                    this.style.boxShadow = 'none';
+                });
+                
+                // 元の要素を置き換え
+                if (element.parentNode) {
+                    element.parentNode.insertBefore(input, element);
+                    element.style.display = 'none';
+                    element.dataset.convertedToInput = 'true';
+                }
+            });
+        }
+        
+        // エディタ内の要素をハイライト
+        function highlightEditorElement(id, forAttr, tagName, className) {
+            const editor = getEditor();
+            if (!editor) return;
+            
+            const content = editor.value;
+            let searchPattern = '';
+            
+            // IDで検索
+            if (id) {
+                searchPattern = `id=["']${id}["']`;
+            } else if (forAttr) {
+                // for属性で検索
+                searchPattern = `for=["']${forAttr}["']`;
+            } else if (className) {
+                // クラスで検索
+                const classes = className.split(/\s+/).filter(c => c);
+                if (classes.length > 0) {
+                    searchPattern = `class=["'][^"']*${classes[0]}[^"']*["']`;
+                }
+            }
+            
+            if (searchPattern) {
+                const regex = new RegExp(searchPattern, 'i');
+                const match = content.match(regex);
+                if (match) {
+                    const position = match.index;
+                    // タグの開始位置を探す
+                    let tagStart = content.lastIndexOf('<', position);
+                    if (tagStart !== -1) {
+                        editor.focus();
+                        editor.setSelectionRange(tagStart, tagStart + 50);
+                        editor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }
+            }
         }
         
         // プレビュー内の要素をハイライト
