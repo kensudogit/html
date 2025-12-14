@@ -430,7 +430,12 @@ EDITOR_TEMPLATE = r"""
                 <textarea id="htmlEditor" class="editor" spellcheck="false" data-filename="{{ filename|e }}" data-has-content="{% if has_content %}true{% else %}false{% endif %}"></textarea>
             </div>
             <div class="editor-panel">
-                <div class="panel-header">👁️ プレビュー</div>
+                <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>👁️ プレビュー</span>
+                    <button class="btn btn-success" onclick="downloadPreview()" id="downloadPreviewBtn" style="font-size: 12px; padding: 6px 12px; margin-left: 10px;" title="プレビューをHTMLファイルとしてダウンロード">
+                        ⬇️ HTMLとして保存
+                    </button>
+                </div>
                 <iframe id="preview" class="preview" sandbox="allow-same-origin allow-scripts allow-forms allow-popups"></iframe>
             </div>
         </div>
@@ -875,6 +880,46 @@ EDITOR_TEMPLATE = r"""
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
                 showStatus('ファイルをダウンロードしました: ' + downloadFilename, 'success');
+            } catch (error) {
+                showStatus('ダウンロードエラー: ' + error.message, 'error');
+            }
+        };
+        
+        // プレビューをHTMLファイルとしてダウンロード
+        window.downloadPreview = function downloadPreview() {
+            const editor = getEditor();
+            if (!editor) {
+                showStatus('エディタが見つかりません', 'error');
+                return;
+            }
+            
+            const content = editor.value;
+            if (!content || content.trim() === '') {
+                showStatus('ダウンロードする内容がありません', 'error');
+                return;
+            }
+            
+            try {
+                // HTMLファイルとしてダウンロード
+                const blob = new Blob([content], { type: 'text/html;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                
+                // ファイル名を取得（現在のファイル名またはデフォルト名）
+                const currentFilename = window.editorFilename || '';
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+                const downloadFilename = currentFilename && currentFilename.trim() !== '' ? 
+                    currentFilename.replace(/\.html?$/i, '') + '_preview.html' : 
+                    'html_preview_' + timestamp + '.html';
+                
+                a.download = downloadFilename;
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showStatus('プレビューをHTMLファイルとしてダウンロードしました: ' + downloadFilename, 'success');
             } catch (error) {
                 showStatus('ダウンロードエラー: ' + error.message, 'error');
             }
