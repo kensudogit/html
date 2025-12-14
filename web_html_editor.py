@@ -612,13 +612,71 @@ EDITOR_TEMPLATE = r"""
                 '<link rel="stylesheet" href="$1"'
             );
             
-            // 相対パスのCSS/JS/画像を絶対URLに変換（オプション）
-            // 現在のページのベースURLを取得
-            const baseUrl = window.location.origin;
+            // 相対パスのCSS/JS/画像を絶対URLに変換
+            // Blob URLのコンテキストでは相対パスが解決されないため、絶対URLに変換する必要がある
+            const currentFilename = window.editorFilename || '';
+            let baseUrl = window.location.origin;
             
-            // 相対パスを絶対URLに変換（必要に応じて）
-            // content = content.replace(/href=["'](?!https?:\/\/)([^"']+)["']/gi, 'href="' + baseUrl + '/$1"');
-            // content = content.replace(/src=["'](?!https?:\/\/)([^"']+)["']/gi, 'src="' + baseUrl + '/$1"');
+            // ファイル名からベースパスを推測（相対パスの解決に使用）
+            // 例: ../common/css/style.css の場合、元のファイルのパスを基準に解決
+            if (currentFilename) {
+                // ファイル名からディレクトリパスを取得
+                const filePath = currentFilename.split('/');
+                filePath.pop(); // ファイル名を削除
+                const dirPath = filePath.join('/');
+                if (dirPath) {
+                    baseUrl = window.location.origin + '/' + dirPath;
+                }
+            }
+            
+            // 相対パス（../ で始まる、または / で始まらない、かつ http:// や https:// で始まらない）を絶対URLに変換
+            // href属性の相対パスを変換
+            content = content.replace(
+                /(<link[^>]*href=["'])(?!https?:\/\/|\/\/|data:)([^"']+)(["'][^>]*>)/gi,
+                function(match, prefix, path, suffix) {
+                    // 絶対URLやdata URIの場合はそのまま
+                    if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('//') || path.startsWith('data:')) {
+                        return match;
+                    }
+                    // 相対パスを絶対URLに変換
+                    let absolutePath = path;
+                    if (path.startsWith('../')) {
+                        // ../ で始まる場合は、ベースURLから相対的に解決
+                        // 簡易的な実装: ../ を削除してベースURLに追加
+                        absolutePath = baseUrl.replace(/\/[^\/]*$/, '') + '/' + path.replace(/^\.\.\//, '');
+                    } else if (path.startsWith('./')) {
+                        absolutePath = baseUrl + '/' + path.substring(2);
+                    } else if (!path.startsWith('/')) {
+                        absolutePath = baseUrl + '/' + path;
+                    } else {
+                        absolutePath = window.location.origin + path;
+                    }
+                    return prefix + absolutePath + suffix;
+                }
+            );
+            
+            // src属性の相対パスを変換
+            content = content.replace(
+                /(<(?:img|script|iframe)[^>]*src=["'])(?!https?:\/\/|\/\/|data:)([^"']+)(["'][^>]*>)/gi,
+                function(match, prefix, path, suffix) {
+                    // 絶対URLやdata URIの場合はそのまま
+                    if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('//') || path.startsWith('data:')) {
+                        return match;
+                    }
+                    // 相対パスを絶対URLに変換
+                    let absolutePath = path;
+                    if (path.startsWith('../')) {
+                        absolutePath = baseUrl.replace(/\/[^\/]*$/, '') + '/' + path.replace(/^\.\.\//, '');
+                    } else if (path.startsWith('./')) {
+                        absolutePath = baseUrl + '/' + path.substring(2);
+                    } else if (!path.startsWith('/')) {
+                        absolutePath = baseUrl + '/' + path;
+                    } else {
+                        absolutePath = window.location.origin + path;
+                    }
+                    return prefix + absolutePath + suffix;
+                }
+            );
             
             const blob = new Blob([content], { type: 'text/html;charset=utf-8' });
             const url = URL.createObjectURL(blob);
