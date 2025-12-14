@@ -694,75 +694,110 @@ EDITOR_TEMPLATE = r"""
             let content = editor.value;
             
             // CSSの読み込みを修正: rel="preload" を rel="stylesheet" に変換
-            // これにより、Blob URLのコンテキストでもCSSが正しく読み込まれる
+            // より包括的なパターンマッチングで、様々な属性の組み合わせに対応
             content = content.replace(
-                /<link\s+rel=["']preload["']\s+href=["']([^"']+)["']\s+as=["']style["']\s+onload=["']([^"']*)["']/gi,
-                '<link rel="stylesheet" href="$1"'
+                /<link\s+([^>]*)\s+rel=["']preload["']\s+([^>]*)\s+href=["']([^"']+)["']\s+([^>]*)\s+as=["']style["']\s*([^>]*)>/gi,
+                function(match, before, middle1, href, middle2, after) {
+                    // media属性がある場合は保持
+                    const mediaMatch = (before + middle1 + middle2 + after).match(/media=["']([^"']+)["']/i);
+                    const mediaAttr = mediaMatch ? ` media="${mediaMatch[1]}"` : '';
+                    return `<link rel="stylesheet" href="${href}"${mediaAttr}>`;
+                }
+            );
+            
+            // より単純なパターンも処理（属性の順序が異なる場合）
+            content = content.replace(
+                /<link\s+rel=["']preload["']\s+href=["']([^"']+)["']\s+as=["']style["']\s*[^>]*>/gi,
+                function(match, href) {
+                    // media属性を抽出
+                    const mediaMatch = match.match(/media=["']([^"']+)["']/i);
+                    const mediaAttr = mediaMatch ? ` media="${mediaMatch[1]}"` : '';
+                    return `<link rel="stylesheet" href="${href}"${mediaAttr}>`;
+                }
             );
             
             // 相対パスのCSS/JS/画像を絶対URLに変換
             // Blob URLのコンテキストでは相対パスが解決されないため、絶対URLに変換する必要がある
             const currentFilename = window.editorFilename || '';
             let baseUrl = window.location.origin;
+            let basePath = '';
             
             // ファイル名からベースパスを推測（相対パスの解決に使用）
-            // 例: ../common/css/style.css の場合、元のファイルのパスを基準に解決
             if (currentFilename) {
                 // ファイル名からディレクトリパスを取得
                 const filePath = currentFilename.split('/');
                 filePath.pop(); // ファイル名を削除
                 const dirPath = filePath.join('/');
                 if (dirPath) {
-                    baseUrl = window.location.origin + '/' + dirPath;
+                    basePath = '/' + dirPath;
+                    if (!basePath.endsWith('/')) {
+                        basePath += '/';
+                    }
+                    baseUrl = window.location.origin + basePath;
+                } else {
+                    basePath = '/';
+                }
+            } else {
+                basePath = '/';
+            }
+            
+            // 相対パスを絶対URLに変換するヘルパー関数
+            function resolvePath(path) {
+                // 絶対URLやdata URIの場合はそのまま
+                if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('//') || path.startsWith('data:')) {
+                    return path;
+                }
+                
+                // 相対パスを絶対URLに変換
+                if (path.startsWith('../')) {
+                    // ../ で始まる場合は、ベースパスから相対的に解決
+                    const pathParts = basePath.split('/').filter(p => p);
+                    const relativeParts = path.split('/').filter(p => p);
+                    
+                    for (const part of relativeParts) {
+                        if (part === '..') {
+                            if (pathParts.length > 0) {
+                                pathParts.pop();
+                            }
+                        } else if (part !== '.') {
+                            pathParts.push(part);
+                        }
+                    }
+                    
+                    return window.location.origin + '/' + pathParts.join('/');
+                } else if (path.startsWith('./')) {
+                    return window.location.origin + basePath + path.substring(2);
+                } else if (path.startsWith('/')) {
+                    return window.location.origin + path;
+                } else {
+                    return window.location.origin + basePath + path;
                 }
             }
             
-            // 相対パス（../ で始まる、または / で始まらない、かつ http:// や https:// で始まらない）を絶対URLに変換
-            // href属性の相対パスを変換
+            // href属性の相対パスを変換（linkタグ）
             content = content.replace(
-                /(<link[^>]*href=["'])(?!https?:\/\/|\/\/|data:)([^"']+)(["'][^>]*>)/gi,
+                /(<link[^>]*href=["'])([^"']+)(["'][^>]*>)/gi,
                 function(match, prefix, path, suffix) {
-                    // 絶対URLやdata URIの場合はそのまま
-                    if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('//') || path.startsWith('data:')) {
-                        return match;
-                    }
-                    // 相対パスを絶対URLに変換
-                    let absolutePath = path;
-                    if (path.startsWith('../')) {
-                        // ../ で始まる場合は、ベースURLから相対的に解決
-                        // 簡易的な実装: ../ を削除してベースURLに追加
-                        absolutePath = baseUrl.replace(/\/[^\/]*$/, '') + '/' + path.replace(/^\.\.\//, '');
-                    } else if (path.startsWith('./')) {
-                        absolutePath = baseUrl + '/' + path.substring(2);
-                    } else if (!path.startsWith('/')) {
-                        absolutePath = baseUrl + '/' + path;
-                    } else {
-                        absolutePath = window.location.origin + path;
-                    }
-                    return prefix + absolutePath + suffix;
+                    const resolvedPath = resolvePath(path);
+                    return prefix + resolvedPath + suffix;
                 }
             );
             
-            // src属性の相対パスを変換
+            // src属性の相対パスを変換（img, script, iframeタグ）
             content = content.replace(
-                /(<(?:img|script|iframe)[^>]*src=["'])(?!https?:\/\/|\/\/|data:)([^"']+)(["'][^>]*>)/gi,
+                /(<(?:img|script|iframe)[^>]*src=["'])([^"']+)(["'][^>]*>)/gi,
                 function(match, prefix, path, suffix) {
-                    // 絶対URLやdata URIの場合はそのまま
-                    if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('//') || path.startsWith('data:')) {
-                        return match;
-                    }
-                    // 相対パスを絶対URLに変換
-                    let absolutePath = path;
-                    if (path.startsWith('../')) {
-                        absolutePath = baseUrl.replace(/\/[^\/]*$/, '') + '/' + path.replace(/^\.\.\//, '');
-                    } else if (path.startsWith('./')) {
-                        absolutePath = baseUrl + '/' + path.substring(2);
-                    } else if (!path.startsWith('/')) {
-                        absolutePath = baseUrl + '/' + path;
-                    } else {
-                        absolutePath = window.location.origin + path;
-                    }
-                    return prefix + absolutePath + suffix;
+                    const resolvedPath = resolvePath(path);
+                    return prefix + resolvedPath + suffix;
+                }
+            );
+            
+            // CSSの@import内の相対パスも変換
+            content = content.replace(
+                /(@import\s+(?:url\()?["'])([^"']+)(["']\)?;)/gi,
+                function(match, prefix, path, suffix) {
+                    const resolvedPath = resolvePath(path);
+                    return prefix + resolvedPath + suffix;
                 }
             );
             

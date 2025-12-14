@@ -349,6 +349,52 @@ class HTMLEditor:
                 'column': 0
             })
         
+        # 属性値の引用符チェック
+        for line_num, line in enumerate(lines, 1):
+            # タグ内で引用符が閉じられていない場合を検出
+            # タグの開始から終了までを追跡
+            i = 0
+            while i < len(line):
+                if line[i] == '<' and (i == 0 or line[i-1] != '\\'):
+                    tag_start = i
+                    i += 1
+                    in_tag = True
+                    in_quote = False
+                    quote_char = None
+                    
+                    while i < len(line) and in_tag:
+                        char = line[i]
+                        if not in_quote:
+                            if char == '>':
+                                in_tag = False
+                            elif char in ['"', "'"]:
+                                in_quote = True
+                                quote_char = char
+                        else:
+                            if char == quote_char and (i == 0 or line[i-1] != '\\'):
+                                in_quote = False
+                                quote_char = None
+                        i += 1
+                    
+                    # タグが閉じられていない、または引用符が閉じられていない
+                    if in_tag or in_quote:
+                        if in_quote:
+                            errors.append({
+                                'type': 'error',
+                                'message': f'属性値の引用符が閉じられていません',
+                                'line': line_num,
+                                'column': tag_start
+                            })
+                        elif in_tag:
+                            errors.append({
+                                'type': 'error',
+                                'message': f'タグが正しく閉じられていません（引用符が閉じられていない可能性があります）',
+                                'line': line_num,
+                                'column': tag_start
+                            })
+                else:
+                    i += 1
+        
         # 閉じタグの基本的なチェック
         open_tags = []
         tag_pattern = re.compile(r'<(/?)([a-zA-Z][a-zA-Z0-9]*)[^>]*>')
@@ -398,8 +444,8 @@ class HTMLEditor:
         """BeautifulSoupでのパースエラーをチェック"""
         errors = []
         
+        # まずhtml.parserでチェック
         try:
-            # 警告をキャッチ
             with warnings.catch_warnings(record=True) as w:
                 warnings.simplefilter("always")
                 soup = BeautifulSoup(content, 'html.parser')
@@ -431,6 +477,31 @@ class HTMLEditor:
                 'line': 1,
                 'column': 0
             })
+        
+        # lxmlパーサーが利用可能な場合は、より厳密なチェックを実行
+        try:
+            from lxml import etree
+            from lxml.html import HTMLParser
+            
+            parser = HTMLParser(recover=False, encoding='utf-8')
+            try:
+                etree.fromstring(content.encode('utf-8'), parser=parser)
+            except etree.XMLSyntaxError as e:
+                # lxmlのエラーメッセージから行番号を取得
+                line_num = getattr(e, 'lineno', 1)
+                column = getattr(e, 'offset', 0)
+                errors.append({
+                    'type': 'error',
+                    'message': f'XML構文エラー: {str(e)}',
+                    'line': line_num,
+                    'column': column
+                })
+        except ImportError:
+            # lxmlがインストールされていない場合はスキップ
+            pass
+        except Exception as e:
+            # lxmlでのチェック中にエラーが発生した場合は無視（html.parserの結果を優先）
+            pass
         
         return errors
     
