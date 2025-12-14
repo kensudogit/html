@@ -417,6 +417,23 @@ EDITOR_TEMPLATE = r"""
             font-weight: 500;
             opacity: 0.7;
         }
+        /* プレビュー内の要素ハイライト */
+        .preview-highlight {
+            outline: 3px solid #667eea !important;
+            outline-offset: 2px !important;
+            background-color: rgba(102, 126, 234, 0.1) !important;
+            transition: all 0.2s ease !important;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.3) !important;
+            border-radius: 2px !important;
+        }
+        .preview-highlight-label {
+            outline: 3px solid #48bb78 !important;
+            outline-offset: 2px !important;
+            background-color: rgba(72, 187, 120, 0.15) !important;
+            transition: all 0.2s ease !important;
+            box-shadow: 0 0 0 2px rgba(72, 187, 120, 0.4) !important;
+            border-radius: 2px !important;
+        }
         .info-panel {
             background: white;
             border-radius: 8px;
@@ -832,6 +849,26 @@ EDITOR_TEMPLATE = r"""
                         }
                     }
                 });
+                
+                // カーソル位置に基づいてプレビュー内の要素をハイライト
+                let highlightTimeout;
+                function updatePreviewHighlight() {
+                    clearTimeout(highlightTimeout);
+                    highlightTimeout = setTimeout(function() {
+                        highlightPreviewElement();
+                    }, 150);
+                }
+                
+                editor.addEventListener('keyup', updatePreviewHighlight);
+                editor.addEventListener('mouseup', updatePreviewHighlight);
+                editor.addEventListener('click', updatePreviewHighlight);
+                
+                // 選択範囲変更時もハイライト更新
+                document.addEventListener('selectionchange', function() {
+                    if (document.activeElement === editor) {
+                        updatePreviewHighlight();
+                    }
+                });
             }
             
             // エディタのスクロールに合わせてハイライトもスクロール
@@ -1013,12 +1050,165 @@ EDITOR_TEMPLATE = r"""
                         if (!body.style.lineHeight) {
                             body.style.lineHeight = '1.6';
                         }
+                        
+                        // ハイライトスタイルを追加
+                        const style = previewDoc.createElement('style');
+                        style.textContent = `
+                            .preview-highlight {
+                                outline: 3px solid #667eea !important;
+                                outline-offset: 2px !important;
+                                background-color: rgba(102, 126, 234, 0.1) !important;
+                                transition: all 0.2s ease !important;
+                                box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.3) !important;
+                                border-radius: 2px !important;
+                            }
+                            .preview-highlight-label {
+                                outline: 3px solid #48bb78 !important;
+                                outline-offset: 2px !important;
+                                background-color: rgba(72, 187, 120, 0.15) !important;
+                                transition: all 0.2s ease !important;
+                                box-shadow: 0 0 0 2px rgba(72, 187, 120, 0.4) !important;
+                                border-radius: 2px !important;
+                            }
+                        `;
+                        if (!previewDoc.head.querySelector('style[data-preview-highlight]')) {
+                            style.setAttribute('data-preview-highlight', 'true');
+                            previewDoc.head.appendChild(style);
+                        }
+                        
+                        // プレビュー更新後にハイライトを再適用
+                        setTimeout(function() {
+                            highlightPreviewElement();
+                        }, 100);
                     }
                 } catch (e) {
                     // クロスオリジン制限などでアクセスできない場合は無視
                     console.log('Preview styling: ' + e.message);
                 }
             };
+        }
+        
+        // プレビュー内の要素をハイライト
+        function highlightPreviewElement() {
+            const editor = getEditor();
+            const preview = document.getElementById('preview');
+            if (!editor || !preview) return;
+            
+            try {
+                const previewDoc = preview.contentDocument || preview.contentWindow.document;
+                if (!previewDoc || !previewDoc.body) return;
+                
+                // 以前のハイライトを削除
+                const previousHighlights = previewDoc.querySelectorAll('.preview-highlight, .preview-highlight-label');
+                previousHighlights.forEach(el => {
+                    el.classList.remove('preview-highlight', 'preview-highlight-label');
+                });
+                
+                // エディタのカーソル位置を取得
+                const cursorPos = editor.selectionStart;
+                const content = editor.value;
+                
+                if (cursorPos < 0 || cursorPos > content.length) return;
+                
+                // カーソル位置周辺のHTMLタグを特定
+                let tagStart = -1;
+                let tagEnd = -1;
+                let tagName = '';
+                let isLabel = false;
+                
+                // カーソル位置から後方に検索（開始タグ）
+                for (let i = cursorPos; i >= 0; i--) {
+                    if (content[i] === '<' && i < content.length - 1) {
+                        // タグ名を抽出
+                        let j = i + 1;
+                        let tag = '';
+                        while (j < content.length && /[a-zA-Z0-9]/.test(content[j])) {
+                            tag += content[j];
+                            j++;
+                        }
+                        if (tag && !tag.startsWith('/') && !tag.startsWith('!')) {
+                            tagName = tag.toLowerCase();
+                            tagStart = i;
+                            tagEnd = content.indexOf('>', i);
+                            if (tagEnd === -1) break;
+                            tagEnd++;
+                            
+                            // labelタグかどうかを確認
+                            if (tagName === 'label') {
+                                isLabel = true;
+                            }
+                            break;
+                        }
+                    }
+                }
+                
+                if (tagStart === -1 || !tagName) return;
+                
+                // プレビュー内で対応する要素を検索
+                // ID、クラス、またはタグ名で要素を特定
+                const tagContent = content.substring(tagStart, tagEnd);
+                
+                // ID属性を抽出
+                const idMatch = tagContent.match(/id=["']([^"']+)["']/i);
+                const classMatch = tagContent.match(/class=["']([^"']+)["']/i);
+                const forMatch = tagContent.match(/for=["']([^"']+)["']/i);
+                
+                let targetElement = null;
+                
+                // IDで検索（最優先）
+                if (idMatch) {
+                    targetElement = previewDoc.getElementById(idMatch[1]);
+                }
+                
+                // for属性で検索（labelタグの場合）
+                if (!targetElement && isLabel && forMatch) {
+                    targetElement = previewDoc.querySelector(`label[for="${forMatch[1]}"]`);
+                    if (!targetElement) {
+                        const targetInput = previewDoc.getElementById(forMatch[1]);
+                        if (targetInput) {
+                            targetElement = targetInput;
+                        }
+                    }
+                }
+                
+                // クラスで検索
+                if (!targetElement && classMatch) {
+                    const classes = classMatch[1].split(/\s+/);
+                    const selector = '.' + classes.join('.');
+                    const elements = previewDoc.querySelectorAll(selector);
+                    if (elements.length > 0) {
+                        // カーソル位置に最も近い要素を選択
+                        targetElement = elements[0];
+                    }
+                }
+                
+                // タグ名で検索（最後の手段）
+                if (!targetElement) {
+                    const elements = previewDoc.querySelectorAll(tagName);
+                    if (elements.length > 0) {
+                        targetElement = elements[0];
+                    }
+                }
+                
+                // ハイライトを適用
+                if (targetElement) {
+                    if (isLabel || tagName === 'label') {
+                        targetElement.classList.add('preview-highlight-label');
+                    } else {
+                        targetElement.classList.add('preview-highlight');
+                    }
+                    
+                    // 要素が見えるようにスクロール
+                    targetElement.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center',
+                        inline: 'nearest'
+                    });
+                }
+            } catch (e) {
+                // クロスオリジン制限などでアクセスできない場合は無視
+                console.log('Preview highlight: ' + e.message);
+            }
         }
         
         // ボタンの表示を確認・強制表示
