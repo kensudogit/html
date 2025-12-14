@@ -200,15 +200,53 @@ EDITOR_TEMPLATE = r"""
             background: #e53e3e;
         }
         .editor-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
+            display: flex;
+            gap: 0;
             margin-bottom: 20px;
+            position: relative;
+            height: 600px;
         }
         @media (max-width: 1024px) {
             .editor-container {
-                grid-template-columns: 1fr;
+                flex-direction: column;
+                height: auto;
             }
+            .resizer {
+                display: none;
+            }
+        }
+        .resizer {
+            width: 8px;
+            background: #cbd5e0;
+            cursor: col-resize;
+            position: relative;
+            flex-shrink: 0;
+            z-index: 10;
+            transition: background 0.2s;
+        }
+        .resizer:hover {
+            background: #667eea;
+        }
+        .resizer::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #667eea;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .resizer:hover::before {
+            opacity: 1;
+        }
+        .resizer.resizing {
+            background: #667eea;
+        }
+        .resizer.resizing::before {
+            opacity: 1;
         }
         .editor-panel {
             background: white;
@@ -216,13 +254,47 @@ EDITOR_TEMPLATE = r"""
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             overflow: hidden;
             position: relative;
+            flex: 1;
+            min-width: 200px;
+            display: flex;
+            flex-direction: column;
+        }
+        .editor-panel:first-child {
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+        .editor-panel:last-child {
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
         }
         .panel-header {
-            background: #f7fafc;
-            padding: 15px;
-            border-bottom: 1px solid #e2e8f0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px 20px;
+            border-bottom: 2px solid #5568d3;
             font-weight: 600;
-            color: #2d3748;
+            color: white;
+            font-size: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .panel-header span {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+        }
+        #previewPanel .panel-header {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+            border-bottom: 3px solid #2f855a;
+            box-shadow: 0 4px 6px rgba(72, 187, 120, 0.2);
+        }
+        #previewPanel .panel-header span {
+            text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            font-size: 17px;
         }
         .editor-wrapper {
             position: relative;
@@ -290,8 +362,60 @@ EDITOR_TEMPLATE = r"""
         .preview {
             width: 100%;
             height: 600px;
-            border: none;
-            background: white;
+            border: 3px solid #e2e8f0;
+            border-top: none;
+            background: #ffffff;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.03), 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        .preview:hover {
+            border-color: #cbd5e0;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.15);
+        }
+        /* プレビューエリアのコンテナ */
+        #previewPanel {
+            position: relative;
+            overflow: hidden;
+        }
+        #previewPanel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #48bb78 0%, #38a169 100%);
+            z-index: 1;
+        }
+        #previewPanel::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            background: linear-gradient(to bottom, rgba(72, 187, 120, 0.03) 0%, transparent 20px);
+            z-index: 0;
+        }
+        /* プレビュー内のコンテンツを読みやすく */
+        #preview {
+            background: #ffffff;
+        }
+        /* プレビューが読み込み中の場合の表示 */
+        #preview:not([src]) {
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #preview:not([src])::before {
+            content: '👁️ プレビューがここに表示されます';
+            color: #718096;
+            font-size: 18px;
+            font-weight: 500;
+            opacity: 0.7;
         }
         .info-panel {
             background: white;
@@ -480,20 +604,18 @@ EDITOR_TEMPLATE = r"""
         <div id="status" class="status"></div>
         
         <div class="editor-container">
-            <div class="editor-panel">
-                <div class="panel-header">📄 HTMLソース</div>
+            <div class="editor-panel" id="editorPanel">
+                <div class="panel-header"><span>📄 HTMLソース</span></div>
                 <div class="editor-wrapper">
-                    <div class="editor-wrapper">
                     <textarea id="htmlEditor" class="editor" spellcheck="false" data-filename="{{ filename|e }}" data-has-content="{% if has_content %}true{% else %}false{% endif %}"></textarea>
                     <div id="editorHighlight" class="editor-highlight"></div>
                 </div>
-                    <div id="editorHighlight" class="editor-highlight"></div>
-                </div>
             </div>
-            <div class="editor-panel">
-                <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="resizer" id="resizer"></div>
+            <div class="editor-panel" id="previewPanel">
+                <div class="panel-header">
                     <span>👁️ プレビュー</span>
-                    <button class="btn btn-success" onclick="downloadPreview()" id="downloadPreviewBtn" style="font-size: 12px; padding: 6px 12px; margin-left: 10px;" title="プレビューをHTMLファイルとしてダウンロード">
+                    <button class="btn btn-success" onclick="downloadPreview()" id="downloadPreviewBtn" style="font-size: 12px; padding: 6px 12px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; font-weight: 600;" title="プレビューをHTMLファイルとしてダウンロード" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
                         ⬇️ HTMLとして保存
                     </button>
                 </div>
@@ -650,6 +772,53 @@ EDITOR_TEMPLATE = r"""
                     });
             }
             
+            // リサイザーの実装
+            const resizer = document.getElementById('resizer');
+            const editorPanel = document.getElementById('editorPanel');
+            const previewPanel = document.getElementById('previewPanel');
+            const editorContainer = document.querySelector('.editor-container');
+            
+            if (resizer && editorPanel && previewPanel && editorContainer) {
+                let isResizing = false;
+                let startX = 0;
+                let startEditorWidth = 0;
+                
+                resizer.addEventListener('mousedown', function(e) {
+                    isResizing = true;
+                    startX = e.clientX;
+                    startEditorWidth = editorPanel.offsetWidth;
+                    resizer.classList.add('resizing');
+                    document.body.style.cursor = 'col-resize';
+                    document.body.style.userSelect = 'none';
+                    e.preventDefault();
+                });
+                
+                document.addEventListener('mousemove', function(e) {
+                    if (!isResizing) return;
+                    
+                    const diff = e.clientX - startX;
+                    const containerWidth = editorContainer.offsetWidth;
+                    const resizerWidth = resizer.offsetWidth;
+                    const newEditorWidth = startEditorWidth + diff;
+                    const minWidth = 200;
+                    const maxWidth = containerWidth - resizerWidth - minWidth;
+                    
+                    if (newEditorWidth >= minWidth && newEditorWidth <= maxWidth) {
+                        editorPanel.style.flex = `0 0 ${newEditorWidth}px`;
+                        previewPanel.style.flex = '1 1 auto';
+                    }
+                });
+                
+                document.addEventListener('mouseup', function() {
+                    if (isResizing) {
+                        isResizing = false;
+                        resizer.classList.remove('resizing');
+                        document.body.style.cursor = '';
+                        document.body.style.userSelect = '';
+                    }
+                });
+            }
+            
             // エディタの変更をプレビューに反映
             if (editor && preview) {
                 editor.addEventListener('input', function() {
@@ -801,6 +970,19 @@ EDITOR_TEMPLATE = r"""
                 }
             );
             
+            // プレビュー内のコンテンツの視認性を向上させるため、基本スタイルを追加
+            // bodyタグにスタイルが指定されていない場合、デフォルトスタイルを追加
+            if (!content.match(/<body[^>]*style/i) && !content.match(/<style/i)) {
+                const styleTag = '<style>body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #2d3748; background: #ffffff; padding: 20px; }</style>';
+                if (content.includes('</head>')) {
+                    content = content.replace('</head>', styleTag + '</head>');
+                } else if (content.includes('<body')) {
+                    content = content.replace('<body', styleTag + '<body');
+                } else {
+                    content = styleTag + content;
+                }
+            }
+            
             const blob = new Blob([content], { type: 'text/html;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             
@@ -811,6 +993,32 @@ EDITOR_TEMPLATE = r"""
             preview.dataset.blobUrl = url;
             
             preview.src = url;
+            
+            // プレビューが読み込まれた際の視認性向上のための処理
+            preview.onload = function() {
+                try {
+                    const previewDoc = preview.contentDocument || preview.contentWindow.document;
+                    if (previewDoc && previewDoc.body) {
+                        // プレビュー内のテキストの視認性を向上
+                        const body = previewDoc.body;
+                        if (!body.style.color) {
+                            body.style.color = '#2d3748';
+                        }
+                        if (!body.style.backgroundColor) {
+                            body.style.backgroundColor = '#ffffff';
+                        }
+                        if (!body.style.fontFamily) {
+                            body.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+                        }
+                        if (!body.style.lineHeight) {
+                            body.style.lineHeight = '1.6';
+                        }
+                    }
+                } catch (e) {
+                    // クロスオリジン制限などでアクセスできない場合は無視
+                    console.log('Preview styling: ' + e.message);
+                }
+            };
         }
         
         // ボタンの表示を確認・強制表示
