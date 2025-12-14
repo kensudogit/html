@@ -215,6 +215,7 @@ EDITOR_TEMPLATE = r"""
             border-radius: 8px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             overflow: hidden;
+            position: relative;
         }
         .panel-header {
             background: #f7fafc;
@@ -222,6 +223,11 @@ EDITOR_TEMPLATE = r"""
             border-bottom: 1px solid #e2e8f0;
             font-weight: 600;
             color: #2d3748;
+        }
+        .editor-wrapper {
+            position: relative;
+            width: 100%;
+            height: 600px;
         }
         .editor {
             width: 100%;
@@ -234,6 +240,43 @@ EDITOR_TEMPLATE = r"""
             resize: vertical;
             background: #1e1e1e;
             color: #d4d4d4;
+            position: relative;
+            z-index: 1;
+        }
+        .editor-highlight {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 2;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            padding: 15px;
+            box-sizing: border-box;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow: hidden;
+            color: transparent;
+        }
+        .highlight-mark {
+            background-color: rgba(255, 255, 0, 0.4);
+            border-radius: 2px;
+            position: absolute;
+            pointer-events: none;
+            animation: highlightBlink 1.5s ease-in-out infinite;
+        }
+        @keyframes highlightBlink {
+            0%, 100% {
+                background-color: rgba(255, 255, 0, 0.4);
+                opacity: 1;
+            }
+            50% {
+                background-color: rgba(255, 255, 0, 0.8);
+                opacity: 0.8;
+            }
         }
         .preview {
             width: 100%;
@@ -430,7 +473,13 @@ EDITOR_TEMPLATE = r"""
         <div class="editor-container">
             <div class="editor-panel">
                 <div class="panel-header">📄 HTMLソース</div>
-                <textarea id="htmlEditor" class="editor" spellcheck="false" data-filename="{{ filename|e }}" data-has-content="{% if has_content %}true{% else %}false{% endif %}"></textarea>
+                <div class="editor-wrapper">
+                    <div class="editor-wrapper">
+                    <textarea id="htmlEditor" class="editor" spellcheck="false" data-filename="{{ filename|e }}" data-has-content="{% if has_content %}true{% else %}false{% endif %}"></textarea>
+                    <div id="editorHighlight" class="editor-highlight"></div>
+                </div>
+                    <div id="editorHighlight" class="editor-highlight"></div>
+                </div>
             </div>
             <div class="editor-panel">
                 <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
@@ -596,7 +645,27 @@ EDITOR_TEMPLATE = r"""
             if (editor && preview) {
                 editor.addEventListener('input', function() {
                     updatePreview();
+                    // 検索結果がある場合はハイライトを更新
+                    if (window.searchMatches && window.searchMatches.length > 0) {
+                        const query = document.getElementById('searchBox')?.value.trim();
+                        if (query) {
+                            window.searchMatches = highlightInSource(query);
+                            highlightAllMatches(window.searchMatches);
+                        }
+                    }
                 });
+            }
+            
+            // エディタのスクロールに合わせてハイライトもスクロール
+            if (editor) {
+                const highlightDiv = document.getElementById('editorHighlight');
+                if (highlightDiv) {
+                    function syncHighlightScroll() {
+                        highlightDiv.scrollTop = editor.scrollTop;
+                        highlightDiv.scrollLeft = editor.scrollLeft;
+                    }
+                    editor.addEventListener('scroll', syncHighlightScroll);
+                }
             }
         });
         
@@ -875,6 +944,83 @@ EDITOR_TEMPLATE = r"""
             return matches;
         }
         
+        // すべての検索結果をハイライト表示
+        function highlightAllMatches(matches) {
+            const editor = getEditor();
+            const highlightDiv = document.getElementById('editorHighlight');
+            if (!editor || !highlightDiv) return;
+            
+            // ハイライトをクリア
+            highlightDiv.innerHTML = '';
+            
+            if (matches.length === 0) return;
+            
+            const content = editor.value;
+            const lineHeight = parseFloat(getComputedStyle(editor).lineHeight) || 1.6 * 14;
+            const padding = 15;
+            const fontSize = parseFloat(getComputedStyle(editor).fontSize) || 14;
+            const fontFamily = getComputedStyle(editor).fontFamily;
+            
+            // 各行の開始位置を計算
+            const lines = content.split('\n');
+            const lineStarts = [];
+            let pos = 0;
+            for (let i = 0; i < lines.length; i++) {
+                lineStarts.push(pos);
+                pos += lines[i].length + 1; // +1 for newline
+            }
+            
+            // テキストの幅を計算するためのcanvas
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            context.font = fontSize + 'px ' + fontFamily;
+            
+            // 各マッチをハイライト
+            matches.forEach(match => {
+                // マッチが含まれる行を特定
+                let lineIndex = 0;
+                for (let i = 0; i < lineStarts.length; i++) {
+                    if (match.start >= lineStarts[i]) {
+                        lineIndex = i;
+                    } else {
+                        break;
+                    }
+                }
+                
+                // 行内での位置を計算
+                const lineStart = lineStarts[lineIndex];
+                const lineText = lines[lineIndex];
+                const matchInLineStart = match.start - lineStart;
+                const matchInLineEnd = Math.min(match.end - lineStart, lineText.length);
+                
+                // テキストの幅を計算
+                const textBeforeMatch = lineText.substring(0, matchInLineStart);
+                const matchText = lineText.substring(matchInLineStart, matchInLineEnd);
+                const textWidth = context.measureText(textBeforeMatch).width;
+                const matchWidth = context.measureText(matchText).width;
+                
+                // ハイライトマークを作成
+                const mark = document.createElement('span');
+                mark.className = 'highlight-mark';
+                mark.style.top = (lineIndex * lineHeight + padding) + 'px';
+                mark.style.left = (textWidth + padding) + 'px';
+                mark.style.width = matchWidth + 'px';
+                mark.style.height = lineHeight + 'px';
+                highlightDiv.appendChild(mark);
+            });
+            
+            // textareaのスクロールに合わせてハイライトもスクロール
+            function syncScroll() {
+                highlightDiv.scrollTop = editor.scrollTop;
+                highlightDiv.scrollLeft = editor.scrollLeft;
+            }
+            
+            // 既存のイベントリスナーを削除してから追加
+            editor.removeEventListener('scroll', syncScroll);
+            editor.addEventListener('scroll', syncScroll);
+            syncScroll();
+        }
+        
         // 指定された位置をハイライト表示
         function highlightAtPosition(start, end) {
             const editor = getEditor();
@@ -940,13 +1086,16 @@ EDITOR_TEMPLATE = r"""
             window.searchMatches = highlightInSource(query);
             window.currentMatchIndex = -1;
             
+            // すべての検索結果をハイライト表示
+            highlightAllMatches(window.searchMatches);
+            
             // 検索結果ボタンの表示/非表示
             const nextBtn = document.getElementById('nextMatchBtn');
             const prevBtn = document.getElementById('prevMatchBtn');
             if (window.searchMatches.length > 0) {
                 nextBtn.style.display = 'inline-block';
                 prevBtn.style.display = 'inline-block';
-                // 最初の結果をハイライト
+                // 最初の結果を選択
                 window.currentMatchIndex = 0;
                 highlightAtPosition(window.searchMatches[0].start, window.searchMatches[0].end);
                 updateMatchCounter();
