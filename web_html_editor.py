@@ -410,8 +410,11 @@ EDITOR_TEMPLATE = r"""
             <button class="btn btn-info" onclick="showStructure()" id="structureBtn" {% if not filename %}disabled{% endif %}>📊 構造情報</button>
             <button class="btn btn-warning" onclick="validateHTML()" id="validateBtn" {% if not filename %}disabled{% endif %}>⚠️ 構文チェック</button>
             <button class="btn btn-info" onclick="showSearch()" id="searchBtn" {% if not filename %}disabled{% endif %}>🔍 検索・置換</button>
-            <input type="text" id="searchBox" class="search-box" placeholder="ID、クラス、タグで検索..." onkeypress="if(event.key==='Enter') searchElement()" {% if not filename %}disabled{% endif %}>
+            <input type="text" id="searchBox" class="search-box" placeholder="ID、クラス、タグ、テキストで検索..." onkeypress="if(event.key==='Enter') searchElement()" {% if not filename %}disabled{% endif %}>
             <button class="btn btn-info" onclick="searchElement()" id="searchElementBtn" {% if not filename %}disabled{% endif %}>検索</button>
+            <button class="btn btn-info" onclick="highlightNext()" id="nextMatchBtn" style="display: none;" title="次の検索結果へ">▼</button>
+            <button class="btn btn-info" onclick="highlightPrevious()" id="prevMatchBtn" style="display: none;" title="前の検索結果へ">▲</button>
+            <span id="matchCounter" style="display: none; margin-left: 10px; color: #666;"></span>
         </div>
         
         <div id="errorPanel" style="display: none; background: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; padding: 15px; margin-bottom: 20px;">
@@ -843,12 +846,114 @@ EDITOR_TEMPLATE = r"""
             }
         }
         
+        // 検索結果を保存するグローバル変数
+        window.searchMatches = [];
+        window.currentMatchIndex = -1;
+        
+        // HTMLソース内で検索文字列をハイライト表示
+        function highlightInSource(query) {
+            const editor = getEditor();
+            if (!editor) return [];
+            
+            const content = editor.value;
+            if (!content || !query) return [];
+            
+            // 検索文字列をエスケープ（正規表現の特殊文字を処理）
+            const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(escapedQuery, 'gi');
+            const matches = [];
+            let match;
+            
+            while ((match = regex.exec(content)) !== null) {
+                matches.push({
+                    start: match.index,
+                    end: match.index + match[0].length,
+                    text: match[0]
+                });
+            }
+            
+            return matches;
+        }
+        
+        // 指定された位置をハイライト表示
+        function highlightAtPosition(start, end) {
+            const editor = getEditor();
+            if (!editor) return;
+            
+            // textareaで選択範囲を設定
+            editor.focus();
+            editor.setSelectionRange(start, end);
+            
+            // 該当箇所にスクロール
+            const lineHeight = 20; // おおよその行の高さ
+            const linesBefore = editor.value.substring(0, start).split('\n').length - 1;
+            const scrollTop = linesBefore * lineHeight;
+            editor.scrollTop = Math.max(0, scrollTop - 100); // 少し上に余白を持たせる
+        }
+        
+        // 次の検索結果へ移動
+        window.highlightNext = function highlightNext() {
+            if (window.searchMatches.length === 0) return;
+            
+            window.currentMatchIndex = (window.currentMatchIndex + 1) % window.searchMatches.length;
+            const match = window.searchMatches[window.currentMatchIndex];
+            highlightAtPosition(match.start, match.end);
+            updateMatchCounter();
+        };
+        
+        // 前の検索結果へ移動
+        window.highlightPrevious = function highlightPrevious() {
+            if (window.searchMatches.length === 0) return;
+            
+            window.currentMatchIndex = (window.currentMatchIndex - 1 + window.searchMatches.length) % window.searchMatches.length;
+            const match = window.searchMatches[window.currentMatchIndex];
+            highlightAtPosition(match.start, match.end);
+            updateMatchCounter();
+        };
+        
+        // 検索結果カウンターを更新
+        function updateMatchCounter() {
+            const counter = document.getElementById('matchCounter');
+            if (window.searchMatches.length > 0) {
+                counter.textContent = `${window.currentMatchIndex + 1} / ${window.searchMatches.length}`;
+                counter.style.display = 'inline';
+            } else {
+                counter.style.display = 'none';
+            }
+        }
+        
         // 要素を検索
         async function searchElement() {
+            const editor = getEditor();
+            if (!editor) {
+                showStatus('エディタが見つかりません', 'error');
+                return;
+            }
+            
             const query = document.getElementById('searchBox').value.trim();
             if (!query) {
                 showStatus('検索文字列を入力してください', 'error');
                 return;
+            }
+            
+            // HTMLソース内で検索文字列をハイライト
+            window.searchMatches = highlightInSource(query);
+            window.currentMatchIndex = -1;
+            
+            // 検索結果ボタンの表示/非表示
+            const nextBtn = document.getElementById('nextMatchBtn');
+            const prevBtn = document.getElementById('prevMatchBtn');
+            if (window.searchMatches.length > 0) {
+                nextBtn.style.display = 'inline-block';
+                prevBtn.style.display = 'inline-block';
+                // 最初の結果をハイライト
+                window.currentMatchIndex = 0;
+                highlightAtPosition(window.searchMatches[0].start, window.searchMatches[0].end);
+                updateMatchCounter();
+            } else {
+                nextBtn.style.display = 'none';
+                prevBtn.style.display = 'none';
+                document.getElementById('matchCounter').style.display = 'none';
             }
             
             try {
@@ -862,7 +967,7 @@ EDITOR_TEMPLATE = r"""
                 
                 const data = await response.json();
                 if (data.success) {
-                    if (data.results.length > 0) {
+                    if (data.results.length > 0 || window.searchMatches.length > 0) {
                         // 検索結果をタイプ別に分類
                         const byType = {
                             'id': [],
@@ -877,7 +982,15 @@ EDITOR_TEMPLATE = r"""
                             }
                         });
                         
-                        let message = `検索結果: ${data.results.length}個見つかりました\n`;
+                        let message = `検索結果: `;
+                        if (window.searchMatches.length > 0) {
+                            message += `ソース内に${window.searchMatches.length}箇所 `;
+                        }
+                        if (data.results.length > 0) {
+                            message += `要素${data.results.length}個 `;
+                        }
+                        message += `見つかりました\n`;
+                        
                         if (byType.id.length > 0) {
                             message += `ID: ${byType.id.length}個 `;
                         }
@@ -889,9 +1002,6 @@ EDITOR_TEMPLATE = r"""
                         }
                         if (byType.text.length > 0) {
                             message += `テキスト: ${byType.text.length}個 `;
-                        }
-                        if (byType.source.length > 0) {
-                            message += `ソース: ${byType.source[0].count || byType.source.length}箇所 `;
                         }
                         
                         // 詳細情報を表示（最初の5個まで）
