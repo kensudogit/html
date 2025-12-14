@@ -863,8 +863,49 @@ EDITOR_TEMPLATE = r"""
                 const data = await response.json();
                 if (data.success) {
                     if (data.results.length > 0) {
-                        let message = `${data.results.length}個の要素が見つかりました: `;
-                        message += data.results.map(r => r.tag + (r.id ? '#' + r.id : '') + (r.class ? '.' + r.class : '')).join(', ');
+                        // 検索結果をタイプ別に分類
+                        const byType = {
+                            'id': [],
+                            'class': [],
+                            'tag': [],
+                            'text': [],
+                            'source': []
+                        };
+                        data.results.forEach(r => {
+                            if (byType[r.type]) {
+                                byType[r.type].push(r);
+                            }
+                        });
+                        
+                        let message = `検索結果: ${data.results.length}個見つかりました\n`;
+                        if (byType.id.length > 0) {
+                            message += `ID: ${byType.id.length}個 `;
+                        }
+                        if (byType.class.length > 0) {
+                            message += `クラス: ${byType.class.length}個 `;
+                        }
+                        if (byType.tag.length > 0) {
+                            message += `タグ: ${byType.tag.length}個 `;
+                        }
+                        if (byType.text.length > 0) {
+                            message += `テキスト: ${byType.text.length}個 `;
+                        }
+                        if (byType.source.length > 0) {
+                            message += `ソース: ${byType.source[0].count || byType.source.length}箇所 `;
+                        }
+                        
+                        // 詳細情報を表示（最初の5個まで）
+                        const preview = data.results.slice(0, 5).map(r => {
+                            let info = r.tag;
+                            if (r.id) info += '#' + r.id;
+                            if (r.class) info += '.' + r.class.split(' ')[0];
+                            if (r.text) info += ' (' + r.text + ')';
+                            return info;
+                        }).join(', ');
+                        if (preview) {
+                            message += '\n' + preview;
+                        }
+                        
                         showStatus(message, 'success');
                     } else {
                         showStatus('要素が見つかりませんでした', 'error');
@@ -1472,7 +1513,9 @@ def search():
             results.append({
                 'tag': element.name,
                 'id': element.get('id', ''),
-                'class': ' '.join(element.get('class', []))
+                'class': ' '.join(element.get('class', [])),
+                'type': 'id',
+                'text': element.get_text(strip=True)[:50]  # 最初の50文字
             })
         
         # クラスで検索
@@ -1481,7 +1524,9 @@ def search():
             results.append({
                 'tag': elem.name,
                 'id': elem.get('id', ''),
-                'class': ' '.join(elem.get('class', []))
+                'class': ' '.join(elem.get('class', [])),
+                'type': 'class',
+                'text': elem.get_text(strip=True)[:50]  # 最初の50文字
             })
         
         # タグで検索
@@ -1490,8 +1535,33 @@ def search():
             results.append({
                 'tag': elem.name,
                 'id': elem.get('id', ''),
-                'class': ' '.join(elem.get('class', []))
+                'class': ' '.join(elem.get('class', [])),
+                'type': 'tag',
+                'text': elem.get_text(strip=True)[:50]  # 最初の50文字
             })
+        
+        # テキスト内容で検索（部分一致）
+        try:
+            text_elements = html_editor.find_by_text(query, exact=False)
+            for text_node in text_elements[:10]:  # 最初の10個のみ
+                # テキストノードの親要素を取得
+                parent = text_node.parent if hasattr(text_node, 'parent') else None
+                if parent:
+                    results.append({
+                        'tag': parent.name,
+                        'id': parent.get('id', ''),
+                        'class': ' '.join(parent.get('class', [])),
+                        'type': 'text',
+                        'text': text_node.strip()[:50] if isinstance(text_node, str) else str(text_node)[:50]
+                    })
+        except Exception as e:
+            # テキスト検索でエラーが発生した場合は無視
+            pass
+        
+        # HTMLソースコード全体で検索（エディタの内容を検索）
+        # クライアント側から送られてくるHTMLソースを検索するため、
+        # この検索はクライアント側で行う方が効率的
+        # サーバー側では、BeautifulSoupで解析されたHTMLのみを検索
         
         return jsonify({'success': True, 'results': results})
     except Exception as e:
