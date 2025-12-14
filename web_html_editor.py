@@ -1051,7 +1051,7 @@ EDITOR_TEMPLATE = r"""
                             body.style.lineHeight = '1.6';
                         }
                         
-                        // ハイライトスタイルを追加
+                        // ハイライトスタイルとラベル視認性向上スタイルを追加
                         const style = previewDoc.createElement('style');
                         style.textContent = `
                             .preview-highlight {
@@ -1069,6 +1069,71 @@ EDITOR_TEMPLATE = r"""
                                 transition: all 0.2s ease !important;
                                 box-shadow: 0 0 0 2px rgba(72, 187, 120, 0.4) !important;
                                 border-radius: 2px !important;
+                            }
+                            /* ラベル要素の視認性向上 */
+                            label {
+                                display: inline-block !important;
+                                padding: 8px 12px !important;
+                                margin: 4px 2px !important;
+                                background: linear-gradient(135deg, #e6fffa 0%, #b2f5ea 100%) !important;
+                                border: 2px solid #38a169 !important;
+                                border-radius: 6px !important;
+                                color: #22543d !important;
+                                font-weight: 600 !important;
+                                font-size: 14px !important;
+                                line-height: 1.5 !important;
+                                box-shadow: 0 2px 4px rgba(56, 161, 105, 0.2) !important;
+                                transition: all 0.2s ease !important;
+                                cursor: pointer !important;
+                                min-height: 36px !important;
+                                vertical-align: middle !important;
+                            }
+                            label:hover {
+                                background: linear-gradient(135deg, #b2f5ea 0%, #81e6d9 100%) !important;
+                                border-color: #2f855a !important;
+                                box-shadow: 0 4px 8px rgba(56, 161, 105, 0.3) !important;
+                                transform: translateY(-1px) !important;
+                            }
+                            label:focus-within {
+                                background: linear-gradient(135deg, #81e6d9 0%, #4fd1c7 100%) !important;
+                                border-color: #2c7a7b !important;
+                                box-shadow: 0 0 0 3px rgba(56, 161, 105, 0.2) !important;
+                            }
+                            /* ラベル内のinput要素のスタイル */
+                            label input[type="radio"],
+                            label input[type="checkbox"] {
+                                margin-right: 6px !important;
+                                margin-left: 0 !important;
+                                width: 18px !important;
+                                height: 18px !important;
+                                cursor: pointer !important;
+                                accent-color: #38a169 !important;
+                            }
+                            label input[type="text"],
+                            label input[type="email"],
+                            label input[type="password"],
+                            label input[type="number"],
+                            label select,
+                            label textarea {
+                                margin-left: 8px !important;
+                                padding: 6px 10px !important;
+                                border: 1px solid #cbd5e0 !important;
+                                border-radius: 4px !important;
+                                font-size: 14px !important;
+                            }
+                            /* ラベルと関連要素の視覚的接続 */
+                            label + input:not([type="radio"]):not([type="checkbox"]),
+                            label + select,
+                            label + textarea {
+                                margin-top: 4px !important;
+                                border-left: 3px solid #38a169 !important;
+                            }
+                            /* for属性で接続された要素のスタイル */
+                            input[id]:focus,
+                            select[id]:focus,
+                            textarea[id]:focus {
+                                border-left: 3px solid #38a169 !important;
+                                box-shadow: 0 0 0 2px rgba(56, 161, 105, 0.2) !important;
                             }
                         `;
                         if (!previewDoc.head.querySelector('style[data-preview-highlight]')) {
