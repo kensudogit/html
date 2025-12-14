@@ -258,8 +258,17 @@ EDITOR_TEMPLATE = r"""
             box-sizing: border-box;
             white-space: pre-wrap;
             word-wrap: break-word;
-            overflow: hidden;
+            overflow: auto;
             color: transparent;
+            /* textareaと同じスタイルを維持 */
+            border: none;
+            resize: none;
+            /* スクロールバーを非表示（textareaのスクロールバーと重ならないように） */
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE/Edge */
+        }
+        .editor-highlight::-webkit-scrollbar {
+            display: none; /* Chrome/Safari */
         }
         .highlight-mark {
             background-color: rgba(255, 255, 0, 0.4);
@@ -660,11 +669,18 @@ EDITOR_TEMPLATE = r"""
             if (editor) {
                 const highlightDiv = document.getElementById('editorHighlight');
                 if (highlightDiv) {
-                    function syncHighlightScroll() {
-                        highlightDiv.scrollTop = editor.scrollTop;
-                        highlightDiv.scrollLeft = editor.scrollLeft;
+                    // グローバル関数を使用
+                    if (!window.syncHighlightScroll) {
+                        window.syncHighlightScroll = function() {
+                            const ed = getEditor();
+                            const hd = document.getElementById('editorHighlight');
+                            if (hd && ed) {
+                                hd.scrollTop = ed.scrollTop;
+                                hd.scrollLeft = ed.scrollLeft;
+                            }
+                        };
                     }
-                    editor.addEventListener('scroll', syncHighlightScroll);
+                    editor.addEventListener('scroll', window.syncHighlightScroll, { passive: true });
                 }
             }
         });
@@ -956,10 +972,24 @@ EDITOR_TEMPLATE = r"""
             if (matches.length === 0) return;
             
             const content = editor.value;
-            const lineHeight = parseFloat(getComputedStyle(editor).lineHeight) || 1.6 * 14;
-            const padding = 15;
-            const fontSize = parseFloat(getComputedStyle(editor).fontSize) || 14;
-            const fontFamily = getComputedStyle(editor).fontFamily;
+            
+            // textareaの実際のスタイルを取得
+            const editorStyle = window.getComputedStyle(editor);
+            const lineHeight = parseFloat(editorStyle.lineHeight) || parseFloat(editorStyle.fontSize) * 1.6;
+            const paddingTop = parseFloat(editorStyle.paddingTop) || 15;
+            const paddingLeft = parseFloat(editorStyle.paddingLeft) || 15;
+            const fontSize = parseFloat(editorStyle.fontSize) || 14;
+            const fontFamily = editorStyle.fontFamily;
+            
+            // ハイライトdivのスタイルをtextareaと完全に一致させる
+            highlightDiv.style.fontSize = editorStyle.fontSize;
+            highlightDiv.style.fontFamily = editorStyle.fontFamily;
+            highlightDiv.style.lineHeight = editorStyle.lineHeight;
+            highlightDiv.style.padding = editorStyle.padding;
+            highlightDiv.style.paddingTop = editorStyle.paddingTop;
+            highlightDiv.style.paddingLeft = editorStyle.paddingLeft;
+            highlightDiv.style.paddingRight = editorStyle.paddingRight;
+            highlightDiv.style.paddingBottom = editorStyle.paddingBottom;
             
             // 各行の開始位置を計算
             const lines = content.split('\n');
@@ -1002,23 +1032,41 @@ EDITOR_TEMPLATE = r"""
                 // ハイライトマークを作成
                 const mark = document.createElement('span');
                 mark.className = 'highlight-mark';
-                mark.style.top = (lineIndex * lineHeight + padding) + 'px';
-                mark.style.left = (textWidth + padding) + 'px';
+                mark.style.top = (lineIndex * lineHeight + paddingTop) + 'px';
+                mark.style.left = (textWidth + paddingLeft) + 'px';
                 mark.style.width = matchWidth + 'px';
                 mark.style.height = lineHeight + 'px';
                 highlightDiv.appendChild(mark);
             });
             
             // textareaのスクロールに合わせてハイライトもスクロール
-            function syncScroll() {
-                highlightDiv.scrollTop = editor.scrollTop;
-                highlightDiv.scrollLeft = editor.scrollLeft;
+            // グローバルに保存して、他の場所からもアクセス可能にする
+            if (!window.syncHighlightScroll) {
+                window.syncHighlightScroll = function() {
+                    const ed = getEditor();
+                    const hd = document.getElementById('editorHighlight');
+                    if (hd && ed) {
+                        // requestAnimationFrameを使用してスムーズに同期
+                        requestAnimationFrame(function() {
+                            hd.scrollTop = ed.scrollTop;
+                            hd.scrollLeft = ed.scrollLeft;
+                        });
+                    }
+                };
             }
             
             // 既存のイベントリスナーを削除してから追加
-            editor.removeEventListener('scroll', syncScroll);
-            editor.addEventListener('scroll', syncScroll);
-            syncScroll();
+            if (window.syncHighlightScrollHandler) {
+                editor.removeEventListener('scroll', window.syncHighlightScrollHandler);
+            }
+            window.syncHighlightScrollHandler = window.syncHighlightScroll;
+            editor.addEventListener('scroll', window.syncHighlightScrollHandler, { passive: true });
+            
+            // 初期同期
+            requestAnimationFrame(function() {
+                highlightDiv.scrollTop = editor.scrollTop;
+                highlightDiv.scrollLeft = editor.scrollLeft;
+            });
         }
         
         // 指定された位置をハイライト表示
