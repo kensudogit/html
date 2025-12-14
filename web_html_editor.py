@@ -1650,6 +1650,24 @@ EDITOR_TEMPLATE = r"""
                     saveFile();
                 }
             }
+            
+            // 上下矢印キーで検索結果を移動
+            // 検索結果が存在し、検索ボックス以外にフォーカスがある場合のみ処理
+            if (window.searchMatches && window.searchMatches.length > 0) {
+                const searchBox = document.getElementById('searchBox');
+                const activeElement = document.activeElement;
+                
+                // 検索ボックスにフォーカスがない場合のみ処理
+                if (activeElement !== searchBox) {
+                    if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        highlightNext();
+                    } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        highlightPrevious();
+                    }
+                }
+            }
         });
     </script>
 </body>
