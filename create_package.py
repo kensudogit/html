@@ -5,6 +5,9 @@ HTMLエディタ パッケージ作成スクリプト
 他のPCにコピーして使用できるパッケージを作成します。
 """
 
+# このファイルは、`C:\\devlop\\html` を配布用フォルダ（`html_editor_package`）にまとめるためのツールです。
+# 依存ファイルをコピーし、不要物を除外して「他PCでも動く」一式を作成します。
+
 import os
 import shutil
 import sys

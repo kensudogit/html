@@ -5,6 +5,9 @@ WebベースHTMLエディタ
 ブラウザ上でHTMLファイルを編集できるWebアプリケーション
 """
 
+# このファイルは、FlaskでHTML編集UIを提供するメインアプリです。
+# 主要機能: アップロード/保存/検索/構文チェック/プレビュー表示（iframe+Blob URL）
+
 import os
 import sys
 import argparse

@@ -5,6 +5,9 @@ HTML構文解析・編集ツール
 BeautifulSoupを使用してHTMLファイルを解析・編集するプログラム
 """
 
+# このファイルは、HTMLを解析/検索/検証するための中核ロジック（`HTMLEditor`）を提供します。
+# Web版（`web_html_editor.py`）やCLIツールから読み込まれ、HTML構造解析や検索、簡易バリデーションを行います。
+
 from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning
 from pathlib import Path
 import re

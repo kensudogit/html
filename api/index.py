@@ -4,6 +4,9 @@ import tempfile
 import traceback
 from pathlib import Path
 
+# このファイルは、Vercel(Serverless)上でFlaskアプリを起動するためのエントリポイントです。
+# デプロイ環境のパスや一時ディレクトリ(/tmp)を先に設定してから、`web_html_editor.py` の `app` を読み込みます。
+
 # 環境変数を最初に設定（Vercel環境であることを示す）
 os.environ['VERCEL'] = '1'
 
