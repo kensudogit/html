@@ -606,6 +606,7 @@ EDITOR_TEMPLATE = r"""
             <button class="btn btn-info" onclick="showStructure()" id="structureBtn" {% if not filename %}disabled{% endif %}>📊 構造情報</button>
             <button class="btn btn-warning" onclick="validateHTML()" id="validateBtn" {% if not filename %}disabled{% endif %}>⚠️ 構文チェック</button>
             <button class="btn btn-info" onclick="showSearch()" id="searchBtn" {% if not filename %}disabled{% endif %}>🔍 検索・置換</button>
+            <button class="btn btn-info" onclick="exportDesignSnapshot()" id="exportDesignBtn" {% if not filename %}disabled{% endif %} title="プレビューのDOMと主要CSS(Computed Style)をJSONで出力して比較に使います">📤 デザイン出力</button>
             <input type="text" id="searchBox" class="search-box" placeholder="ID、クラス、タグ、テキストで検索..." onkeypress="if(event.key==='Enter') searchElement()" {% if not filename %}disabled{% endif %}>
             <button class="btn btn-info" onclick="searchElement()" id="searchElementBtn" {% if not filename %}disabled{% endif %}>検索</button>
             <button class="btn btn-info" onclick="highlightNext()" id="nextMatchBtn" style="display: none;" title="次の検索結果へ">▼</button>
@@ -1898,6 +1899,123 @@ EDITOR_TEMPLATE = r"""
             } else {
                 showStatus('検索文字列が見つかりませんでした', 'error');
             }
+        };
+
+        // 画面デザイン差分を確認しやすいように、プレビューDOMの主要スタイルをJSONで出力
+        // 使い方: 2つのHTMLを開いてそれぞれ「デザイン出力」→ 生成されたJSONをDiffツールで比較
+        window.exportDesignSnapshot = function exportDesignSnapshot() {
+            const preview = document.getElementById('preview');
+            if (!preview) {
+                showStatus('プレビューが見つかりません', 'error');
+                return;
+            }
+
+            let previewDoc;
+            try {
+                previewDoc = preview.contentDocument || preview.contentWindow.document;
+            } catch (e) {
+                showStatus('プレビューDOMにアクセスできません（セキュリティ制限）', 'error');
+                return;
+            }
+            if (!previewDoc || !previewDoc.documentElement) {
+                showStatus('プレビューがまだ読み込まれていません', 'error');
+                return;
+            }
+
+            // 比較に使うプロパティ（必要なら増やせます）
+            const STYLE_KEYS = [
+                'display', 'position', 'zIndex',
+                'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'textAlign',
+                'color', 'backgroundColor',
+                'marginTop', 'marginRight', 'marginBottom', 'marginLeft',
+                'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+                'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
+                'borderTopStyle', 'borderRightStyle', 'borderBottomStyle', 'borderLeftStyle',
+                'borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor',
+                'borderRadius',
+                'width', 'height',
+            ];
+
+            function getSelector(el) {
+                if (!el || el.nodeType !== 1) return '';
+                if (el.id) return `#${el.id}`;
+                const parts = [];
+                let node = el;
+                let depth = 0;
+                while (node && node.nodeType === 1 && depth < 5) {
+                    const tag = node.tagName.toLowerCase();
+                    const cls = (node.className && typeof node.className === 'string')
+                        ? node.className.trim().split(/\s+/).filter(Boolean).slice(0, 2).join('.')
+                        : '';
+                    // nth-of-type を付けて曖昧さを減らす
+                    let idx = 1;
+                    if (node.parentElement) {
+                        const siblings = Array.from(node.parentElement.children).filter(c => c.tagName === node.tagName);
+                        idx = siblings.indexOf(node) + 1;
+                    }
+                    parts.unshift(`${tag}${cls ? '.' + cls : ''}:nth-of-type(${idx})`);
+                    node = node.parentElement;
+                    depth++;
+                }
+                return parts.join(' > ');
+            }
+
+            // 要素数が多いページ向けに上限
+            const MAX_NODES = 3000;
+            const nodes = Array.from(previewDoc.querySelectorAll('body *')).slice(0, MAX_NODES);
+
+            const snapshot = {
+                meta: {
+                    generatedAt: new Date().toISOString(),
+                    filename: window.editorFilename || '',
+                    url: preview.src || '',
+                    nodeCount: nodes.length,
+                    maxNodes: MAX_NODES,
+                },
+                nodes: [],
+            };
+
+            for (const el of nodes) {
+                const cs = previewDoc.defaultView.getComputedStyle(el);
+                const style = {};
+                for (const k of STYLE_KEYS) style[k] = cs[k];
+
+                // テキストは差分比較のノイズになりやすいので短く
+                const text = (el.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+
+                const rect = el.getBoundingClientRect();
+                snapshot.nodes.push({
+                    tag: el.tagName.toLowerCase(),
+                    id: el.id || '',
+                    class: (el.className && typeof el.className === 'string') ? el.className : '',
+                    selector: getSelector(el),
+                    text,
+                    rect: {
+                        x: Math.round(rect.x),
+                        y: Math.round(rect.y),
+                        w: Math.round(rect.width),
+                        h: Math.round(rect.height),
+                    },
+                    style,
+                });
+            }
+
+            const json = JSON.stringify(snapshot, null, 2);
+            const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+            const base = (window.editorFilename && window.editorFilename.trim() !== '')
+                ? window.editorFilename.replace(/\.html?$/i, '')
+                : 'design';
+            a.href = url;
+            a.download = `${base}_design_snapshot_${timestamp}.json`;
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showStatus('デザインスナップショット(JSON)を出力しました', 'success');
         };
         
         // モーダルを閉じる
