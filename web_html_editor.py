@@ -606,7 +606,7 @@ EDITOR_TEMPLATE = r"""
             <button class="btn btn-info" onclick="showStructure()" id="structureBtn" {% if not filename %}disabled{% endif %}>📊 構造情報</button>
             <button class="btn btn-warning" onclick="validateHTML()" id="validateBtn" {% if not filename %}disabled{% endif %}>⚠️ 構文チェック</button>
             <button class="btn btn-info" onclick="showSearch()" id="searchBtn" {% if not filename %}disabled{% endif %}>🔍 検索・置換</button>
-            <button class="btn btn-info" onclick="exportDesignSnapshot()" id="exportDesignBtn" {% if not filename %}disabled{% endif %} title="プレビューのDOMと主要CSS(Computed Style)をJSONで出力して比較に使います">📤 デザイン出力</button>
+            <button class="btn btn-info" onclick="showDesignExport()" id="exportDesignBtn" {% if not filename %}disabled{% endif %} title="プレビューのDOMと主要CSS(Computed Style)をJSON/CSVで出力して比較に使います">📤 デザイン出力</button>
             <input type="text" id="searchBox" class="search-box" placeholder="ID、クラス、タグ、テキストで検索..." onkeypress="if(event.key==='Enter') searchElement()" {% if not filename %}disabled{% endif %}>
             <button class="btn btn-info" onclick="searchElement()" id="searchElementBtn" {% if not filename %}disabled{% endif %}>検索</button>
             <button class="btn btn-info" onclick="highlightNext()" id="nextMatchBtn" style="display: none;" title="次の検索結果へ">▼</button>
@@ -705,6 +705,44 @@ EDITOR_TEMPLATE = r"""
                 <input type="text" id="replaceText" class="form-input" placeholder="置換する文字列（空欄可）">
             </div>
             <button class="btn btn-primary" onclick="performSearchReplace()">検索・置換</button>
+        </div>
+    </div>
+
+    <!-- デザイン出力モーダル -->
+    <div id="designExportModal" class="modal">
+        <div class="modal-content" style="max-width: 720px;">
+            <span class="close" onclick="closeModal('designExportModal')">&times;</span>
+            <h2>📤 デザイン出力（差異確認用）</h2>
+            <p style="margin-top: 10px; color: #4a5568; line-height: 1.6;">
+                プレビュー上の要素の主要スタイル（computed style）を出力します。<br>
+                2つのHTMLで出力したファイルをDiffツールやExcelで比較してください。
+            </p>
+            <div class="form-group" style="margin-top: 20px;">
+                <label class="form-label">出力形式</label>
+                <select id="designExportFormat" class="form-input">
+                    <option value="json" selected>JSON（Diff向け）</option>
+                    <option value="csv">CSV（Excel向け）</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">対象（絞り込み）</label>
+                <select id="designExportScope" class="form-input">
+                    <option value="all" selected>すべて（body配下）</option>
+                    <option value="form">フォーム要素のみ（label/input/select/textarea/button）</option>
+                    <option value="label">ラベル周り（label と for/隣接要素）</option>
+                </select>
+                <small style="color: #718096; font-size: 12px; display: block; margin-top: 8px;">
+                    ※ 要素数が多いページは自動的に上限を設けます。
+                </small>
+            </div>
+            <div class="form-group">
+                <label class="form-label">最大要素数</label>
+                <input type="number" id="designExportMaxNodes" class="form-input" value="3000" min="100" max="20000">
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                <button class="btn btn-primary" onclick="performDesignExport()">出力</button>
+                <button class="btn" onclick="closeModal('designExportModal')" style="background: #e2e8f0; color: #4a5568;">キャンセル</button>
+            </div>
         </div>
     </div>
     
@@ -1901,9 +1939,18 @@ EDITOR_TEMPLATE = r"""
             }
         };
 
-        // 画面デザイン差分を確認しやすいように、プレビューDOMの主要スタイルをJSONで出力
-        // 使い方: 2つのHTMLを開いてそれぞれ「デザイン出力」→ 生成されたJSONをDiffツールで比較
-        window.exportDesignSnapshot = function exportDesignSnapshot() {
+        // デザイン出力モーダルを表示
+        window.showDesignExport = function showDesignExport() {
+            const modal = document.getElementById('designExportModal');
+            if (modal) {
+                modal.style.display = 'block';
+            } else {
+                showStatus('デザイン出力モーダルが見つかりません', 'error');
+            }
+        };
+
+        // 画面デザイン差分を確認しやすいように、プレビューDOMの主要スタイルをJSON/CSVで出力
+        window.performDesignExport = function performDesignExport() {
             const preview = document.getElementById('preview');
             if (!preview) {
                 showStatus('プレビューが見つかりません', 'error');
@@ -1921,6 +1968,13 @@ EDITOR_TEMPLATE = r"""
                 showStatus('プレビューがまだ読み込まれていません', 'error');
                 return;
             }
+
+            const format = (document.getElementById('designExportFormat')?.value || 'json').toLowerCase();
+            const scope = (document.getElementById('designExportScope')?.value || 'all').toLowerCase();
+            const maxNodes = Math.min(
+                Math.max(parseInt(document.getElementById('designExportMaxNodes')?.value || '3000', 10) || 3000, 100),
+                20000
+            );
 
             // 比較に使うプロパティ（必要なら増やせます）
             const STYLE_KEYS = [
@@ -1960,9 +2014,30 @@ EDITOR_TEMPLATE = r"""
                 return parts.join(' > ');
             }
 
+            function getNodesByScope() {
+                if (scope === 'form') {
+                    return Array.from(previewDoc.querySelectorAll('label, input, select, textarea, button'));
+                }
+                if (scope === 'label') {
+                    // label と、forで紐づく要素、隣接要素を含める
+                    const set = new Set();
+                    const labels = Array.from(previewDoc.querySelectorAll('label'));
+                    for (const lb of labels) {
+                        set.add(lb);
+                        const forId = lb.getAttribute('for');
+                        if (forId) {
+                            const t = previewDoc.getElementById(forId);
+                            if (t) set.add(t);
+                        }
+                        if (lb.nextElementSibling) set.add(lb.nextElementSibling);
+                    }
+                    return Array.from(set);
+                }
+                return Array.from(previewDoc.querySelectorAll('body *'));
+            }
+
             // 要素数が多いページ向けに上限
-            const MAX_NODES = 3000;
-            const nodes = Array.from(previewDoc.querySelectorAll('body *')).slice(0, MAX_NODES);
+            const nodes = getNodesByScope().slice(0, maxNodes);
 
             const snapshot = {
                 meta: {
@@ -1970,7 +2045,9 @@ EDITOR_TEMPLATE = r"""
                     filename: window.editorFilename || '',
                     url: preview.src || '',
                     nodeCount: nodes.length,
-                    maxNodes: MAX_NODES,
+                    maxNodes: maxNodes,
+                    scope,
+                    format,
                 },
                 nodes: [],
             };
@@ -2000,22 +2077,58 @@ EDITOR_TEMPLATE = r"""
                 });
             }
 
-            const json = JSON.stringify(snapshot, null, 2);
-            const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
             const base = (window.editorFilename && window.editorFilename.trim() !== '')
                 ? window.editorFilename.replace(/\.html?$/i, '')
                 : 'design';
-            a.href = url;
-            a.download = `${base}_design_snapshot_${timestamp}.json`;
-            a.style.display = 'none';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            showStatus('デザインスナップショット(JSON)を出力しました', 'success');
+
+            function downloadText(text, mime, filename) {
+                const blob = new Blob([text], { type: mime });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+
+            if (format === 'csv') {
+                // CSVは列を固定して比較しやすくする（styleは主要項目のみフラット化）
+                const cols = [
+                    'selector','tag','id','class','text','x','y','w','h',
+                    ...STYLE_KEYS.map(k => `style.${k}`)
+                ];
+                const esc = (v) => {
+                    const s = String(v ?? '');
+                    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+                };
+                const rows = [cols.join(',')];
+                for (const n of snapshot.nodes) {
+                    const row = [];
+                    row.push(n.selector);
+                    row.push(n.tag);
+                    row.push(n.id);
+                    row.push(n.class);
+                    row.push(n.text);
+                    row.push(n.rect.x);
+                    row.push(n.rect.y);
+                    row.push(n.rect.w);
+                    row.push(n.rect.h);
+                    for (const k of STYLE_KEYS) row.push(n.style[k]);
+                    rows.push(row.map(esc).join(','));
+                }
+                downloadText(rows.join('\n'), 'text/csv;charset=utf-8', `${base}_design_snapshot_${scope}_${timestamp}.csv`);
+                showStatus('デザインスナップショット(CSV)を出力しました', 'success');
+            } else {
+                const json = JSON.stringify(snapshot, null, 2);
+                downloadText(json, 'application/json;charset=utf-8', `${base}_design_snapshot_${scope}_${timestamp}.json`);
+                showStatus('デザインスナップショット(JSON)を出力しました', 'success');
+            }
+
+            closeModal('designExportModal');
         };
         
         // モーダルを閉じる
@@ -2289,7 +2402,7 @@ EDITOR_TEMPLATE = r"""
         
         // モーダルの外側をクリックで閉じる
         window.onclick = function(event) {
-            const modals = ['structureModal', 'searchModal', 'uploadModal', 'fileListModal'];
+            const modals = ['structureModal', 'searchModal', 'designExportModal', 'uploadModal', 'fileListModal'];
             modals.forEach(modalId => {
                 const modal = document.getElementById(modalId);
                 if (event.target == modal) {
