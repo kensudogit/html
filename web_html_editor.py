@@ -574,6 +574,146 @@ EDITOR_TEMPLATE = r"""
         .error-item-link:hover {
             color: #3182ce;
         }
+        /* リモコン盤スタイル */
+        #remoteControl {
+            position: fixed;
+            z-index: 10000;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            min-width: 300px;
+            max-width: 90vw;
+            transition: all 0.3s ease;
+            user-select: none;
+        }
+        #remoteControl.collapsed {
+            min-width: auto;
+            width: auto;
+        }
+        #remoteControl.collapsed .remote-control-content {
+            display: none;
+        }
+        #remoteControl.collapsed .remote-control-header {
+            border-radius: 12px;
+        }
+        .remote-control-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 12px 16px;
+            border-radius: 12px 12px 0 0;
+            cursor: move;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .remote-control-header:hover {
+            background: linear-gradient(135deg, #5568d3 0%, #6b3fa0 100%);
+        }
+        .remote-control-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+        .remote-control-toggle {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        .remote-control-toggle:hover {
+            background: rgba(255,255,255,0.3);
+            transform: scale(1.1);
+        }
+        .remote-control-content {
+            background: white;
+            padding: 16px;
+            border-radius: 0 0 12px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .remote-control-section {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .remote-control-section-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #4a5568;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        .remote-control-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .remote-control-buttons .btn {
+            flex: 1;
+            min-width: 120px;
+            font-size: 13px;
+            padding: 8px 12px;
+        }
+        .remote-control-search {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+        .remote-control-search input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #e2e8f0;
+            border-radius: 5px;
+            font-size: 13px;
+        }
+        .remote-control-search .btn {
+            flex: 0 0 auto;
+            min-width: auto;
+            padding: 8px 16px;
+        }
+        .remote-control-nav-buttons {
+            display: flex;
+            gap: 6px;
+        }
+        .remote-control-nav-buttons .btn {
+            flex: 1;
+            min-width: auto;
+            padding: 8px 12px;
+        }
+        #remoteControl.dragging {
+            opacity: 0.8;
+            cursor: move;
+        }
+        .remote-control-content::-webkit-scrollbar {
+            width: 8px;
+        }
+        .remote-control-content::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        .remote-control-content::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+        .remote-control-content::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
     </style>
 </head>
 <body>
@@ -586,33 +726,58 @@ EDITOR_TEMPLATE = r"""
         </div>
     </div>
     
+    <!-- リモコン盤 -->
+    <div id="remoteControl">
+        <div class="remote-control-header" id="remoteControlHeader">
+            <div class="remote-control-title">🎮 リモコン盤</div>
+            <button class="remote-control-toggle" id="remoteControlToggle" onclick="toggleRemoteControl()" title="開閉">▼</button>
+        </div>
+        <div class="remote-control-content" id="remoteControlContent">
+            <!-- ファイル操作セクション -->
+            <div class="remote-control-section">
+                <div class="remote-control-section-title">ファイル操作</div>
+                <div class="remote-control-buttons">
+                    <button class="btn btn-primary" onclick="showUploadModal()" id="uploadBtnMain" style="font-weight: 600; background: #667eea; border: 2px solid #5568d3; color: white;">
+                        📤 アップロード
+                    </button>
+                    <button class="btn btn-success" onclick="downloadFile()" id="downloadBtn" {% if not filename %}disabled{% endif %} style="font-weight: 600; background: #48bb78; border-color: #38a169; color: white;">
+                        ⬇️ ダウンロード
+                    </button>
+                    <button class="btn btn-info" onclick="showFileList()" id="fileListBtn">📁 ファイル一覧</button>
+                </div>
+            </div>
+            
+            <!-- 編集操作セクション -->
+            <div class="remote-control-section">
+                <div class="remote-control-section-title">編集操作</div>
+                <div class="remote-control-buttons">
+                    <button class="btn btn-primary" onclick="saveFile()" id="saveBtn" {% if not filename %}disabled{% endif %}>💾 保存</button>
+                    <button class="btn btn-success" onclick="reloadFile()" id="reloadBtn" {% if not filename %}disabled{% endif %}>🔄 再読み込み</button>
+                    <button class="btn btn-danger" onclick="clearEditor()" id="clearBtn">🗑️ クリア</button>
+                    <button class="btn btn-info" onclick="showStructure()" id="structureBtn" {% if not filename %}disabled{% endif %}>📊 構造情報</button>
+                    <button class="btn btn-warning" onclick="validateHTML()" id="validateBtn" {% if not filename %}disabled{% endif %}>⚠️ 構文チェック</button>
+                    <button class="btn btn-info" onclick="showSearch()" id="searchBtn" {% if not filename %}disabled{% endif %}>🔍 検索・置換</button>
+                    <button class="btn btn-info" onclick="showDesignExport()" id="exportDesignBtn" {% if not filename %}disabled{% endif %} title="プレビューのDOMと主要CSS(Computed Style)をJSON/CSVで出力して比較に使います">📤 デザイン出力</button>
+                </div>
+            </div>
+            
+            <!-- 要素検索セクション -->
+            <div class="remote-control-section">
+                <div class="remote-control-section-title">要素検索</div>
+                <div class="remote-control-search">
+                    <input type="text" id="searchBox" placeholder="ID、クラス、タグ、テキストで検索..." onkeypress="if(event.key==='Enter') searchElement()" {% if not filename %}disabled{% endif %}>
+                    <button class="btn btn-info" onclick="searchElement()" id="searchElementBtn" {% if not filename %}disabled{% endif %}>検索</button>
+                </div>
+                <div class="remote-control-nav-buttons">
+                    <button class="btn btn-info" onclick="highlightPrevious()" id="prevMatchBtn" style="display: none;" title="前の検索結果へ">▲ 前へ</button>
+                    <button class="btn btn-info" onclick="highlightNext()" id="nextMatchBtn" style="display: none;" title="次の検索結果へ">次へ ▼</button>
+                </div>
+                <span id="matchCounter" style="display: none; font-size: 12px; color: #666; text-align: center;"></span>
+            </div>
+        </div>
+    </div>
+    
     <div class="container">
-        <!-- ファイル操作ボタン（常に表示、別ツールバー） -->
-        <div id="fileToolbar" style="background: #f0f4f8; padding: 15px; border-radius: 8px; margin-bottom: 15px; display: flex !important; gap: 4px; align-items: center; flex-wrap: wrap; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-            <button class="btn btn-primary" onclick="showUploadModal()" id="uploadBtnMain" style="font-weight: 600; padding: 12px 24px; background: #667eea; border: 2px solid #5568d3; color: white; display: inline-block !important; visibility: visible !important; opacity: 1 !important; position: relative !important; z-index: 100 !important; flex-shrink: 0; cursor: pointer;">
-                📤 ファイルをアップロード
-            </button>
-            <button class="btn btn-success" onclick="downloadFile()" id="downloadBtn" {% if not filename %}disabled{% endif %} style="font-weight: 600; padding: 12px 24px; background: #48bb78; border-color: #38a169; color: white; display: inline-block !important; visibility: visible !important; opacity: {% if filename %}1{% else %}0.5{% endif %} !important; position: relative !important; z-index: 100 !important; flex-shrink: 0; cursor: {% if filename %}pointer{% else %}not-allowed{% endif %};">
-                ⬇️ ダウンロード
-            </button>
-            <button class="btn btn-info" onclick="showFileList()" id="fileListBtn" style="display: inline-block !important; visibility: visible !important; flex-shrink: 0;">📁 ファイル一覧</button>
-        </div>
-        
-        <!-- 編集操作ボタン -->
-        <div class="toolbar" id="mainToolbar" style="display: flex !important;">
-            <button class="btn btn-primary" onclick="saveFile()" id="saveBtn" {% if not filename %}disabled{% endif %}>💾 保存</button>
-            <button class="btn btn-success" onclick="reloadFile()" id="reloadBtn" {% if not filename %}disabled{% endif %}>🔄 再読み込み</button>
-            <button class="btn btn-danger" onclick="clearEditor()" id="clearBtn">🗑️ クリア</button>
-            <button class="btn btn-info" onclick="showStructure()" id="structureBtn" {% if not filename %}disabled{% endif %}>📊 構造情報</button>
-            <button class="btn btn-warning" onclick="validateHTML()" id="validateBtn" {% if not filename %}disabled{% endif %}>⚠️ 構文チェック</button>
-            <button class="btn btn-info" onclick="showSearch()" id="searchBtn" {% if not filename %}disabled{% endif %}>🔍 検索・置換</button>
-            <button class="btn btn-info" onclick="showDesignExport()" id="exportDesignBtn" {% if not filename %}disabled{% endif %} title="プレビューのDOMと主要CSS(Computed Style)をJSON/CSVで出力して比較に使います">📤 デザイン出力</button>
-            <input type="text" id="searchBox" class="search-box" placeholder="ID、クラス、タグ、テキストで検索..." onkeypress="if(event.key==='Enter') searchElement()" {% if not filename %}disabled{% endif %}>
-            <button class="btn btn-info" onclick="searchElement()" id="searchElementBtn" {% if not filename %}disabled{% endif %}>検索</button>
-            <button class="btn btn-info" onclick="highlightNext()" id="nextMatchBtn" style="display: none;" title="次の検索結果へ">▼</button>
-            <button class="btn btn-info" onclick="highlightPrevious()" id="prevMatchBtn" style="display: none;" title="前の検索結果へ">▲</button>
-            <span id="matchCounter" style="display: none; margin-left: 10px; color: #666;"></span>
-        </div>
         
         <div id="errorPanel" style="display: none; background: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; padding: 15px; margin-bottom: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -830,6 +995,9 @@ EDITOR_TEMPLATE = r"""
                         console.error('HTMLコンテンツの読み込みエラー:', error);
                     });
             }
+            
+            // リモコン盤の初期化
+            initRemoteControl();
             
             // リサイザーの実装
             const resizer = document.getElementById('resizer');
@@ -1444,38 +1612,120 @@ EDITOR_TEMPLATE = r"""
             }
         }
         
-        // ボタンの表示を確認・強制表示
+        // リモコン盤の初期化
+        function initRemoteControl() {
+            const remoteControl = document.getElementById('remoteControl');
+            const remoteControlHeader = document.getElementById('remoteControlHeader');
+            if (!remoteControl || !remoteControlHeader) return;
+            
+            // 保存された位置と状態を復元
+            const savedPosition = localStorage.getItem('remoteControlPosition');
+            const savedState = localStorage.getItem('remoteControlState');
+            
+            if (savedPosition) {
+                const pos = JSON.parse(savedPosition);
+                remoteControl.style.left = pos.x + 'px';
+                remoteControl.style.top = pos.y + 'px';
+            } else {
+                // デフォルト位置（右上）
+                remoteControl.style.right = '20px';
+                remoteControl.style.top = '20px';
+            }
+            
+            if (savedState === 'collapsed') {
+                remoteControl.classList.add('collapsed');
+                const toggleBtn = document.getElementById('remoteControlToggle');
+                if (toggleBtn) toggleBtn.textContent = '▲';
+            }
+            
+            // ドラッグ機能
+            let isDragging = false;
+            let dragStartX = 0;
+            let dragStartY = 0;
+            let startLeft = 0;
+            let startTop = 0;
+            
+            remoteControlHeader.addEventListener('mousedown', function(e) {
+                // 開閉ボタンをクリックした場合はドラッグしない
+                if (e.target.closest('.remote-control-toggle')) return;
+                
+                isDragging = true;
+                remoteControl.classList.add('dragging');
+                
+                const rect = remoteControl.getBoundingClientRect();
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+                startLeft = rect.left;
+                startTop = rect.top;
+                
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', function(e) {
+                if (!isDragging) return;
+                
+                const diffX = e.clientX - dragStartX;
+                const diffY = e.clientY - dragStartY;
+                
+                let newLeft = startLeft + diffX;
+                let newTop = startTop + diffY;
+                
+                // 画面外に出ないように制限
+                const maxLeft = window.innerWidth - remoteControl.offsetWidth;
+                const maxTop = window.innerHeight - remoteControl.offsetHeight;
+                
+                newLeft = Math.max(0, Math.min(newLeft, maxLeft));
+                newTop = Math.max(0, Math.min(newTop, maxTop));
+                
+                remoteControl.style.left = newLeft + 'px';
+                remoteControl.style.top = newTop + 'px';
+                remoteControl.style.right = 'auto';
+                remoteControl.style.bottom = 'auto';
+                
+                // 位置を保存
+                localStorage.setItem('remoteControlPosition', JSON.stringify({
+                    x: newLeft,
+                    y: newTop
+                }));
+            });
+            
+            document.addEventListener('mouseup', function() {
+                if (isDragging) {
+                    isDragging = false;
+                    remoteControl.classList.remove('dragging');
+                }
+            });
+        }
+        
+        // リモコン盤の開閉
+        window.toggleRemoteControl = function() {
+            const remoteControl = document.getElementById('remoteControl');
+            const toggleBtn = document.getElementById('remoteControlToggle');
+            if (!remoteControl || !toggleBtn) return;
+            
+            remoteControl.classList.toggle('collapsed');
+            const isCollapsed = remoteControl.classList.contains('collapsed');
+            toggleBtn.textContent = isCollapsed ? '▲' : '▼';
+            
+            // 状態を保存
+            localStorage.setItem('remoteControlState', isCollapsed ? 'collapsed' : 'expanded');
+        };
+        
+        // ボタンの表示を確認・強制表示（リモコン盤内のボタン用）
         function ensureButtonsVisible() {
             const uploadBtn = document.getElementById('uploadBtnMain');
             const downloadBtn = document.getElementById('downloadBtn');
-            const toolbar = document.getElementById('mainToolbar');
-            
-            console.log('Checking buttons visibility...');
-            console.log('Upload button:', uploadBtn);
-            console.log('Download button:', downloadBtn);
-            console.log('Toolbar:', toolbar);
             
             if (uploadBtn) {
-                uploadBtn.style.cssText = 'display: inline-block !important; visibility: visible !important; opacity: 1 !important; position: relative !important; z-index: 100 !important; font-weight: 600; padding: 12px 24px; background: #667eea; border: 2px solid #5568d3;';
-                console.log('Upload button styled');
-            } else {
-                console.error('Upload button not found!');
+                uploadBtn.style.cssText = 'display: inline-block !important; visibility: visible !important; opacity: 1 !important; font-weight: 600; background: #667eea; border: 2px solid #5568d3; color: white;';
             }
             
             if (downloadBtn) {
                 if (downloadBtn.disabled) {
-                    downloadBtn.style.cssText = 'display: inline-block !important; visibility: visible !important; opacity: 0.5 !important; position: relative !important; z-index: 100 !important;';
+                    downloadBtn.style.cssText = 'display: inline-block !important; visibility: visible !important; opacity: 0.5 !important;';
                 } else {
-                    downloadBtn.style.cssText = 'display: inline-block !important; visibility: visible !important; opacity: 1 !important; position: relative !important; z-index: 100 !important; font-weight: 600; padding: 12px 24px; background: #48bb78; border-color: #38a169;';
+                    downloadBtn.style.cssText = 'display: inline-block !important; visibility: visible !important; opacity: 1 !important; font-weight: 600; background: #48bb78; border-color: #38a169; color: white;';
                 }
-                console.log('Download button styled');
-            } else {
-                console.error('Download button not found!');
-            }
-            
-            if (toolbar) {
-                toolbar.style.cssText = 'display: flex !important; gap: 4px; flex-wrap: wrap; align-items: center; overflow-x: auto; background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); min-height: 60px;';
-                console.log('Toolbar styled');
             }
         }
         
