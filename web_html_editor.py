@@ -20,6 +20,7 @@ from pathlib import Path
 from werkzeug.utils import secure_filename
 from flask import Flask, render_template_string, request, jsonify, send_from_directory, redirect, url_for
 from html_editor import HTMLEditor
+from bs4 import BeautifulSoup
 
 app = Flask(__name__)
 
@@ -763,6 +764,14 @@ EDITOR_TEMPLATE = r"""
                 </div>
             </div>
             
+            <!-- テンプレート統合セクション -->
+            <div class="remote-control-section">
+                <div class="remote-control-section-title">テンプレート統合</div>
+                <div class="remote-control-buttons">
+                    <button class="btn btn-warning" onclick="showTemplateMerge()" id="templateMergeBtn" title="複数のHTMLファイルを比較して共通テンプレートを生成">🔀 テンプレート統合</button>
+                </div>
+            </div>
+            
             <!-- 要素検索セクション -->
             <div class="remote-control-section">
                 <div class="remote-control-section-title">要素検索</div>
@@ -875,6 +884,75 @@ EDITOR_TEMPLATE = r"""
         </div>
     </div>
 
+    <!-- テンプレート統合モーダル -->
+    <div id="templateMergeModal" class="modal">
+        <div class="modal-content" style="max-width: 900px;">
+            <span class="close" onclick="closeModal('templateMergeModal')">&times;</span>
+            <h2>🔀 テンプレート統合（差分吸収）</h2>
+            <p style="margin-top: 10px; color: #4a5568; line-height: 1.6;">
+                複数のHTMLファイルを比較して、共通テンプレートを生成します。<br>
+                各大学のカスタマイズによる差異を解消し、統一されたテンプレートを作成できます。
+            </p>
+            
+            <div class="form-group" style="margin-top: 20px;">
+                <label class="form-label">比較するファイル（複数選択可）</label>
+                <div id="templateFileList" style="max-height: 200px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 5px; padding: 10px;">
+                    <p style="color: #718096; font-size: 12px; margin: 0;">ファイル一覧を読み込み中...</p>
+                </div>
+                <button class="btn btn-info" onclick="loadTemplateFileList()" style="margin-top: 10px; font-size: 12px; padding: 6px 12px;">🔄 ファイル一覧を更新</button>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">統合オプション</label>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="mergeOptionStructure" checked>
+                        <span>HTML構造を統合（タグ、クラス、ID）</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="mergeOptionStyles" checked>
+                        <span>CSSスタイルを統合</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="mergeOptionContent" checked>
+                        <span>コンテンツ（テキスト）を統合（共通部分のみ）</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="mergeOptionAttributes" checked>
+                        <span>属性を統合（共通属性のみ）</span>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">差異の扱い</label>
+                <select id="mergeDiffHandling" class="form-input">
+                    <option value="common" selected>共通部分のみ採用（差異は削除）</option>
+                    <option value="first">最初のファイルを基準（他の差異は無視）</option>
+                    <option value="comment">差異をコメントとして残す</option>
+                </select>
+            </div>
+            
+            <div id="templateMergeProgress" style="display: none; margin-top: 15px; padding: 10px; background: #f0f4f8; border-radius: 5px;">
+                <div style="font-size: 12px; color: #4a5568; margin-bottom: 5px;">処理中...</div>
+                <div style="background: #e2e8f0; border-radius: 3px; height: 20px; overflow: hidden;">
+                    <div id="templateMergeProgressBar" style="background: #667eea; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                </div>
+            </div>
+            
+            <div id="templateMergeResult" style="display: none; margin-top: 15px; padding: 15px; background: #f0f4f8; border-radius: 5px; max-height: 300px; overflow-y: auto;">
+                <h3 style="font-size: 14px; margin-bottom: 10px;">統合結果</h3>
+                <div id="templateMergeResultContent" style="font-size: 12px; line-height: 1.6;"></div>
+            </div>
+            
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                <button class="btn btn-primary" onclick="performTemplateMerge()" id="performMergeBtn">🔀 統合実行</button>
+                <button class="btn btn-success" onclick="downloadMergedTemplate()" id="downloadMergedBtn" style="display: none;">⬇️ 統合テンプレートをダウンロード</button>
+                <button class="btn" onclick="closeModal('templateMergeModal')" style="background: #e2e8f0; color: #4a5568;">キャンセル</button>
+            </div>
+        </div>
+    </div>
+    
     <!-- デザイン出力モーダル -->
     <div id="designExportModal" class="modal">
         <div class="modal-content" style="max-width: 720px;">
@@ -2200,6 +2278,160 @@ EDITOR_TEMPLATE = r"""
                 showStatus('デザイン出力モーダルが見つかりません', 'error');
             }
         };
+        
+        // テンプレート統合モーダルを表示
+        window.showTemplateMerge = function showTemplateMerge() {
+            const modal = document.getElementById('templateMergeModal');
+            if (modal) {
+                modal.style.display = 'block';
+                loadTemplateFileList();
+            } else {
+                showStatus('テンプレート統合モーダルが見つかりません', 'error');
+            }
+        };
+        
+        // テンプレート統合用のファイル一覧を読み込み
+        window.loadTemplateFileList = async function loadTemplateFileList() {
+            const fileListDiv = document.getElementById('templateFileList');
+            if (!fileListDiv) return;
+            
+            fileListDiv.innerHTML = '<p style="color: #718096; font-size: 12px; margin: 0;">読み込み中...</p>';
+            
+            try {
+                const response = await fetch('/files');
+                const data = await response.json();
+                
+                if (data.success && data.files && data.files.length > 0) {
+                    let html = '';
+                    data.files.forEach(file => {
+                        html += `<label style="display: flex; align-items: center; gap: 8px; padding: 6px; cursor: pointer; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='#f0f4f8'" onmouseout="this.style.background='transparent'">`;
+                        html += `<input type="checkbox" class="template-file-checkbox" value="${file.name}" data-filename="${file.name}">`;
+                        html += `<span style="font-size: 12px;">${file.name}</span>`;
+                        html += `<span style="font-size: 11px; color: #718096;">(${file.size} bytes)</span>`;
+                        html += `</label>`;
+                    });
+                    fileListDiv.innerHTML = html;
+                } else {
+                    fileListDiv.innerHTML = '<p style="color: #f56565; font-size: 12px; margin: 0;">ファイルが見つかりませんでした</p>';
+                }
+            } catch (error) {
+                fileListDiv.innerHTML = `<p style="color: #f56565; font-size: 12px; margin: 0;">エラー: ${error.message}</p>`;
+            }
+        };
+        
+        // テンプレート統合を実行
+        window.performTemplateMerge = async function performTemplateMerge() {
+            const checkboxes = document.querySelectorAll('.template-file-checkbox:checked');
+            if (checkboxes.length < 2) {
+                showStatus('統合には2つ以上のファイルを選択してください', 'error');
+                return;
+            }
+            
+            const selectedFiles = Array.from(checkboxes).map(cb => cb.value);
+            const mergeOptions = {
+                structure: document.getElementById('mergeOptionStructure').checked,
+                styles: document.getElementById('mergeOptionStyles').checked,
+                content: document.getElementById('mergeOptionContent').checked,
+                attributes: document.getElementById('mergeOptionAttributes').checked,
+                diffHandling: document.getElementById('mergeDiffHandling').value
+            };
+            
+            const progressDiv = document.getElementById('templateMergeProgress');
+            const progressBar = document.getElementById('templateMergeProgressBar');
+            const resultDiv = document.getElementById('templateMergeResult');
+            const resultContent = document.getElementById('templateMergeResultContent');
+            const performBtn = document.getElementById('performMergeBtn');
+            const downloadBtn = document.getElementById('downloadMergedBtn');
+            
+            progressDiv.style.display = 'block';
+            progressBar.style.width = '0%';
+            resultDiv.style.display = 'none';
+            downloadBtn.style.display = 'none';
+            performBtn.disabled = true;
+            
+            try {
+                progressBar.style.width = '30%';
+                
+                const response = await fetch('/template-merge', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        files: selectedFiles,
+                        options: mergeOptions
+                    })
+                });
+                
+                progressBar.style.width = '70%';
+                
+                const data = await response.json();
+                
+                progressBar.style.width = '100%';
+                
+                if (data.success) {
+                    window.mergedTemplateContent = data.template;
+                    window.mergedTemplateStats = data.stats;
+                    
+                    let statsHtml = '<div style="margin-bottom: 10px;">';
+                    statsHtml += `<strong>統合完了</strong><br>`;
+                    statsHtml += `ファイル数: ${selectedFiles.length}個<br>`;
+                    statsHtml += `共通要素: ${data.stats.commonElements}個<br>`;
+                    statsHtml += `差異要素: ${data.stats.diffElements}個<br>`;
+                    statsHtml += `統合要素: ${data.stats.mergedElements}個<br>`;
+                    statsHtml += '</div>';
+                    
+                    if (data.stats.differences && data.stats.differences.length > 0) {
+                        statsHtml += '<div style="margin-top: 10px;"><strong>主な差異:</strong><ul style="margin: 5px 0; padding-left: 20px; font-size: 11px;">';
+                        data.stats.differences.slice(0, 10).forEach(diff => {
+                            statsHtml += `<li>${diff}</li>`;
+                        });
+                        if (data.stats.differences.length > 10) {
+                            statsHtml += `<li>...他 ${data.stats.differences.length - 10}件</li>`;
+                        }
+                        statsHtml += '</ul></div>';
+                    }
+                    
+                    resultContent.innerHTML = statsHtml;
+                    resultDiv.style.display = 'block';
+                    downloadBtn.style.display = 'inline-block';
+                    showStatus('テンプレート統合が完了しました', 'success');
+                } else {
+                    resultContent.innerHTML = `<p style="color: #f56565;">エラー: ${data.error}</p>`;
+                    resultDiv.style.display = 'block';
+                    showStatus('エラー: ' + data.error, 'error');
+                }
+            } catch (error) {
+                resultContent.innerHTML = `<p style="color: #f56565;">エラー: ${error.message}</p>`;
+                resultDiv.style.display = 'block';
+                showStatus('エラー: ' + error.message, 'error');
+            } finally {
+                performBtn.disabled = false;
+                setTimeout(() => {
+                    progressBar.style.width = '0%';
+                }, 500);
+            }
+        };
+        
+        // 統合されたテンプレートをダウンロード
+        window.downloadMergedTemplate = function downloadMergedTemplate() {
+            if (!window.mergedTemplateContent) {
+                showStatus('統合テンプレートがありません', 'error');
+                return;
+            }
+            
+            const blob = new Blob([window.mergedTemplateContent], { type: 'text/html;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'merged_template_' + new Date().toISOString().slice(0, 10) + '.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showStatus('統合テンプレートをダウンロードしました', 'success');
+        };
 
         // 画面デザイン差分を確認しやすいように、プレビューDOMの主要スタイルをJSON/CSVで出力
         window.performDesignExport = function performDesignExport() {
@@ -2654,7 +2886,7 @@ EDITOR_TEMPLATE = r"""
         
         // モーダルの外側をクリックで閉じる
         window.onclick = function(event) {
-            const modals = ['structureModal', 'searchModal', 'designExportModal', 'uploadModal', 'fileListModal'];
+            const modals = ['structureModal', 'searchModal', 'designExportModal', 'templateMergeModal', 'uploadModal', 'fileListModal'];
             modals.forEach(modalId => {
                 const modal = document.getElementById(modalId);
                 if (event.target == modal) {
@@ -3154,6 +3386,244 @@ def validate():
     
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/template-merge', methods=['POST'])
+def template_merge():
+    """複数のHTMLファイルを比較して共通テンプレートを生成"""
+    try:
+        data = request.json
+        files = data.get('files', [])
+        options = data.get('options', {})
+        
+        if len(files) < 2:
+            return jsonify({'success': False, 'error': '2つ以上のファイルを選択してください'}), 400
+        
+        # ファイルを読み込んで解析
+        parsed_files = []
+        for filename in files:
+            safe_filename = secure_filename(filename)
+            file_path = UPLOAD_DIR / safe_filename
+            
+            if not file_path.exists():
+                return jsonify({'success': False, 'error': f'ファイルが見つかりません: {filename}'}), 404
+            
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            try:
+                soup = BeautifulSoup(content, 'html.parser')
+                parsed_files.append({
+                    'filename': filename,
+                    'soup': soup,
+                    'content': content
+                })
+            except Exception as e:
+                return jsonify({'success': False, 'error': f'ファイルの解析エラー ({filename}): {str(e)}'}), 400
+        
+        # 共通テンプレートを生成
+        merged_template, stats = merge_html_templates(parsed_files, options)
+        
+        return jsonify({
+            'success': True,
+            'template': merged_template,
+            'stats': stats
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+def merge_html_templates(parsed_files, options):
+    """HTMLテンプレートを統合する"""
+    if not parsed_files:
+        return '', {'commonElements': 0, 'diffElements': 0, 'mergedElements': 0, 'differences': []}
+    
+    # 最初のファイルを基準にする
+    base_soup = parsed_files[0]['soup']
+    base_filename = parsed_files[0]['filename']
+    
+    stats = {
+        'commonElements': 0,
+        'diffElements': 0,
+        'mergedElements': 0,
+        'differences': []
+    }
+    
+    # 各要素を比較して統合
+    def normalize_element(elem):
+        """要素を正規化（比較用）"""
+        if not elem or not hasattr(elem, 'name'):
+            return None
+        
+        normalized = {
+            'tag': elem.name,
+            'attrs': dict(elem.attrs) if hasattr(elem, 'attrs') else {},
+            'text': elem.get_text(strip=True) if hasattr(elem, 'get_text') else ''
+        }
+        
+        # クラスをソート（順序の違いを無視）
+        if 'class' in normalized['attrs']:
+            normalized['attrs']['class'] = sorted(normalized['attrs']['class']) if isinstance(normalized['attrs']['class'], list) else [normalized['attrs']['class']]
+        
+        return normalized
+    
+    def compare_elements(elem1, elem2):
+        """2つの要素を比較"""
+        norm1 = normalize_element(elem1)
+        norm2 = normalize_element(elem2)
+        
+        if not norm1 or not norm2:
+            return False
+        
+        # タグ名が同じか
+        if norm1['tag'] != norm2['tag']:
+            return False
+        
+        # 属性を比較（オプションに応じて）
+        if options.get('attributes', True):
+            # IDが異なる場合は別要素
+            if norm1['attrs'].get('id') != norm2['attrs'].get('id'):
+                return False
+            
+            # クラスを比較（順序は無視）
+            class1 = set(norm1['attrs'].get('class', []))
+            class2 = set(norm2['attrs'].get('class', []))
+            if class1 != class2:
+                return False
+        
+        return True
+    
+    def merge_element(base_elem, other_soups):
+        """要素を統合"""
+        if not base_elem or not hasattr(base_elem, 'name'):
+            return base_elem
+        
+        # 他のファイルで同じ要素を探す
+        matching_elements = [base_elem]
+        base_selector = get_element_selector(base_elem)
+        
+        for other_data in other_soups:
+            other_soup = other_data['soup']
+            try:
+                # セレクタで要素を検索
+                found = other_soup.select_one(base_selector)
+                if found and compare_elements(base_elem, found):
+                    matching_elements.append(found)
+            except:
+                pass
+        
+        # 共通属性を抽出
+        if options.get('attributes', True) and matching_elements:
+            common_attrs = {}
+            if len(matching_elements) == len(other_soups) + 1:  # すべてのファイルで見つかった
+                # 最初の要素の属性を基準に、共通する属性のみを採用
+                base_attrs = dict(matching_elements[0].attrs)
+                for key, value in base_attrs.items():
+                    # すべての要素で同じ値を持つ属性のみ採用
+                    if all(hasattr(elem, 'attrs') and elem.attrs.get(key) == value for elem in matching_elements):
+                        common_attrs[key] = value
+                    else:
+                        stats['differences'].append(f"属性 '{key}' が異なります ({base_selector})")
+                        stats['diffElements'] += 1
+                
+                # 共通属性を設定
+                matching_elements[0].attrs.clear()
+                matching_elements[0].attrs.update(common_attrs)
+                stats['commonElements'] += 1
+            else:
+                stats['diffElements'] += 1
+        
+        # 子要素を再帰的に統合
+        if hasattr(base_elem, 'children'):
+            children_to_remove = []
+            for child in base_elem.children:
+                if hasattr(child, 'name') and child.name:
+                    merged_child = merge_element(child, other_soups)
+                    if merged_child != child:
+                        # 子要素が変更された場合の処理
+                        pass
+            
+            # 差異がある子要素を処理
+            for other_data in other_soups:
+                other_soup = other_data['soup']
+                try:
+                    other_elem = other_soup.select_one(base_selector)
+                    if other_elem and hasattr(other_elem, 'children'):
+                        base_children_tags = [c.name for c in base_elem.children if hasattr(c, 'name') and c.name]
+                        other_children_tags = [c.name for c in other_elem.children if hasattr(c, 'name') and c.name]
+                        
+                        if base_children_tags != other_children_tags:
+                            stats['differences'].append(f"子要素の構造が異なります ({base_selector})")
+                except:
+                    pass
+        
+        # テキストコンテンツを統合
+        if options.get('content', True) and matching_elements:
+            texts = [elem.get_text(strip=True) for elem in matching_elements if hasattr(elem, 'get_text')]
+            if texts:
+                # すべて同じテキストの場合のみ採用
+                if len(set(texts)) == 1:
+                    stats['commonElements'] += 1
+                else:
+                    # 差異がある場合は、オプションに応じて処理
+                    diff_handling = options.get('diffHandling', 'common')
+                    if diff_handling == 'common':
+                        # 共通部分のみ採用（空にする）
+                        if hasattr(base_elem, 'string'):
+                            base_elem.string = ''
+                        elif hasattr(base_elem, 'clear'):
+                            for child in list(base_elem.children):
+                                if hasattr(child, 'get_text') and child.get_text(strip=True):
+                                    child.decompose()
+                        stats['diffElements'] += 1
+                        stats['differences'].append(f"テキストが異なります ({base_selector}): {texts[0][:30]}... vs {texts[1][:30]}...")
+                    elif diff_handling == 'comment':
+                        # 差異をコメントとして追加
+                        comment_text = f"<!-- 差異: {', '.join(set(texts)[:3])} -->"
+                        if hasattr(base_elem, 'insert'):
+                            base_elem.insert(0, BeautifulSoup(comment_text, 'html.parser'))
+        
+        return base_elem
+    
+    def get_element_selector(elem):
+        """要素のセレクタを取得"""
+        if not elem or not hasattr(elem, 'name'):
+            return ''
+        
+        selector = elem.name
+        
+        # IDがあれば追加
+        if hasattr(elem, 'attrs') and 'id' in elem.attrs:
+            selector += f"#{elem.attrs['id']}"
+        
+        # クラスがあれば追加
+        if hasattr(elem, 'attrs') and 'class' in elem.attrs:
+            classes = elem.attrs['class']
+            if isinstance(classes, list):
+                selector += '.' + '.'.join(classes)
+            else:
+                selector += f".{classes}"
+        
+        return selector
+    
+    # body要素を統合
+    if base_soup.body:
+        merge_element(base_soup.body, parsed_files[1:])
+    
+    # head要素も統合（スタイルなど）
+    if options.get('styles', True) and base_soup.head:
+        merge_element(base_soup.head, parsed_files[1:])
+    
+    # 統計を更新
+    stats['mergedElements'] = stats['commonElements']
+    
+    # 統合されたHTMLを生成
+    merged_html = str(base_soup)
+    
+    return merged_html, stats
 
 
 def main():
