@@ -579,9 +579,9 @@ EDITOR_TEMPLATE = r"""
             position: fixed;
             z-index: 10000;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 12px;
+            border-radius: 8px;
             box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-            min-width: 300px;
+            min-width: 240px;
             max-width: 90vw;
             transition: all 0.3s ease;
             user-select: none;
@@ -594,12 +594,12 @@ EDITOR_TEMPLATE = r"""
             display: none;
         }
         #remoteControl.collapsed .remote-control-header {
-            border-radius: 12px;
+            border-radius: 8px;
         }
         .remote-control-header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 12px 16px;
-            border-radius: 12px 12px 0 0;
+            padding: 6px 10px;
+            border-radius: 8px 8px 0 0;
             cursor: move;
             display: flex;
             justify-content: space-between;
@@ -614,21 +614,21 @@ EDITOR_TEMPLATE = r"""
         .remote-control-title {
             display: flex;
             align-items: center;
-            gap: 8px;
-            font-size: 14px;
+            gap: 6px;
+            font-size: 12px;
         }
         .remote-control-toggle {
             background: rgba(255,255,255,0.2);
             border: none;
             color: white;
-            width: 28px;
-            height: 28px;
-            border-radius: 6px;
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 16px;
+            font-size: 14px;
             transition: all 0.2s;
             flex-shrink: 0;
         }
@@ -638,63 +638,65 @@ EDITOR_TEMPLATE = r"""
         }
         .remote-control-content {
             background: white;
-            padding: 16px;
-            border-radius: 0 0 12px 12px;
+            padding: 10px;
+            border-radius: 0 0 8px 8px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 8px;
             max-height: 80vh;
             overflow-y: auto;
         }
         .remote-control-section {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 4px;
         }
         .remote-control-section-title {
-            font-size: 12px;
+            font-size: 10px;
             font-weight: 600;
             color: #4a5568;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
         }
         .remote-control-buttons {
             display: flex;
             flex-wrap: wrap;
-            gap: 6px;
+            gap: 4px;
         }
         .remote-control-buttons .btn {
             flex: 1;
-            min-width: 120px;
-            font-size: 13px;
-            padding: 8px 12px;
+            min-width: 85px;
+            font-size: 11px;
+            padding: 5px 8px;
         }
         .remote-control-search {
             display: flex;
-            gap: 6px;
+            gap: 4px;
             align-items: center;
         }
         .remote-control-search input {
             flex: 1;
-            padding: 8px;
+            padding: 5px 8px;
             border: 1px solid #e2e8f0;
-            border-radius: 5px;
-            font-size: 13px;
+            border-radius: 4px;
+            font-size: 11px;
         }
         .remote-control-search .btn {
             flex: 0 0 auto;
             min-width: auto;
-            padding: 8px 16px;
+            padding: 5px 12px;
+            font-size: 11px;
         }
         .remote-control-nav-buttons {
             display: flex;
-            gap: 6px;
+            gap: 4px;
         }
         .remote-control-nav-buttons .btn {
             flex: 1;
             min-width: auto;
-            padding: 8px 12px;
+            padding: 5px 8px;
+            font-size: 11px;
         }
         #remoteControl.dragging {
             opacity: 0.8;
@@ -772,7 +774,7 @@ EDITOR_TEMPLATE = r"""
                     <button class="btn btn-info" onclick="highlightPrevious()" id="prevMatchBtn" style="display: none;" title="前の検索結果へ">▲ 前へ</button>
                     <button class="btn btn-info" onclick="highlightNext()" id="nextMatchBtn" style="display: none;" title="次の検索結果へ">次へ ▼</button>
                 </div>
-                <span id="matchCounter" style="display: none; font-size: 12px; color: #666; text-align: center;"></span>
+                <span id="matchCounter" style="display: none; font-size: 10px; color: #666; text-align: center;"></span>
             </div>
         </div>
     </div>
