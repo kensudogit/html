@@ -926,6 +926,138 @@ EDITOR_TEMPLATE = r"""
         .remote-control-content::-webkit-scrollbar-thumb:hover {
             background: #555;
         }
+        /* 利用手順パネルスタイル（リモコン盤と同じデザイン） */
+        #usageGuide {
+            position: fixed;
+            z-index: 9999;
+            background: linear-gradient(135deg, var(--success-color) 0%, var(--success-dark) 100%);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-2xl);
+            min-width: 280px;
+            max-width: 90vw;
+            transition: all var(--transition-slow);
+            user-select: none;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        #usageGuide.collapsed {
+            min-width: auto;
+            width: auto;
+        }
+        #usageGuide.collapsed .usage-guide-content {
+            display: none;
+        }
+        #usageGuide.collapsed .usage-guide-header {
+            border-radius: var(--radius-lg);
+        }
+        .usage-guide-header {
+            background: linear-gradient(135deg, var(--success-color) 0%, var(--success-dark) 100%);
+            padding: 6px 10px;
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+            cursor: move;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .usage-guide-header:hover {
+            background: linear-gradient(135deg, var(--success-dark) 0%, #047857 100%);
+        }
+        .usage-guide-title {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+        }
+        .usage-guide-toggle {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        .usage-guide-toggle:hover {
+            background: rgba(255,255,255,0.3);
+            transform: scale(1.1);
+        }
+        .usage-guide-content {
+            background: var(--bg-primary);
+            padding: 12px;
+            border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .usage-guide-step {
+            padding: 10px;
+            background: white;
+            border-radius: var(--radius-md);
+            border-left: 3px solid var(--success-color);
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 8px;
+        }
+        .usage-guide-step-number {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            background: var(--success-color);
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            margin-right: 8px;
+        }
+        .usage-guide-step-title {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+        .usage-guide-step-content {
+            font-size: 11px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-top: 4px;
+        }
+        .usage-guide-step-content ul {
+            margin: 4px 0;
+            padding-left: 18px;
+        }
+        .usage-guide-step-content li {
+            margin: 2px 0;
+        }
+        #usageGuide.dragging {
+            opacity: 0.8;
+            cursor: move;
+        }
+        .usage-guide-content::-webkit-scrollbar {
+            width: 8px;
+        }
+        .usage-guide-content::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        .usage-guide-content::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+        .usage-guide-content::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
     </style>
 </head>
 <body>
@@ -934,6 +1066,83 @@ EDITOR_TEMPLATE = r"""
             <div>
                 <h1>📝 HTMLエディタ</h1>
                 <p>ファイル: {{ filename if filename else 'ファイルを選択してください' }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 利用手順パネル -->
+    <div id="usageGuide">
+        <div class="usage-guide-header" id="usageGuideHeader">
+            <div class="usage-guide-title">📖 利用手順</div>
+            <button class="usage-guide-toggle" id="usageGuideToggle" onclick="toggleUsageGuide()" title="開閉">▼</button>
+        </div>
+        <div class="usage-guide-content" id="usageGuideContent">
+            <div class="usage-guide-step">
+                <div class="usage-guide-step-title">
+                    <span class="usage-guide-step-number">1</span>
+                    ファイルのアップロード
+                </div>
+                <div class="usage-guide-step-content">
+                    リモコン盤の「📤 アップロード」ボタンからHTMLファイルをアップロードします。
+                </div>
+            </div>
+            
+            <div class="usage-guide-step">
+                <div class="usage-guide-step-title">
+                    <span class="usage-guide-step-number">2</span>
+                    差分検出（27大学のホームページ）
+                </div>
+                <div class="usage-guide-step-content">
+                    <ul>
+                        <li>リモコン盤の「🔍 差分検出」ボタンをクリック</li>
+                        <li>27校のHTMLファイルが保存されているディレクトリパスを入力</li>
+                        <li>検出オプションを選択して「🔍 差分検出実行」をクリック</li>
+                        <li>差分レポートを確認（JSON/CSVでエクスポート可能）</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="usage-guide-step">
+                <div class="usage-guide-step-title">
+                    <span class="usage-guide-step-number">3</span>
+                    最大公約数テンプレート生成
+                </div>
+                <div class="usage-guide-step-content">
+                    <ul>
+                        <li>差分検出完了後、「🔀 最大公約数テンプレート生成」をクリック</li>
+                        <li>共通部分と差分部分（変数化）を含むテンプレートが生成されます</li>
+                        <li>「⬇️ テンプレートをダウンロード」で保存可能</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="usage-guide-step">
+                <div class="usage-guide-step-title">
+                    <span class="usage-guide-step-number">4</span>
+                    27大学のホームページ生成
+                </div>
+                <div class="usage-guide-step-content">
+                    <ul>
+                        <li>テンプレート生成後、「🏫 27大学のホームページを生成」をクリック</li>
+                        <li>各大学の現行デザインを保持したホームページが自動生成されます</li>
+                        <li>「📦 ZIPファイルをダウンロード」で一括ダウンロード可能</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="usage-guide-step">
+                <div class="usage-guide-step-title">
+                    <span class="usage-guide-step-number">5</span>
+                    その他の機能
+                </div>
+                <div class="usage-guide-step-content">
+                    <ul>
+                        <li><strong>テンプレート統合:</strong> 複数ファイルから共通テンプレートを生成</li>
+                        <li><strong>検索・置換:</strong> HTMLソース内の文字列を検索・置換</li>
+                        <li><strong>構文チェック:</strong> HTMLの構文エラーを検出</li>
+                        <li><strong>デザイン出力:</strong> プレビューのスタイル情報をJSON/CSVで出力</li>
+                    </ul>
+                </div>
             </div>
         </div>
     </div>
@@ -1360,6 +1569,9 @@ EDITOR_TEMPLATE = r"""
             
             // リモコン盤の初期化
             initRemoteControl();
+            
+            // 利用手順パネルの初期化
+            initUsageGuide();
             
             // リサイザーの実装
             const resizer = document.getElementById('resizer');
@@ -2071,6 +2283,105 @@ EDITOR_TEMPLATE = r"""
             
             // 状態を保存
             localStorage.setItem('remoteControlState', isCollapsed ? 'collapsed' : 'expanded');
+        };
+        
+        // 利用手順パネルの初期化
+        function initUsageGuide() {
+            const usageGuide = document.getElementById('usageGuide');
+            const usageGuideHeader = document.getElementById('usageGuideHeader');
+            if (!usageGuide || !usageGuideHeader) return;
+            
+            // 保存された位置と状態を復元
+            const savedPosition = localStorage.getItem('usageGuidePosition');
+            const savedState = localStorage.getItem('usageGuideState');
+            
+            if (savedPosition) {
+                const pos = JSON.parse(savedPosition);
+                usageGuide.style.left = pos.x + 'px';
+                usageGuide.style.top = pos.y + 'px';
+            } else {
+                // デフォルト位置（左下）
+                usageGuide.style.left = '20px';
+                usageGuide.style.bottom = '20px';
+            }
+            
+            if (savedState === 'collapsed') {
+                usageGuide.classList.add('collapsed');
+                const toggleBtn = document.getElementById('usageGuideToggle');
+                if (toggleBtn) toggleBtn.textContent = '▲';
+            }
+            
+            // ドラッグ機能
+            let isDragging = false;
+            let dragStartX = 0;
+            let dragStartY = 0;
+            let startLeft = 0;
+            let startTop = 0;
+            
+            usageGuideHeader.addEventListener('mousedown', function(e) {
+                // 開閉ボタンをクリックした場合はドラッグしない
+                if (e.target.closest('.usage-guide-toggle')) return;
+                
+                isDragging = true;
+                usageGuide.classList.add('dragging');
+                
+                const rect = usageGuide.getBoundingClientRect();
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+                startLeft = rect.left;
+                startTop = rect.top;
+                
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', function(e) {
+                if (!isDragging) return;
+                
+                const diffX = e.clientX - dragStartX;
+                const diffY = e.clientY - dragStartY;
+                
+                let newLeft = startLeft + diffX;
+                let newTop = startTop + diffY;
+                
+                // 画面外に出ないように制限
+                const maxLeft = window.innerWidth - usageGuide.offsetWidth;
+                const maxTop = window.innerHeight - usageGuide.offsetHeight;
+                
+                newLeft = Math.max(0, Math.min(newLeft, maxLeft));
+                newTop = Math.max(0, Math.min(newTop, maxTop));
+                
+                usageGuide.style.left = newLeft + 'px';
+                usageGuide.style.top = newTop + 'px';
+                usageGuide.style.bottom = 'auto';
+                usageGuide.style.right = 'auto';
+                
+                // 位置を保存
+                localStorage.setItem('usageGuidePosition', JSON.stringify({
+                    x: newLeft,
+                    y: newTop
+                }));
+            });
+            
+            document.addEventListener('mouseup', function() {
+                if (isDragging) {
+                    isDragging = false;
+                    usageGuide.classList.remove('dragging');
+                }
+            });
+        }
+        
+        // 利用手順パネルの開閉
+        window.toggleUsageGuide = function() {
+            const usageGuide = document.getElementById('usageGuide');
+            const toggleBtn = document.getElementById('usageGuideToggle');
+            if (!usageGuide || !toggleBtn) return;
+            
+            usageGuide.classList.toggle('collapsed');
+            const isCollapsed = usageGuide.classList.contains('collapsed');
+            toggleBtn.textContent = isCollapsed ? '▲' : '▼';
+            
+            // 状態を保存
+            localStorage.setItem('usageGuideState', isCollapsed ? 'collapsed' : 'expanded');
         };
         
         // ボタンの表示を確認・強制表示（リモコン盤内のボタン用）
