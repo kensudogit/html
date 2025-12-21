@@ -977,6 +977,7 @@ EDITOR_TEMPLATE = r"""
                 <div class="remote-control-section-title">テンプレート統合</div>
                 <div class="remote-control-buttons">
                     <button class="btn btn-warning" onclick="showTemplateMerge()" id="templateMergeBtn" title="複数のHTMLファイルを比較して共通テンプレートを生成">🔀 テンプレート統合</button>
+                    <button class="btn btn-info" onclick="showDiffAnalysis()" id="diffAnalysisBtn" title="27校の大学ホームページの差分を検出">🔍 差分検出</button>
                 </div>
             </div>
             
@@ -1092,6 +1093,71 @@ EDITOR_TEMPLATE = r"""
         </div>
     </div>
 
+    <!-- 差分検出モーダル -->
+    <div id="diffAnalysisModal" class="modal">
+        <div class="modal-content" style="max-width: 1000px;">
+            <span class="close" onclick="closeModal('diffAnalysisModal')">&times;</span>
+            <h2>🔍 差分検出（27校の大学ホームページ）</h2>
+            <p style="margin-top: 10px; color: #4a5568; line-height: 1.6;">
+                指定されたディレクトリ内の27校のHTMLファイルを分析し、構造・スタイル・コンテンツ・属性の差分を検出します。
+            </p>
+            
+            <div class="form-group" style="margin-top: 20px;">
+                <label class="form-label">分析対象ディレクトリ</label>
+                <input type="text" id="diffAnalysisDir" class="form-input" placeholder="例: C:\\universities または /path/to/universities" value="">
+                <small style="color: #718096; font-size: 12px; display: block; margin-top: 8px;">
+                    ※ ディレクトリ内のすべてのHTMLファイル（.html, .htm）を分析対象とします
+                </small>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">検出オプション</label>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="diffOptionStructure" checked>
+                        <span>HTML構造の差分（タグ、クラス、ID）</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="diffOptionStyles" checked>
+                        <span>CSSスタイルの差分</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="diffOptionContent" checked>
+                        <span>コンテンツ（テキスト）の差分</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="diffOptionAttributes" checked>
+                        <span>属性の差分</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="diffOptionDetailed" checked>
+                        <span>詳細な差分情報を表示</span>
+                    </label>
+                </div>
+            </div>
+            
+            <div id="diffAnalysisProgress" style="display: none; margin-top: 15px; padding: 10px; background: #f0f4f8; border-radius: 5px;">
+                <div style="font-size: 12px; color: #4a5568; margin-bottom: 5px;" id="diffProgressText">処理中...</div>
+                <div style="background: #e2e8f0; border-radius: 3px; height: 20px; overflow: hidden;">
+                    <div id="diffAnalysisProgressBar" style="background: #667eea; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                </div>
+            </div>
+            
+            <div id="diffAnalysisResult" style="display: none; margin-top: 15px;">
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <button class="btn btn-primary" onclick="downloadDiffReport()" id="downloadDiffBtn" style="font-size: 12px; padding: 8px 16px;">📥 差分レポートをダウンロード</button>
+                    <button class="btn btn-info" onclick="exportDiffToCSV()" id="exportDiffCSVBtn" style="font-size: 12px; padding: 8px 16px;">📊 CSVでエクスポート</button>
+                </div>
+                <div id="diffAnalysisResultContent" style="max-height: 500px; overflow-y: auto; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;"></div>
+            </div>
+            
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                <button class="btn btn-primary" onclick="performDiffAnalysis()" id="performDiffBtn">🔍 差分検出実行</button>
+                <button class="btn" onclick="closeModal('diffAnalysisModal')" style="background: #e2e8f0; color: #4a5568;">キャンセル</button>
+            </div>
+        </div>
+    </div>
+    
     <!-- テンプレート統合モーダル -->
     <div id="templateMergeModal" class="modal">
         <div class="modal-content" style="max-width: 900px;">
@@ -2640,6 +2706,209 @@ EDITOR_TEMPLATE = r"""
             
             showStatus('統合テンプレートをダウンロードしました', 'success');
         };
+        
+        // 差分検出モーダルを表示
+        window.showDiffAnalysis = function showDiffAnalysis() {
+            const modal = document.getElementById('diffAnalysisModal');
+            if (modal) {
+                modal.style.display = 'block';
+            } else {
+                showStatus('差分検出モーダルが見つかりません', 'error');
+            }
+        };
+        
+        // 差分検出を実行
+        window.performDiffAnalysis = async function performDiffAnalysis() {
+            const dirPath = document.getElementById('diffAnalysisDir').value.trim();
+            if (!dirPath) {
+                showStatus('ディレクトリパスを入力してください', 'error');
+                return;
+            }
+            
+            const options = {
+                structure: document.getElementById('diffOptionStructure').checked,
+                styles: document.getElementById('diffOptionStyles').checked,
+                content: document.getElementById('diffOptionContent').checked,
+                attributes: document.getElementById('diffOptionAttributes').checked,
+                detailed: document.getElementById('diffOptionDetailed').checked
+            };
+            
+            const progressDiv = document.getElementById('diffAnalysisProgress');
+            const progressBar = document.getElementById('diffAnalysisProgressBar');
+            const progressText = document.getElementById('diffProgressText');
+            const resultDiv = document.getElementById('diffAnalysisResult');
+            const resultContent = document.getElementById('diffAnalysisResultContent');
+            const performBtn = document.getElementById('performDiffBtn');
+            const downloadBtn = document.getElementById('downloadDiffBtn');
+            const exportCSVBtn = document.getElementById('exportDiffCSVBtn');
+            
+            progressDiv.style.display = 'block';
+            progressBar.style.width = '0%';
+            progressText.textContent = '処理中...';
+            resultDiv.style.display = 'none';
+            downloadBtn.style.display = 'none';
+            exportCSVBtn.style.display = 'none';
+            performBtn.disabled = true;
+            
+            try {
+                progressBar.style.width = '20%';
+                progressText.textContent = 'ディレクトリを読み込み中...';
+                
+                const response = await fetch('/diff-analysis', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        directory: dirPath,
+                        options: options
+                    })
+                });
+                
+                progressBar.style.width = '80%';
+                progressText.textContent = '差分を分析中...';
+                
+                const data = await response.json();
+                
+                progressBar.style.width = '100%';
+                progressText.textContent = '完了！';
+                
+                if (data.success) {
+                    window.diffAnalysisData = data;
+                    
+                    // 結果を表示
+                    let html = '<div style="margin-bottom: 15px;">';
+                    html += `<h3 style="font-size: 16px; margin-bottom: 10px; color: var(--text-primary);">📊 分析結果サマリー</h3>`;
+                    html += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 15px;">`;
+                    html += `<div style="padding: 12px; background: white; border-radius: 8px; border: 1px solid var(--border-color);">`;
+                    html += `<div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">分析ファイル数</div>`;
+                    html += `<div style="font-size: 24px; font-weight: 700; color: var(--primary-color);">${data.summary.totalFiles}</div>`;
+                    html += `</div>`;
+                    html += `<div style="padding: 12px; background: white; border-radius: 8px; border: 1px solid var(--border-color);">`;
+                    html += `<div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">構造差分</div>`;
+                    html += `<div style="font-size: 24px; font-weight: 700; color: var(--warning-color);">${data.summary.structureDiffs}</div>`;
+                    html += `</div>`;
+                    html += `<div style="padding: 12px; background: white; border-radius: 8px; border: 1px solid var(--border-color);">`;
+                    html += `<div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">スタイル差分</div>`;
+                    html += `<div style="font-size: 24px; font-weight: 700; color: var(--info-color);">${data.summary.styleDiffs}</div>`;
+                    html += `</div>`;
+                    html += `<div style="padding: 12px; background: white; border-radius: 8px; border: 1px solid var(--border-color);">`;
+                    html += `<div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">コンテンツ差分</div>`;
+                    html += `<div style="font-size: 24px; font-weight: 700; color: var(--danger-color);">${data.summary.contentDiffs}</div>`;
+                    html += `</div>`;
+                    html += `</div>`;
+                    html += `</div>`;
+                    
+                    if (data.differences && data.differences.length > 0) {
+                        html += '<h3 style="font-size: 16px; margin-bottom: 10px; margin-top: 20px; color: var(--text-primary);">🔍 検出された差分</h3>';
+                        html += '<div style="display: flex; flex-direction: column; gap: 8px;">';
+                        
+                        data.differences.forEach((diff, index) => {
+                            const typeColors = {
+                                'structure': '#f59e0b',
+                                'style': '#3b82f6',
+                                'content': '#ef4444',
+                                'attribute': '#8b5cf6'
+                            };
+                            const typeLabels = {
+                                'structure': '構造',
+                                'style': 'スタイル',
+                                'content': 'コンテンツ',
+                                'attribute': '属性'
+                            };
+                            
+                            html += `<div style="padding: 12px; background: white; border-radius: 8px; border-left: 4px solid ${typeColors[diff.type] || '#666'}; box-shadow: var(--shadow-sm);">`;
+                            html += `<div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">`;
+                            html += `<div style="font-weight: 600; color: var(--text-primary); font-size: 13px;">`;
+                            html += `<span style="display: inline-block; padding: 2px 8px; background: ${typeColors[diff.type] || '#666'}; color: white; border-radius: 4px; font-size: 11px; margin-right: 8px;">${typeLabels[diff.type] || diff.type}</span>`;
+                            html += `${diff.element || diff.selector || '不明な要素'}`;
+                            html += `</div>`;
+                            html += `<div style="font-size: 11px; color: var(--text-tertiary);">${diff.files ? diff.files.length + 'ファイル' : ''}</div>`;
+                            html += `</div>`;
+                            if (diff.description) {
+                                html += `<div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">${diff.description}</div>`;
+                            }
+                            if (diff.files && diff.files.length > 0) {
+                                html += `<div style="font-size: 11px; color: var(--text-tertiary); margin-top: 6px;">影響ファイル: ${diff.files.join(', ')}</div>`;
+                            }
+                            html += `</div>`;
+                        });
+                        
+                        html += '</div>';
+                    }
+                    
+                    resultContent.innerHTML = html;
+                    resultDiv.style.display = 'block';
+                    downloadBtn.style.display = 'inline-block';
+                    exportCSVBtn.style.display = 'inline-block';
+                    showStatus('差分検出が完了しました', 'success');
+                } else {
+                    resultContent.innerHTML = `<p style="color: #f56565;">エラー: ${data.error}</p>`;
+                    resultDiv.style.display = 'block';
+                    showStatus('エラー: ' + data.error, 'error');
+                }
+            } catch (error) {
+                resultContent.innerHTML = `<p style="color: #f56565;">エラー: ${error.message}</p>`;
+                resultDiv.style.display = 'block';
+                showStatus('エラー: ' + error.message, 'error');
+            } finally {
+                performBtn.disabled = false;
+                setTimeout(() => {
+                    progressBar.style.width = '0%';
+                }, 500);
+            }
+        };
+        
+        // 差分レポートをダウンロード
+        window.downloadDiffReport = function downloadDiffReport() {
+            if (!window.diffAnalysisData) {
+                showStatus('差分データがありません', 'error');
+                return;
+            }
+            
+            const report = JSON.stringify(window.diffAnalysisData, null, 2);
+            const blob = new Blob([report], { type: 'application/json;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'diff_report_' + new Date().toISOString().slice(0, 10) + '.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showStatus('差分レポートをダウンロードしました', 'success');
+        };
+        
+        // 差分をCSVでエクスポート
+        window.exportDiffToCSV = function exportDiffToCSV() {
+            if (!window.diffAnalysisData || !window.diffAnalysisData.differences) {
+                showStatus('差分データがありません', 'error');
+                return;
+            }
+            
+            let csv = 'タイプ,要素,説明,影響ファイル数,影響ファイル\n';
+            window.diffAnalysisData.differences.forEach(diff => {
+                const type = diff.type || '';
+                const element = (diff.element || diff.selector || '').replace(/"/g, '""');
+                const description = (diff.description || '').replace(/"/g, '""');
+                const fileCount = diff.files ? diff.files.length : 0;
+                const files = (diff.files || []).join('; ').replace(/"/g, '""');
+                csv += `"${type}","${element}","${description}",${fileCount},"${files}"\n`;
+            });
+            
+            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'diff_report_' + new Date().toISOString().slice(0, 10) + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showStatus('CSVファイルをダウンロードしました', 'success');
+        };
 
         // 画面デザイン差分を確認しやすいように、プレビューDOMの主要スタイルをJSON/CSVで出力
         window.performDesignExport = function performDesignExport() {
@@ -3094,7 +3363,7 @@ EDITOR_TEMPLATE = r"""
         
         // モーダルの外側をクリックで閉じる
         window.onclick = function(event) {
-            const modals = ['structureModal', 'searchModal', 'designExportModal', 'templateMergeModal', 'uploadModal', 'fileListModal'];
+            const modals = ['structureModal', 'searchModal', 'designExportModal', 'templateMergeModal', 'diffAnalysisModal', 'uploadModal', 'fileListModal'];
             modals.forEach(modalId => {
                 const modal = document.getElementById(modalId);
                 if (event.target == modal) {
@@ -3594,6 +3863,244 @@ def validate():
     
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/diff-analysis', methods=['POST'])
+def diff_analysis():
+    """27校の大学ホームページの差分を検出"""
+    try:
+        data = request.json
+        directory = data.get('directory', '')
+        options = data.get('options', {})
+        
+        if not directory:
+            return jsonify({'success': False, 'error': 'ディレクトリパスが指定されていません'}), 400
+        
+        # ディレクトリの存在確認
+        dir_path = Path(directory)
+        if not dir_path.exists() or not dir_path.is_dir():
+            return jsonify({'success': False, 'error': f'ディレクトリが見つかりません: {directory}'}), 404
+        
+        # HTMLファイルを取得
+        html_files = list(dir_path.glob('*.html')) + list(dir_path.glob('*.htm'))
+        
+        if len(html_files) == 0:
+            return jsonify({'success': False, 'error': 'HTMLファイルが見つかりませんでした'}), 404
+        
+        # ファイルを読み込んで解析
+        parsed_files = []
+        for file_path in html_files:
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                soup = BeautifulSoup(content, 'html.parser')
+                parsed_files.append({
+                    'filename': file_path.name,
+                    'filepath': str(file_path),
+                    'soup': soup,
+                    'content': content
+                })
+            except Exception as e:
+                # ファイル読み込みエラーはスキップ
+                continue
+        
+        if len(parsed_files) < 2:
+            return jsonify({'success': False, 'error': '比較するには2つ以上のファイルが必要です'}), 400
+        
+        # 差分を検出
+        differences = analyze_differences(parsed_files, options)
+        
+        # サマリーを生成
+        summary = {
+            'totalFiles': len(parsed_files),
+            'structureDiffs': sum(1 for d in differences if d['type'] == 'structure'),
+            'styleDiffs': sum(1 for d in differences if d['type'] == 'style'),
+            'contentDiffs': sum(1 for d in differences if d['type'] == 'content'),
+            'attributeDiffs': sum(1 for d in differences if d['type'] == 'attribute')
+        }
+        
+        return jsonify({
+            'success': True,
+            'summary': summary,
+            'differences': differences,
+            'files': [f['filename'] for f in parsed_files]
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+def analyze_differences(parsed_files, options):
+    """HTMLファイル間の差分を分析"""
+    differences = []
+    
+    if len(parsed_files) < 2:
+        return differences
+    
+    # 基準ファイル（最初のファイル）
+    base_file = parsed_files[0]
+    base_soup = base_file['soup']
+    
+    # 各要素を比較
+    def get_all_elements(soup):
+        """すべての要素を取得"""
+        elements = []
+        if soup.body:
+            elements.extend(soup.body.find_all())
+        if soup.head and options.get('styles', True):
+            elements.extend(soup.head.find_all(['style', 'link']))
+        return elements
+    
+    def get_element_signature(elem):
+        """要素のシグネチャを取得（比較用）"""
+        if not elem or not hasattr(elem, 'name'):
+            return None
+        
+        sig = {
+            'tag': elem.name,
+            'id': elem.get('id', ''),
+            'classes': sorted(elem.get('class', [])) if isinstance(elem.get('class'), list) else [elem.get('class')] if elem.get('class') else []
+        }
+        return sig
+    
+    def compare_elements(elem1, elem2):
+        """2つの要素を比較"""
+        sig1 = get_element_signature(elem1)
+        sig2 = get_element_signature(elem2)
+        
+        if not sig1 or not sig2:
+            return False
+        
+        return sig1['tag'] == sig2['tag'] and sig1['id'] == sig2['id'] and sig1['classes'] == sig2['classes']
+    
+    # 基準ファイルの要素を取得
+    base_elements = get_all_elements(base_soup)
+    
+    # 各要素について、他のファイルと比較
+    for base_elem in base_elements:
+        base_sig = get_element_signature(base_elem)
+        if not base_sig:
+            continue
+        
+        # セレクタを生成
+        selector = base_sig['tag']
+        if base_sig['id']:
+            selector += f"#{base_sig['id']}"
+        if base_sig['classes']:
+            selector += '.' + '.'.join(base_sig['classes'])
+        
+        # 他のファイルで同じ要素を探す
+        matching_files = [base_file['filename']]
+        different_files = []
+        
+        for other_file in parsed_files[1:]:
+            other_soup = other_file['soup']
+            try:
+                found = other_soup.select_one(selector)
+                if found:
+                    matching_files.append(other_file['filename'])
+                    
+                    # 構造の差分をチェック
+                    if options.get('structure', True):
+                        if found.name != base_elem.name:
+                            different_files.append({
+                                'file': other_file['filename'],
+                                'type': 'structure',
+                                'message': f"タグ名が異なります: {found.name} vs {base_elem.name}"
+                            })
+                    
+                    # 属性の差分をチェック
+                    if options.get('attributes', True):
+                        base_attrs = set(base_elem.attrs.keys())
+                        found_attrs = set(found.attrs.keys())
+                        
+                        # 追加された属性
+                        added = found_attrs - base_attrs
+                        # 削除された属性
+                        removed = base_attrs - found_attrs
+                        # 値が異なる属性
+                        different = []
+                        for attr in base_attrs & found_attrs:
+                            if base_elem.get(attr) != found.get(attr):
+                                different.append(attr)
+                        
+                        if added or removed or different:
+                            diff_msg = []
+                            if added:
+                                diff_msg.append(f"追加: {', '.join(added)}")
+                            if removed:
+                                diff_msg.append(f"削除: {', '.join(removed)}")
+                            if different:
+                                diff_msg.append(f"変更: {', '.join(different)}")
+                            
+                            different_files.append({
+                                'file': other_file['filename'],
+                                'type': 'attribute',
+                                'message': '; '.join(diff_msg)
+                            })
+                    
+                    # コンテンツの差分をチェック
+                    if options.get('content', True):
+                        base_text = base_elem.get_text(strip=True)
+                        found_text = found.get_text(strip=True)
+                        
+                        if base_text != found_text:
+                            different_files.append({
+                                'file': other_file['filename'],
+                                'type': 'content',
+                                'message': f"テキストが異なります"
+                            })
+                else:
+                    # 要素が見つからない
+                    if options.get('structure', True):
+                        different_files.append({
+                            'file': other_file['filename'],
+                            'type': 'structure',
+                            'message': '要素が見つかりません'
+                        })
+            except Exception:
+                # セレクタが無効な場合はスキップ
+                pass
+        
+        # 差分がある場合は記録
+        if different_files:
+            diff_type = different_files[0]['type']
+            affected_files = [df['file'] for df in different_files]
+            
+            differences.append({
+                'type': diff_type,
+                'element': selector,
+                'description': different_files[0]['message'] if different_files else '差分が検出されました',
+                'files': affected_files,
+                'matchingFiles': matching_files
+            })
+    
+    # スタイルの差分をチェック
+    if options.get('styles', True):
+        base_styles = []
+        if base_soup.head:
+            base_styles.extend(base_soup.head.find_all('style'))
+            base_styles.extend(base_soup.head.find_all('link', rel='stylesheet'))
+        
+        for other_file in parsed_files[1:]:
+            other_soup = other_file['soup']
+            other_styles = []
+            if other_soup.head:
+                other_styles.extend(other_soup.head.find_all('style'))
+                other_styles.extend(other_soup.head.find_all('link', rel='stylesheet'))
+            
+            if len(base_styles) != len(other_styles):
+                differences.append({
+                    'type': 'style',
+                    'element': 'head > style/link',
+                    'description': f"スタイルシートの数が異なります: {len(base_styles)} vs {len(other_styles)}",
+                    'files': [other_file['filename']]
+                })
+    
+    return differences
 
 
 @app.route('/template-merge', methods=['POST'])
