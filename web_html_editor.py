@@ -111,7 +111,7 @@ EDITOR_TEMPLATE = r"""
         .header {
             background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
             color: white;
-            padding: 24px 32px;
+            padding: 12px 24px;
             box-shadow: var(--shadow-lg);
             position: relative;
             overflow: hidden;
@@ -131,17 +131,17 @@ EDITOR_TEMPLATE = r"""
             z-index: 1;
         }
         .header h1 {
-            font-size: 28px;
+            font-size: 20px;
             font-weight: 700;
-            margin-bottom: 6px;
-            letter-spacing: -0.5px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 2px;
+            letter-spacing: -0.3px;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
         .header p {
             opacity: 0.95;
-            font-size: 15px;
+            font-size: 12px;
             font-weight: 400;
-            letter-spacing: 0.2px;
+            letter-spacing: 0.1px;
         }
         .header > div > div:last-child {
             display: flex !important;
