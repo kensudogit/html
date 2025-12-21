@@ -3660,7 +3660,28 @@ def merge_html_templates(parsed_files, options):
         'differences': []
     }
     
-    # 各要素を比較して統合
+    # ヘルパー関数を先に定義
+    def get_element_selector(elem):
+        """要素のセレクタを取得"""
+        if not elem or not hasattr(elem, 'name'):
+            return ''
+        
+        selector = elem.name
+        
+        # IDがあれば追加
+        if hasattr(elem, 'attrs') and 'id' in elem.attrs:
+            selector += f"#{elem.attrs['id']}"
+        
+        # クラスがあれば追加
+        if hasattr(elem, 'attrs') and 'class' in elem.attrs:
+            classes = elem.attrs['class']
+            if isinstance(classes, list):
+                selector += '.' + '.'.join(classes)
+            else:
+                selector += f".{classes}"
+        
+        return selector
+    
     def normalize_element(elem):
         """要素を正規化（比較用）"""
         if not elem or not hasattr(elem, 'name'):
@@ -3704,7 +3725,7 @@ def merge_html_templates(parsed_files, options):
         
         return True
     
-    def merge_element(base_elem, other_soups):
+    def merge_element(base_elem, other_files):
         """要素を統合"""
         if not base_elem or not hasattr(base_elem, 'name'):
             return base_elem
@@ -3713,20 +3734,21 @@ def merge_html_templates(parsed_files, options):
         matching_elements = [base_elem]
         base_selector = get_element_selector(base_elem)
         
-        for other_data in other_soups:
+        for other_data in other_files:
             other_soup = other_data['soup']
             try:
                 # セレクタで要素を検索
                 found = other_soup.select_one(base_selector)
                 if found and compare_elements(base_elem, found):
                     matching_elements.append(found)
-            except:
+            except Exception as e:
+                # セレクタが無効な場合はスキップ
                 pass
         
         # 共通属性を抽出
         if options.get('attributes', True) and matching_elements:
             common_attrs = {}
-            if len(matching_elements) == len(other_soups) + 1:  # すべてのファイルで見つかった
+            if len(matching_elements) == len(other_files) + 1:  # すべてのファイルで見つかった
                 # 最初の要素の属性を基準に、共通する属性のみを採用
                 base_attrs = dict(matching_elements[0].attrs)
                 for key, value in base_attrs.items():
@@ -3746,16 +3768,16 @@ def merge_html_templates(parsed_files, options):
         
         # 子要素を再帰的に統合
         if hasattr(base_elem, 'children'):
-            children_to_remove = []
-            for child in base_elem.children:
+            for child in list(base_elem.children):
                 if hasattr(child, 'name') and child.name:
-                    merged_child = merge_element(child, other_soups)
-                    if merged_child != child:
-                        # 子要素が変更された場合の処理
+                    try:
+                        merge_element(child, other_files)
+                    except Exception:
+                        # エラーが発生した場合はスキップ
                         pass
             
             # 差異がある子要素を処理
-            for other_data in other_soups:
+            for other_data in other_files:
                 other_soup = other_data['soup']
                 try:
                     other_elem = other_soup.select_one(base_selector)
@@ -3765,12 +3787,19 @@ def merge_html_templates(parsed_files, options):
                         
                         if base_children_tags != other_children_tags:
                             stats['differences'].append(f"子要素の構造が異なります ({base_selector})")
-                except:
+                except Exception:
                     pass
         
         # テキストコンテンツを統合
         if options.get('content', True) and matching_elements:
-            texts = [elem.get_text(strip=True) for elem in matching_elements if hasattr(elem, 'get_text')]
+            texts = []
+            for elem in matching_elements:
+                try:
+                    if hasattr(elem, 'get_text'):
+                        texts.append(elem.get_text(strip=True))
+                except Exception:
+                    pass
+            
             if texts:
                 # すべて同じテキストの場合のみ採用
                 if len(set(texts)) == 1:
@@ -3780,42 +3809,32 @@ def merge_html_templates(parsed_files, options):
                     diff_handling = options.get('diffHandling', 'common')
                     if diff_handling == 'common':
                         # 共通部分のみ採用（空にする）
-                        if hasattr(base_elem, 'string'):
-                            base_elem.string = ''
-                        elif hasattr(base_elem, 'clear'):
-                            for child in list(base_elem.children):
-                                if hasattr(child, 'get_text') and child.get_text(strip=True):
-                                    child.decompose()
+                        try:
+                            if hasattr(base_elem, 'string'):
+                                base_elem.string = ''
+                            else:
+                                for child in list(base_elem.children):
+                                    if hasattr(child, 'get_text'):
+                                        try:
+                                            if child.get_text(strip=True):
+                                                child.decompose()
+                                        except Exception:
+                                            pass
+                        except Exception:
+                            pass
                         stats['diffElements'] += 1
-                        stats['differences'].append(f"テキストが異なります ({base_selector}): {texts[0][:30]}... vs {texts[1][:30]}...")
+                        if len(texts) >= 2:
+                            stats['differences'].append(f"テキストが異なります ({base_selector}): {texts[0][:30]}... vs {texts[1][:30]}...")
                     elif diff_handling == 'comment':
                         # 差異をコメントとして追加
-                        comment_text = f"<!-- 差異: {', '.join(set(texts)[:3])} -->"
-                        if hasattr(base_elem, 'insert'):
-                            base_elem.insert(0, BeautifulSoup(comment_text, 'html.parser'))
+                        try:
+                            comment_text = f"<!-- 差異: {', '.join(list(set(texts))[:3])} -->"
+                            if hasattr(base_elem, 'insert'):
+                                base_elem.insert(0, BeautifulSoup(comment_text, 'html.parser'))
+                        except Exception:
+                            pass
         
         return base_elem
-    
-    def get_element_selector(elem):
-        """要素のセレクタを取得"""
-        if not elem or not hasattr(elem, 'name'):
-            return ''
-        
-        selector = elem.name
-        
-        # IDがあれば追加
-        if hasattr(elem, 'attrs') and 'id' in elem.attrs:
-            selector += f"#{elem.attrs['id']}"
-        
-        # クラスがあれば追加
-        if hasattr(elem, 'attrs') and 'class' in elem.attrs:
-            classes = elem.attrs['class']
-            if isinstance(classes, list):
-                selector += '.' + '.'.join(classes)
-            else:
-                selector += f".{classes}"
-        
-        return selector
     
     # body要素を統合
     if base_soup.body:
