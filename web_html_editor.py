@@ -1052,17 +1052,6 @@ EDITOR_TEMPLATE = r"""
                 <div class="info-label">スクリプト数</div>
                 <div class="info-value">{{ scripts_count }}</div>
             </div>
-            {% else %}
-            <div class="info-item">
-                <div class="info-value" style="text-align: center; padding: 40px; color: #718096;">
-                    <p style="font-size: 18px; margin-bottom: 15px;">📁 ファイルが選択されていません</p>
-                    <p style="font-size: 14px; margin-bottom: 20px;">HTMLファイルをアップロードして編集を開始してください</p>
-                    <button class="btn btn-primary" onclick="showUploadModal()" style="padding: 15px 30px; font-size: 16px; font-weight: 600;">
-                        📤 HTMLファイルをアップロード
-                    </button>
-                    <p style="font-size: 12px; margin-top: 15px; color: #a0aec0;">または「ファイル一覧」から既存のファイルを選択</p>
-                </div>
-            </div>
             {% endif %}
         </div>
     </div>
