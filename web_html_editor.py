@@ -4707,38 +4707,74 @@ def get_element_selector_simple(elem):
 
 
 def apply_design_to_template(template_soup, original_soup, original_filename):
-    """元のHTMLからデザイン情報を抽出してテンプレートに適用"""
-    # 1. CSSスタイルを抽出・適用
-    if original_soup.head:
-        # スタイルタグを抽出
-        original_styles = original_soup.head.find_all('style')
-        original_links = original_soup.head.find_all('link', rel='stylesheet')
-        
-        if template_soup.head:
-            # 既存のスタイルを削除（必要に応じて）
-            # 元のスタイルを追加
-            for style in original_styles:
-                if style.string:
-                    new_style = template_soup.new_tag('style')
-                    new_style.string = style.string
-                    template_soup.head.append(new_style)
-            
-            for link in original_links:
-                new_link = template_soup.new_tag('link')
-                for attr, value in link.attrs.items():
-                    new_link[attr] = value
-                template_soup.head.append(new_link)
+    """元のHTMLからデザイン情報を抽出してテンプレートに適用（現行デザインを完全再現）"""
+    import re
     
-    # 2. メタタグを適用
+    # 1. head要素の完全な適用
     if original_soup.head and template_soup.head:
-        original_meta = original_soup.head.find_all('meta')
-        for meta in original_meta:
-            if meta.get('charset'):
-                continue  # charsetは既に存在
-            new_meta = template_soup.new_tag('meta')
-            for attr, value in meta.attrs.items():
-                new_meta[attr] = value
-            template_soup.head.append(new_meta)
+        # 既存のhead要素をクリア（charset以外）
+        for child in list(template_soup.head.children):
+            if hasattr(child, 'name') and child.name not in ['meta']:
+                child.decompose()
+            elif hasattr(child, 'name') and child.name == 'meta' and child.get('charset'):
+                continue  # charsetは保持
+            elif not hasattr(child, 'name'):
+                child.decompose()
+        
+        # 元のhead要素の内容をコピー
+        for child in original_soup.head.children:
+            if hasattr(child, 'name'):
+                if child.name == 'meta' and child.get('charset'):
+                    continue  # charsetは既に存在
+                
+                # 新しい要素を作成
+                new_elem = template_soup.new_tag(child.name)
+                if hasattr(child, 'attrs'):
+                    for attr, value in child.attrs.items():
+                        if isinstance(value, list):
+                            new_elem[attr] = value
+                        else:
+                            new_elem[attr] = value
+                
+                if hasattr(child, 'string') and child.string:
+                    new_elem.string = child.string
+                elif hasattr(child, 'contents'):
+                    for content in child.contents:
+                        if hasattr(content, 'name'):
+                            new_elem.append(content)
+                        else:
+                            new_elem.append(str(content))
+                
+                template_soup.head.append(new_elem)
+    
+    # 2. body要素の構造を保持しながらデザインを適用
+    def apply_element_design(template_elem, original_elem):
+        """要素のデザインを適用"""
+        if not template_elem or not original_elem:
+            return
+        
+        # すべての属性を適用（クラス、ID、data属性など）
+        if hasattr(original_elem, 'attrs'):
+            for attr_name, attr_value in original_elem.attrs.items():
+                if attr_name not in ['id'] or template_elem.get('id') != attr_value:
+                    if isinstance(attr_value, list):
+                        template_elem[attr_name] = attr_value
+                    else:
+                        template_elem[attr_name] = attr_value
+        
+        # インラインスタイルを適用
+        if original_elem.get('style'):
+            template_elem['style'] = original_elem.get('style')
+        
+        # テキストコンテンツを適用（変数が含まれていない場合）
+        if hasattr(original_elem, 'get_text') and hasattr(template_elem, 'string'):
+            original_text = original_elem.get_text(strip=True)
+            template_text = str(template_elem.string) if template_elem.string else ''
+            
+            # 変数が含まれていない場合は元のテキストを適用
+            if '{{' not in template_text and '}}' not in template_text:
+                if original_text and not any(hasattr(c, 'name') for c in template_elem.children if hasattr(c, 'name')):
+                    template_elem.string = original_text
     
     # 3. 変数を元の値で置換
     def replace_variables(elem):
@@ -4750,68 +4786,76 @@ def apply_design_to_template(template_soup, original_soup, original_filename):
         if hasattr(elem, 'string') and elem.string:
             text = str(elem.string)
             if '{{' in text and '}}' in text:
-                # 変数名を抽出
-                import re
                 var_matches = re.findall(r'\{\{\s*(\w+)\s*\}\}', text)
                 for var_name in var_matches:
-                    # 元のHTMLから対応する値を探す
                     original_value = find_original_value(original_soup, var_name, elem)
                     if original_value:
-                        elem.string = text.replace(f"{{{{ {var_name} }}}}", original_value)
+                        elem.string = text.replace(f"{{{{ {var_name} }}}}", str(original_value))
         
         # 属性内の変数を置換
         if hasattr(elem, 'attrs'):
             for attr_name, attr_value in list(elem.attrs.items()):
                 if isinstance(attr_value, str) and '{{' in attr_value and '}}' in attr_value:
-                    import re
                     var_matches = re.findall(r'\{\{\s*(\w+)\s*\}\}', attr_value)
                     for var_name in var_matches:
                         original_value = find_original_value(original_soup, var_name, elem, attr_name)
                         if original_value:
-                            elem.attrs[attr_name] = attr_value.replace(f"{{{{ {var_name} }}}}", original_value)
+                            elem.attrs[attr_name] = attr_value.replace(f"{{{{ {var_name} }}}}", str(original_value))
         
         # 子要素を再帰的に処理
         if hasattr(elem, 'children'):
-            for child in elem.children:
+            for child in list(elem.children):
                 if hasattr(child, 'name'):
                     replace_variables(child)
     
     # 4. 元のHTMLから対応する要素を探して値を取得
     def find_original_value(original_soup, var_name, template_elem, attr_name=None):
         """元のHTMLから変数に対応する値を探す"""
-        # テンプレート要素のセレクタを取得
         selector = get_element_selector_simple(template_elem)
         
         try:
             original_elem = original_soup.select_one(selector)
             if original_elem:
                 if attr_name:
-                    # 属性の値を返す
                     return original_elem.get(attr_name, '')
                 else:
-                    # テキストの値を返す
                     return original_elem.get_text(strip=True)
         except Exception:
             pass
         
         return None
     
-    # body要素を処理
+    # 5. body要素の各要素に対してデザインを適用
+    if original_soup.body and template_soup.body:
+        # 元のbody要素のすべての要素を取得
+        original_elems = original_soup.body.find_all(True)
+        
+        for orig_elem in original_elems:
+            selector = get_element_selector_simple(orig_elem)
+            
+            try:
+                # テンプレート内で対応する要素を探す
+                template_elems = template_soup.body.select(selector)
+                
+                if template_elems:
+                    # 最初のマッチした要素にデザインを適用
+                    apply_element_design(template_elems[0], orig_elem)
+                else:
+                    # 要素が見つからない場合は、親要素を探して追加
+                    # （構造が異なる場合のフォールバック）
+                    pass
+            except Exception:
+                pass
+    
+    # 6. 変数を置換
     if template_soup.body:
         replace_variables(template_soup.body)
     
-    # 5. インラインスタイルを適用（必要に応じて）
+    # 7. body要素の属性を適用（class、id、styleなど）
     if original_soup.body and template_soup.body:
-        original_elems = original_soup.body.find_all(True)
-        for orig_elem in original_elems:
-            if orig_elem.get('style'):
-                selector = get_element_selector_simple(orig_elem)
-                try:
-                    template_elem = template_soup.body.select_one(selector)
-                    if template_elem:
-                        template_elem['style'] = orig_elem.get('style')
-                except Exception:
-                    pass
+        for attr_name, attr_value in original_soup.body.attrs.items():
+            if attr_name not in ['id']:  # idは保持
+                template_soup.body[attr_name] = attr_value
 
 
 @app.route('/download-university-pages', methods=['POST'])
