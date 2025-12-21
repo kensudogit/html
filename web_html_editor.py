@@ -16,9 +16,10 @@ import tempfile
 import traceback
 import base64
 import json
+import zipfile
 from pathlib import Path
 from werkzeug.utils import secure_filename
-from flask import Flask, render_template_string, request, jsonify, send_from_directory, redirect, url_for
+from flask import Flask, render_template_string, request, jsonify, send_from_directory, redirect, url_for, send_file
 from html_editor import HTMLEditor
 from bs4 import BeautifulSoup
 
@@ -1133,11 +1134,29 @@ EDITOR_TEMPLATE = r"""
             </div>
             
             <div id="diffAnalysisResult" style="display: none; margin-top: 15px;">
-                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
                     <button class="btn btn-primary" onclick="downloadDiffReport()" id="downloadDiffBtn" style="font-size: 12px; padding: 8px 16px;">📥 差分レポートをダウンロード</button>
                     <button class="btn btn-info" onclick="exportDiffToCSV()" id="exportDiffCSVBtn" style="font-size: 12px; padding: 8px 16px;">📊 CSVでエクスポート</button>
+                    <button class="btn btn-warning" onclick="generateGCDTemplate()" id="generateGCDBtn" style="font-size: 12px; padding: 8px 16px;">🔀 最大公約数テンプレート生成</button>
                 </div>
                 <div id="diffAnalysisResultContent" style="max-height: 500px; overflow-y: auto; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;"></div>
+            </div>
+            
+            <div id="gcdTemplateResult" style="display: none; margin-top: 15px; padding: 15px; background: #f0f4f8; border-radius: 5px; max-height: 400px; overflow-y: auto;">
+                <h3 style="font-size: 14px; margin-bottom: 10px;">最大公約数テンプレート生成結果</h3>
+                <div id="gcdTemplateResultContent" style="font-size: 12px; line-height: 1.6;"></div>
+                <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
+                    <button class="btn btn-success" onclick="downloadGCDTemplate()" id="downloadGCDBtn" style="font-size: 12px; padding: 8px 16px;">⬇️ テンプレートをダウンロード</button>
+                    <button class="btn btn-primary" onclick="generateUniversityPages()" id="generateUnivPagesBtn" style="font-size: 12px; padding: 8px 16px;">🏫 27大学のホームページを生成</button>
+                </div>
+            </div>
+            
+            <div id="universityPagesResult" style="display: none; margin-top: 15px; padding: 15px; background: #f0f4f8; border-radius: 5px; max-height: 400px; overflow-y: auto;">
+                <h3 style="font-size: 14px; margin-bottom: 10px;">27大学のホームページ生成結果</h3>
+                <div id="universityPagesResultContent" style="font-size: 12px; line-height: 1.6;"></div>
+                <div style="display: flex; gap: 10px; margin-top: 15px;">
+                    <button class="btn btn-success" onclick="downloadUniversityPages()" id="downloadUnivPagesBtn" style="font-size: 12px; padding: 8px 16px;">📦 ZIPファイルをダウンロード</button>
+                </div>
             </div>
             
             <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
@@ -2764,6 +2783,7 @@ EDITOR_TEMPLATE = r"""
                 
                 if (data.success) {
                     window.diffAnalysisData = data;
+                    window.diffAnalysisData.directory = dirPath;  // ディレクトリパスを保存
                     
                     // 結果を表示
                     let html = '<div style="margin-bottom: 15px;">';
@@ -2897,6 +2917,212 @@ EDITOR_TEMPLATE = r"""
             URL.revokeObjectURL(url);
             
             showStatus('CSVファイルをダウンロードしました', 'success');
+        };
+        
+        // 最大公約数テンプレートを生成
+        window.generateGCDTemplate = async function generateGCDTemplate() {
+            if (!window.diffAnalysisData || !window.diffAnalysisData.directory) {
+                showStatus('先に差分検出を実行してください', 'error');
+                return;
+            }
+            
+            const dirPath = document.getElementById('diffAnalysisDir').value.trim();
+            if (!dirPath) {
+                showStatus('ディレクトリパスが設定されていません', 'error');
+                return;
+            }
+            
+            const options = {
+                structure: document.getElementById('diffOptionStructure').checked,
+                styles: document.getElementById('diffOptionStyles').checked,
+                content: document.getElementById('diffOptionContent').checked,
+                attributes: document.getElementById('diffOptionAttributes').checked,
+                detailed: document.getElementById('diffOptionDetailed').checked
+            };
+            
+            const resultDiv = document.getElementById('gcdTemplateResult');
+            const resultContent = document.getElementById('gcdTemplateResultContent');
+            const downloadBtn = document.getElementById('downloadGCDBtn');
+            
+            resultDiv.style.display = 'block';
+            resultContent.innerHTML = '<p>最大公約数テンプレートを生成中...</p>';
+            downloadBtn.style.display = 'none';
+            
+            try {
+                const response = await fetch('/gcd-template', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        directory: dirPath,
+                        options: options
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    window.gcdTemplateContent = data.template;
+                    window.gcdTemplateStats = data.stats;
+                    
+                    let html = '<div style="margin-bottom: 15px;">';
+                    html += `<strong>最大公約数テンプレート生成完了</strong><br>`;
+                    html += `ファイル数: ${data.stats.totalFiles}個<br>`;
+                    html += `共通要素: ${data.stats.commonElements}個<br>`;
+                    html += `変数化された要素: ${data.stats.variableElements}個<br>`;
+                    html += `統合要素: ${data.stats.mergedElements}個<br>`;
+                    html += '</div>';
+                    
+                    if (data.stats.variables && data.stats.variables.length > 0) {
+                        html += '<div style="margin-top: 15px;"><strong>変数化された部分:</strong><ul style="margin: 5px 0; padding-left: 20px; font-size: 11px;">';
+                        data.stats.variables.slice(0, 20).forEach(v => {
+                            html += `<li>${v.name}: ${v.description}</li>`;
+                        });
+                        if (data.stats.variables.length > 20) {
+                            html += `<li>...他 ${data.stats.variables.length - 20}件</li>`;
+                        }
+                        html += '</ul></div>';
+                    }
+                    
+                    resultContent.innerHTML = html;
+                    downloadBtn.style.display = 'inline-block';
+                    showStatus('最大公約数テンプレートを生成しました', 'success');
+                } else {
+                    resultContent.innerHTML = `<p style="color: #f56565;">エラー: ${data.error}</p>`;
+                    showStatus('エラー: ' + data.error, 'error');
+                }
+            } catch (error) {
+                resultContent.innerHTML = `<p style="color: #f56565;">エラー: ${error.message}</p>`;
+                showStatus('エラー: ' + error.message, 'error');
+            }
+        };
+        
+        // 最大公約数テンプレートをダウンロード
+        window.downloadGCDTemplate = function downloadGCDTemplate() {
+            if (!window.gcdTemplateContent) {
+                showStatus('テンプレートがありません', 'error');
+                return;
+            }
+            
+            const blob = new Blob([window.gcdTemplateContent], { type: 'text/html;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'gcd_template_' + new Date().toISOString().slice(0, 10) + '.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showStatus('最大公約数テンプレートをダウンロードしました', 'success');
+        };
+        
+        // 27大学のホームページを生成
+        window.generateUniversityPages = async function generateUniversityPages() {
+            if (!window.gcdTemplateContent || !window.diffAnalysisData || !window.diffAnalysisData.directory) {
+                showStatus('先に最大公約数テンプレートを生成してください', 'error');
+                return;
+            }
+            
+            const dirPath = document.getElementById('diffAnalysisDir').value.trim();
+            if (!dirPath) {
+                showStatus('ディレクトリパスが設定されていません', 'error');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('universityPagesResult');
+            const resultContent = document.getElementById('universityPagesResultContent');
+            const downloadBtn = document.getElementById('downloadUnivPagesBtn');
+            
+            resultDiv.style.display = 'block';
+            resultContent.innerHTML = '<p>27大学のホームページを生成中...</p>';
+            downloadBtn.style.display = 'none';
+            
+            try {
+                const response = await fetch('/generate-university-pages', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        directory: dirPath,
+                        template: window.gcdTemplateContent
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    window.universityPagesData = data;
+                    
+                    let html = '<div style="margin-bottom: 15px;">';
+                    html += `<strong>27大学のホームページ生成完了</strong><br>`;
+                    html += `生成ファイル数: ${data.generatedFiles}個<br>`;
+                    html += `成功: ${data.successCount}個<br>`;
+                    if (data.failedCount > 0) {
+                        html += `失敗: ${data.failedCount}個<br>`;
+                    }
+                    html += '</div>';
+                    
+                    if (data.files && data.files.length > 0) {
+                        html += '<div style="margin-top: 15px;"><strong>生成されたファイル:</strong><ul style="margin: 5px 0; padding-left: 20px; font-size: 11px; max-height: 200px; overflow-y: auto;">';
+                        data.files.forEach(file => {
+                            html += `<li>${file}</li>`;
+                        });
+                        html += '</ul></div>';
+                    }
+                    
+                    resultContent.innerHTML = html;
+                    downloadBtn.style.display = 'inline-block';
+                    showStatus('27大学のホームページを生成しました', 'success');
+                } else {
+                    resultContent.innerHTML = `<p style="color: #f56565;">エラー: ${data.error}</p>`;
+                    showStatus('エラー: ' + data.error, 'error');
+                }
+            } catch (error) {
+                resultContent.innerHTML = `<p style="color: #f56565;">エラー: ${error.message}</p>`;
+                showStatus('エラー: ' + error.message, 'error');
+            }
+        };
+        
+        // 27大学のホームページをZIPでダウンロード
+        window.downloadUniversityPages = async function downloadUniversityPages() {
+            if (!window.universityPagesData || !window.universityPagesData.directory) {
+                showStatus('生成データがありません', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/download-university-pages', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        directory: window.universityPagesData.directory
+                    })
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'university_pages_' + new Date().toISOString().slice(0, 10) + '.zip';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    showStatus('ZIPファイルをダウンロードしました', 'success');
+                } else {
+                    const data = await response.json();
+                    showStatus('エラー: ' + (data.error || 'ダウンロードに失敗しました'), 'error');
+                }
+            } catch (error) {
+                showStatus('エラー: ' + error.message, 'error');
+            }
         };
 
         // 画面デザイン差分を確認しやすいように、プレビューDOMの主要スタイルをJSON/CSVで出力
@@ -4090,6 +4316,540 @@ def analyze_differences(parsed_files, options):
                 })
     
     return differences
+
+
+@app.route('/gcd-template', methods=['POST'])
+def gcd_template():
+    """差分を含めて最大公約数的な共通テンプレートを生成"""
+    try:
+        data = request.json
+        directory = data.get('directory', '')
+        options = data.get('options', {})
+        
+        if not directory:
+            return jsonify({'success': False, 'error': 'ディレクトリパスが指定されていません'}), 400
+        
+        # ディレクトリの存在確認
+        dir_path = Path(directory)
+        if not dir_path.exists() or not dir_path.is_dir():
+            return jsonify({'success': False, 'error': f'ディレクトリが見つかりません: {directory}'}), 404
+        
+        # HTMLファイルを取得
+        html_files = list(dir_path.glob('*.html')) + list(dir_path.glob('*.htm'))
+        
+        if len(html_files) == 0:
+            return jsonify({'success': False, 'error': 'HTMLファイルが見つかりませんでした'}), 404
+        
+        # ファイルを読み込んで解析
+        parsed_files = []
+        for file_path in html_files:
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                soup = BeautifulSoup(content, 'html.parser')
+                parsed_files.append({
+                    'filename': file_path.name,
+                    'filepath': str(file_path),
+                    'soup': soup,
+                    'content': content
+                })
+            except Exception as e:
+                # ファイル読み込みエラーはスキップ
+                continue
+        
+        if len(parsed_files) < 2:
+            return jsonify({'success': False, 'error': '比較するには2つ以上のファイルが必要です'}), 400
+        
+        # 最大公約数テンプレートを生成
+        gcd_template, stats = generate_gcd_template(parsed_files, options)
+        
+        return jsonify({
+            'success': True,
+            'template': gcd_template,
+            'stats': stats
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+def generate_gcd_template(parsed_files, options):
+    """差分を含めて最大公約数的なテンプレートを生成"""
+    if not parsed_files:
+        return '', {
+            'totalFiles': 0,
+            'commonElements': 0,
+            'variableElements': 0,
+            'mergedElements': 0,
+            'variables': []
+        }
+    
+    # 最初のファイルを基準にする
+    base_soup = parsed_files[0]['soup'].__class__(str(parsed_files[0]['soup']), 'html.parser')
+    base_soup = BeautifulSoup(str(base_soup), 'html.parser')
+    
+    stats = {
+        'totalFiles': len(parsed_files),
+        'commonElements': 0,
+        'variableElements': 0,
+        'mergedElements': 0,
+        'variables': []
+    }
+    
+    variable_counter = 1
+    
+    def get_element_path(elem):
+        """要素のパスを取得"""
+        if not elem or not hasattr(elem, 'name'):
+            return ''
+        
+        path = []
+        current = elem
+        while current and hasattr(current, 'name') and current.name:
+            selector = current.name
+            if hasattr(current, 'attrs'):
+                if 'id' in current.attrs:
+                    selector += f"#{current.attrs['id']}"
+                elif 'class' in current.attrs:
+                    classes = current.attrs['class']
+                    if isinstance(classes, list) and classes:
+                        selector += '.' + '.'.join(classes[:1])
+            path.insert(0, selector)
+            current = current.parent if hasattr(current, 'parent') else None
+            if current == base_soup or current == base_soup.html or current == base_soup.body:
+                break
+        return ' > '.join(path)
+    
+    def merge_element_gcd(base_elem, other_files, path=''):
+        """要素を最大公約数的に統合"""
+        if not base_elem or not hasattr(base_elem, 'name'):
+            return base_elem
+        
+        current_path = path + ' > ' + base_elem.name if path else base_elem.name
+        
+        # 他のファイルで同じ要素を探す
+        matching_elements = [base_elem]
+        base_selector = get_element_selector_for_gcd(base_elem)
+        
+        for other_data in other_files:
+            other_soup = other_data['soup']
+            try:
+                found = other_soup.select_one(base_selector)
+                if found:
+                    matching_elements.append(found)
+            except Exception:
+                pass
+        
+        # すべてのファイルで見つかった場合
+        if len(matching_elements) == len(other_files) + 1:
+            # 属性を統合
+            if options.get('attributes', True):
+                all_attrs = {}
+                attr_values = {}
+                
+                # すべての要素の属性を収集
+                for elem in matching_elements:
+                    if hasattr(elem, 'attrs'):
+                        for key, value in elem.attrs.items():
+                            if key not in all_attrs:
+                                all_attrs[key] = []
+                            if key not in attr_values:
+                                attr_values[key] = []
+                            
+                            if isinstance(value, list):
+                                all_attrs[key].extend(value)
+                                attr_values[key].append(tuple(sorted(value)))
+                            else:
+                                all_attrs[key].append(value)
+                                attr_values[key].append(value)
+                
+                # 共通属性を決定
+                common_attrs = {}
+                variable_attrs = {}
+                
+                for key, values in attr_values.items():
+                    unique_values = set(str(v) for v in values)
+                    if len(unique_values) == 1:
+                        # すべて同じ値
+                        common_attrs[key] = matching_elements[0].attrs[key]
+                        stats['commonElements'] += 1
+                    else:
+                        # 値が異なる場合は変数化
+                        var_name = f"VAR_ATTR_{variable_counter}"
+                        variable_counter += 1
+                        variable_attrs[key] = var_name
+                        stats['variableElements'] += 1
+                        stats['variables'].append({
+                            'name': var_name,
+                            'type': 'attribute',
+                            'element': current_path,
+                            'description': f"属性 '{key}' の値（複数の値が存在: {', '.join(list(unique_values)[:3])}）"
+                        })
+                        # 最初の値をデフォルトとして使用
+                        common_attrs[key] = matching_elements[0].attrs[key]
+                
+                # 共通属性を設定
+                base_elem.attrs.clear()
+                base_elem.attrs.update(common_attrs)
+                
+                # 変数化された属性をコメントとして追加
+                if variable_attrs:
+                    comment_text = "<!-- "
+                    for key, var_name in variable_attrs.items():
+                        comment_text += f"{var_name}={key}; "
+                    comment_text += "-->"
+                    if hasattr(base_elem, 'insert'):
+                        base_elem.insert(0, BeautifulSoup(comment_text, 'html.parser'))
+            
+            # テキストコンテンツを統合
+            if options.get('content', True):
+                texts = []
+                for elem in matching_elements:
+                    try:
+                        if hasattr(elem, 'get_text'):
+                            text = elem.get_text(strip=True)
+                            if text:
+                                texts.append(text)
+                    except Exception:
+                        pass
+                
+                if texts:
+                    unique_texts = set(texts)
+                    if len(unique_texts) == 1:
+                        # すべて同じテキスト
+                        stats['commonElements'] += 1
+                    else:
+                        # テキストが異なる場合は変数化
+                        var_name = f"VAR_TEXT_{variable_counter}"
+                        variable_counter += 1
+                        stats['variableElements'] += 1
+                        stats['variables'].append({
+                            'name': var_name,
+                            'type': 'content',
+                            'element': current_path,
+                            'description': f"テキスト内容（複数の値が存在: {', '.join(list(unique_texts)[:3])}）"
+                        })
+                        
+                        # テキストを変数プレースホルダーに置換
+                        try:
+                            if hasattr(base_elem, 'string') and base_elem.string:
+                                base_elem.string = f"{{{{ {var_name} }}}}"
+                            else:
+                                # 子要素をクリアして変数を挿入
+                                for child in list(base_elem.children):
+                                    if hasattr(child, 'get_text') and child.get_text(strip=True):
+                                        child.decompose()
+                                base_elem.append(BeautifulSoup(f"{{{{ {var_name} }}}}", 'html.parser'))
+                        except Exception:
+                            pass
+            
+            # 子要素を再帰的に統合
+            if hasattr(base_elem, 'children'):
+                for child in list(base_elem.children):
+                    if hasattr(child, 'name') and child.name:
+                        try:
+                            merge_element_gcd(child, other_files, current_path)
+                        except Exception:
+                            pass
+        
+        return base_elem
+    
+    def get_element_selector_for_gcd(elem):
+        """要素のセレクタを取得（最大公約数用）"""
+        if not elem or not hasattr(elem, 'name'):
+            return ''
+        
+        selector = elem.name
+        
+        # IDがあれば追加（IDは一意なので優先）
+        if hasattr(elem, 'attrs') and 'id' in elem.attrs:
+            selector += f"#{elem.attrs['id']}"
+        # クラスがあれば追加（最初のクラスのみ）
+        elif hasattr(elem, 'attrs') and 'class' in elem.attrs:
+            classes = elem.attrs['class']
+            if isinstance(classes, list) and classes:
+                selector += '.' + classes[0]
+            elif classes:
+                selector += f".{classes}"
+        
+        return selector
+    
+    # body要素を統合
+    if base_soup.body:
+        merge_element_gcd(base_soup.body, parsed_files[1:])
+    
+    # head要素も統合（スタイルなど）
+    if options.get('styles', True) and base_soup.head:
+        merge_element_gcd(base_soup.head, parsed_files[1:])
+    
+    # 統計を更新
+    stats['mergedElements'] = stats['commonElements'] + stats['variableElements']
+    
+    # 変数定義セクションを追加
+    if stats['variables']:
+        if base_soup.head:
+            var_section = base_soup.new_tag('script', type='text/template-variables')
+            var_section.string = '\n'.join([
+                f"// {v['name']}: {v['description']}"
+                for v in stats['variables']
+            ])
+            base_soup.head.append(var_section)
+    
+    # 統合されたHTMLを生成
+    gcd_html = str(base_soup)
+    
+    return gcd_html, stats
+
+
+@app.route('/generate-university-pages', methods=['POST'])
+def generate_university_pages():
+    """テンプレートを基に27大学のホームページを生成"""
+    try:
+        data = request.json
+        directory = data.get('directory', '')
+        template = data.get('template', '')
+        
+        if not directory:
+            return jsonify({'success': False, 'error': 'ディレクトリパスが指定されていません'}), 400
+        
+        if not template:
+            return jsonify({'success': False, 'error': 'テンプレートが指定されていません'}), 400
+        
+        # ディレクトリの存在確認
+        dir_path = Path(directory)
+        if not dir_path.exists() or not dir_path.is_dir():
+            return jsonify({'success': False, 'error': f'ディレクトリが見つかりません: {directory}'}), 404
+        
+        # HTMLファイルを取得
+        html_files = list(dir_path.glob('*.html')) + list(dir_path.glob('*.htm'))
+        
+        if len(html_files) == 0:
+            return jsonify({'success': False, 'error': 'HTMLファイルが見つかりませんでした'}), 404
+        
+        # テンプレートを解析
+        template_soup = BeautifulSoup(template, 'html.parser')
+        
+        # 出力ディレクトリを作成
+        output_dir = dir_path / 'generated_pages'
+        output_dir.mkdir(exist_ok=True)
+        
+        generated_files = []
+        success_count = 0
+        failed_count = 0
+        
+        # 各大学のファイルを処理
+        for file_path in html_files:
+            try:
+                # 元のファイルを読み込み
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    original_content = f.read()
+                
+                original_soup = BeautifulSoup(original_content, 'html.parser')
+                
+                # テンプレートをコピー
+                generated_soup = BeautifulSoup(str(template_soup), 'html.parser')
+                
+                # 元のファイルからデザイン情報を抽出して適用
+                apply_design_to_template(generated_soup, original_soup, file_path.name)
+                
+                # 生成されたHTMLを保存
+                output_filename = f"generated_{file_path.stem}.html"
+                output_path = output_dir / output_filename
+                
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(str(generated_soup))
+                
+                generated_files.append(output_filename)
+                success_count += 1
+                
+            except Exception as e:
+                failed_count += 1
+                print(f"Error processing {file_path.name}: {str(e)}")
+                continue
+        
+        return jsonify({
+            'success': True,
+            'generatedFiles': len(generated_files),
+            'successCount': success_count,
+            'failedCount': failed_count,
+            'files': generated_files,
+            'directory': str(output_dir)
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+def get_element_selector_simple(elem):
+    """要素のセレクタを取得（シンプル版）"""
+    if not elem or not hasattr(elem, 'name'):
+        return ''
+    
+    selector = elem.name
+    
+    # IDがあれば追加（IDは一意なので優先）
+    if hasattr(elem, 'attrs') and 'id' in elem.attrs:
+        selector += f"#{elem.attrs['id']}"
+    # クラスがあれば追加（最初のクラスのみ）
+    elif hasattr(elem, 'attrs') and 'class' in elem.attrs:
+        classes = elem.attrs['class']
+        if isinstance(classes, list) and classes:
+            selector += '.' + classes[0]
+        elif classes:
+            selector += f".{classes}"
+    
+    return selector
+
+
+def apply_design_to_template(template_soup, original_soup, original_filename):
+    """元のHTMLからデザイン情報を抽出してテンプレートに適用"""
+    # 1. CSSスタイルを抽出・適用
+    if original_soup.head:
+        # スタイルタグを抽出
+        original_styles = original_soup.head.find_all('style')
+        original_links = original_soup.head.find_all('link', rel='stylesheet')
+        
+        if template_soup.head:
+            # 既存のスタイルを削除（必要に応じて）
+            # 元のスタイルを追加
+            for style in original_styles:
+                if style.string:
+                    new_style = template_soup.new_tag('style')
+                    new_style.string = style.string
+                    template_soup.head.append(new_style)
+            
+            for link in original_links:
+                new_link = template_soup.new_tag('link')
+                for attr, value in link.attrs.items():
+                    new_link[attr] = value
+                template_soup.head.append(new_link)
+    
+    # 2. メタタグを適用
+    if original_soup.head and template_soup.head:
+        original_meta = original_soup.head.find_all('meta')
+        for meta in original_meta:
+            if meta.get('charset'):
+                continue  # charsetは既に存在
+            new_meta = template_soup.new_tag('meta')
+            for attr, value in meta.attrs.items():
+                new_meta[attr] = value
+            template_soup.head.append(new_meta)
+    
+    # 3. 変数を元の値で置換
+    def replace_variables(elem):
+        """変数プレースホルダーを元の値で置換"""
+        if not elem:
+            return
+        
+        # テキスト内の変数を置換
+        if hasattr(elem, 'string') and elem.string:
+            text = str(elem.string)
+            if '{{' in text and '}}' in text:
+                # 変数名を抽出
+                import re
+                var_matches = re.findall(r'\{\{\s*(\w+)\s*\}\}', text)
+                for var_name in var_matches:
+                    # 元のHTMLから対応する値を探す
+                    original_value = find_original_value(original_soup, var_name, elem)
+                    if original_value:
+                        elem.string = text.replace(f"{{{{ {var_name} }}}}", original_value)
+        
+        # 属性内の変数を置換
+        if hasattr(elem, 'attrs'):
+            for attr_name, attr_value in list(elem.attrs.items()):
+                if isinstance(attr_value, str) and '{{' in attr_value and '}}' in attr_value:
+                    import re
+                    var_matches = re.findall(r'\{\{\s*(\w+)\s*\}\}', attr_value)
+                    for var_name in var_matches:
+                        original_value = find_original_value(original_soup, var_name, elem, attr_name)
+                        if original_value:
+                            elem.attrs[attr_name] = attr_value.replace(f"{{{{ {var_name} }}}}", original_value)
+        
+        # 子要素を再帰的に処理
+        if hasattr(elem, 'children'):
+            for child in elem.children:
+                if hasattr(child, 'name'):
+                    replace_variables(child)
+    
+    # 4. 元のHTMLから対応する要素を探して値を取得
+    def find_original_value(original_soup, var_name, template_elem, attr_name=None):
+        """元のHTMLから変数に対応する値を探す"""
+        # テンプレート要素のセレクタを取得
+        selector = get_element_selector_simple(template_elem)
+        
+        try:
+            original_elem = original_soup.select_one(selector)
+            if original_elem:
+                if attr_name:
+                    # 属性の値を返す
+                    return original_elem.get(attr_name, '')
+                else:
+                    # テキストの値を返す
+                    return original_elem.get_text(strip=True)
+        except Exception:
+            pass
+        
+        return None
+    
+    # body要素を処理
+    if template_soup.body:
+        replace_variables(template_soup.body)
+    
+    # 5. インラインスタイルを適用（必要に応じて）
+    if original_soup.body and template_soup.body:
+        original_elems = original_soup.body.find_all(True)
+        for orig_elem in original_elems:
+            if orig_elem.get('style'):
+                selector = get_element_selector_simple(orig_elem)
+                try:
+                    template_elem = template_soup.body.select_one(selector)
+                    if template_elem:
+                        template_elem['style'] = orig_elem.get('style')
+                except Exception:
+                    pass
+
+
+@app.route('/download-university-pages', methods=['POST'])
+def download_university_pages():
+    """生成された27大学のホームページをZIPファイルでダウンロード"""
+    try:
+        data = request.json
+        directory = data.get('directory', '')
+        
+        if not directory:
+            return jsonify({'success': False, 'error': 'ディレクトリパスが指定されていません'}), 400
+        
+        # 出力ディレクトリ
+        output_dir = Path(directory) / 'generated_pages'
+        
+        if not output_dir.exists():
+            return jsonify({'success': False, 'error': '生成されたファイルが見つかりません'}), 404
+        
+        # 一時ZIPファイルを作成
+        temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+        temp_zip.close()
+        
+        # ZIPファイルを作成
+        with zipfile.ZipFile(temp_zip.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for file_path in output_dir.glob('*.html'):
+                zipf.write(file_path, file_path.name)
+        
+        return send_file(
+            temp_zip.name,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name=f'university_pages_{Path(directory).name}.zip'
+        )
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/template-merge', methods=['POST'])
