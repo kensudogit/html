@@ -1090,14 +1090,15 @@ EDITOR_TEMPLATE = r"""
             <div class="usage-guide-step">
                 <div class="usage-guide-step-title">
                     <span class="usage-guide-step-number">2</span>
-                    差分検出（27大学のホームページ）
+                    差分検出とテンプレート生成（27大学のホームページ）
                 </div>
                 <div class="usage-guide-step-content">
                     <ul>
                         <li>リモコン盤の「🔍 差分検出」ボタンをクリック</li>
                         <li>27校のHTMLファイルが保存されているディレクトリパスを入力</li>
                         <li>検出オプションを選択して「🔍 差分検出実行」をクリック</li>
-                        <li>差分レポートを確認（JSON/CSVでエクスポート可能）</li>
+                        <li>差分検出完了後、「🔀 最大公約数テンプレート生成」をクリック</li>
+                        <li>共通部分と差分部分（変数化）を含むテンプレートが生成されます</li>
                     </ul>
                 </div>
             </div>
@@ -1105,20 +1106,6 @@ EDITOR_TEMPLATE = r"""
             <div class="usage-guide-step">
                 <div class="usage-guide-step-title">
                     <span class="usage-guide-step-number">3</span>
-                    最大公約数テンプレート生成
-                </div>
-                <div class="usage-guide-step-content">
-                    <ul>
-                        <li>差分検出完了後、「🔀 最大公約数テンプレート生成」をクリック</li>
-                        <li>共通部分と差分部分（変数化）を含むテンプレートが生成されます</li>
-                        <li>「⬇️ テンプレートをダウンロード」で保存可能</li>
-                    </ul>
-                </div>
-            </div>
-            
-            <div class="usage-guide-step">
-                <div class="usage-guide-step-title">
-                    <span class="usage-guide-step-number">4</span>
                     27大学のホームページ生成
                 </div>
                 <div class="usage-guide-step-content">
@@ -1126,6 +1113,21 @@ EDITOR_TEMPLATE = r"""
                         <li>テンプレート生成後、「🏫 27大学のホームページを生成」をクリック</li>
                         <li>各大学の現行デザインを保持したホームページが自動生成されます</li>
                         <li>「📦 ZIPファイルをダウンロード」で一括ダウンロード可能</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="usage-guide-step">
+                <div class="usage-guide-step-title">
+                    <span class="usage-guide-step-number">4</span>
+                    その他の機能
+                </div>
+                <div class="usage-guide-step-content">
+                    <ul>
+                        <li><strong>テンプレート統合:</strong> 複数ファイルから共通テンプレートを生成</li>
+                        <li><strong>検索・置換:</strong> HTMLソース内の文字列を検索・置換</li>
+                        <li><strong>構文チェック:</strong> HTMLの構文エラーを検出</li>
+                        <li><strong>デザイン出力:</strong> プレビューのスタイル情報をJSON/CSVで出力</li>
                     </ul>
                 </div>
             </div>
