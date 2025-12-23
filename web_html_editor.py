@@ -19,11 +19,15 @@ import json
 import zipfile
 from pathlib import Path
 from werkzeug.utils import secure_filename
-from flask import Flask, render_template_string, request, jsonify, send_from_directory, redirect, url_for, send_file
+from flask import Flask, render_template_string, request, jsonify, send_from_directory, redirect, url_for, send_file, session
 from html_editor import HTMLEditor
 from bs4 import BeautifulSoup
+import secrets
 
 app = Flask(__name__)
+
+# セッション管理の設定
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 
 # Vercel環境では/tmpディレクトリを使用
 if os.environ.get('VERCEL'):
@@ -33,8 +37,8 @@ else:
 
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB制限
 
-html_editor = None
-html_file_path = None
+# セッション別のファイル管理用ディクショナリ（セッションID -> ファイル情報）
+session_files = {}
 
 # アップロードフォルダを作成
 UPLOAD_DIR = Path(app.config['UPLOAD_FOLDER'])
@@ -4037,6 +4041,36 @@ EDITOR_TEMPLATE = r"""
 """
 
 
+def get_session_file_info():
+    """セッションからファイル情報を取得"""
+    session_id = session.get('session_id')
+    if not session_id:
+        session_id = secrets.token_hex(16)
+        session['session_id'] = session_id
+        session_files[session_id] = {
+            'html_editor': None,
+            'html_file_path': None
+        }
+    return session_files.get(session_id, {
+        'html_editor': None,
+        'html_file_path': None
+    })
+
+
+def set_session_file_info(html_editor_obj, file_path):
+    """セッションにファイル情報を保存"""
+    session_id = session.get('session_id')
+    if not session_id:
+        session_id = secrets.token_hex(16)
+        session['session_id'] = session_id
+    
+    if session_id not in session_files:
+        session_files[session_id] = {}
+    
+    session_files[session_id]['html_editor'] = html_editor_obj
+    session_files[session_id]['html_file_path'] = file_path
+
+
 @app.route('/')
 def index():
     """メインページ"""
@@ -4047,6 +4081,11 @@ def index():
         links_count = 0
         images_count = 0
         scripts_count = 0
+        
+        # セッションからファイル情報を取得
+        file_info = get_session_file_info()
+        html_editor = file_info.get('html_editor')
+        html_file_path = file_info.get('html_file_path')
         
         if html_editor is not None and html_file_path is not None:
             try:
@@ -4113,6 +4152,10 @@ def index():
 def save():
     """ファイルを保存"""
     try:
+        # セッションからファイル情報を取得
+        file_info = get_session_file_info()
+        html_file_path = file_info.get('html_file_path')
+        
         if html_file_path is None:
             return jsonify({'success': False, 'error': 'ファイルが選択されていません'}), 400
         
@@ -4124,8 +4167,8 @@ def save():
             f.write(content)
         
         # HTMLEditorを再読み込み
-        global html_editor
         html_editor = HTMLEditor(str(html_file_path))
+        set_session_file_info(html_editor, html_file_path)
         
         return jsonify({'success': True})
     except Exception as e:
@@ -4136,7 +4179,11 @@ def save():
 def content():
     """HTMLコンテンツを取得"""
     try:
-        if html_file_path is None or not html_file_path.exists():
+        # セッションからファイル情報を取得
+        file_info = get_session_file_info()
+        html_file_path = file_info.get('html_file_path')
+        
+        if html_file_path is None or not Path(html_file_path).exists():
             return jsonify({'success': False, 'error': 'ファイルが選択されていません'}), 400
         
         with open(html_file_path, 'r', encoding='utf-8') as f:
@@ -4151,6 +4198,10 @@ def content():
 def reload():
     """ファイルを再読み込み"""
     try:
+        # セッションからファイル情報を取得
+        file_info = get_session_file_info()
+        html_file_path = file_info.get('html_file_path')
+        
         if html_file_path is None:
             return jsonify({'success': False, 'error': 'ファイルが選択されていません'}), 400
         
@@ -4158,8 +4209,8 @@ def reload():
             content = f.read()
         
         # HTMLEditorを再読み込み
-        global html_editor
         html_editor = HTMLEditor(str(html_file_path))
+        set_session_file_info(html_editor, html_file_path)
         
         return jsonify({'success': True, 'content': content})
     except Exception as e:
@@ -4170,6 +4221,10 @@ def reload():
 def structure():
     """構造情報を取得"""
     try:
+        # セッションからファイル情報を取得
+        file_info = get_session_file_info()
+        html_editor = file_info.get('html_editor')
+        
         if html_editor is None:
             return jsonify({'success': False, 'error': 'HTMLエディタが初期化されていません'}), 500
         
@@ -4183,6 +4238,10 @@ def structure():
 def search():
     """要素を検索"""
     try:
+        # セッションからファイル情報を取得
+        file_info = get_session_file_info()
+        html_editor = file_info.get('html_editor')
+        
         if html_editor is None:
             return jsonify({'success': False, 'error': 'HTMLエディタが初期化されていません'}), 500
         
@@ -4277,10 +4336,9 @@ def upload_file():
         file_path = UPLOAD_DIR / filename
         file.save(str(file_path))
         
-        # グローバル変数を更新
-        global html_editor, html_file_path
-        html_file_path = file_path
+        # セッションにファイル情報を保存
         html_editor = HTMLEditor(str(file_path))
+        set_session_file_info(html_editor, file_path)
         
         return jsonify({'success': True, 'filename': filename})
     except Exception as e:
@@ -4326,10 +4384,9 @@ def load_file(filename):
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # グローバル変数を更新
-        global html_editor, html_file_path
-        html_file_path = file_path
+        # セッションにファイル情報を保存
         html_editor = HTMLEditor(str(file_path))
+        set_session_file_info(html_editor, file_path)
         
         return jsonify({'success': True, 'content': content, 'filename': safe_filename})
     except Exception as e:
@@ -4347,11 +4404,13 @@ def delete_file(filename):
         if not file_path.exists():
             return jsonify({'success': False, 'error': 'ファイルが見つかりません'}), 404
         
-        # 現在開いているファイルを削除する場合は、エディタをクリア
-        global html_editor, html_file_path
-        if html_file_path and html_file_path == file_path:
-            html_editor = None
-            html_file_path = None
+        # 現在開いているファイルを削除する場合は、そのセッションのエディタをクリア
+        # すべてのセッションをチェック
+        for session_id, file_info in list(session_files.items()):
+            session_file_path = file_info.get('html_file_path')
+            if session_file_path and Path(session_file_path) == file_path:
+                session_files[session_id]['html_editor'] = None
+                session_files[session_id]['html_file_path'] = None
         
         # ファイルを削除
         file_path.unlink()
