@@ -27,6 +27,8 @@ import secrets
 app = Flask(__name__)
 
 # セッション管理の設定
+# SECRET_KEYはセッションの暗号化に使用される
+# 環境変数で指定されていない場合は、ランダムな32バイトの16進数文字列を生成
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 
 # Vercel環境では/tmpディレクトリを使用
@@ -37,7 +39,10 @@ else:
 
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB制限
 
-# セッション別のファイル管理用ディクショナリ（セッションID -> ファイル情報）
+# セッション別のファイル管理用ディクショナリ
+# キー: セッションID（文字列）
+# 値: ファイル情報の辞書 {'html_editor': HTMLEditorオブジェクト, 'html_file_path': ファイルパス}
+# これにより、複数のユーザー（セッション）が同時に異なるHTMLファイルを編集できる
 session_files = {}
 
 # アップロードフォルダを作成
@@ -3079,19 +3084,40 @@ EDITOR_TEMPLATE = r"""
                 progressBar.style.width = '20%';
                 progressText.textContent = 'ディレクトリを読み込み中...';
                 
-                const response = await fetch('/diff-analysis', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        directory: dirPath,
-                        options: options
-                    })
-                });
+                // タイムアウト設定（90秒）
+                const timeoutMs = 90000;
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+                
+                let response;
+                try {
+                    response = await fetch('/diff-analysis', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            directory: dirPath,
+                            options: options
+                        }),
+                        signal: controller.signal
+                    });
+                    clearTimeout(timeoutId);
+                } catch (error) {
+                    clearTimeout(timeoutId);
+                    if (error.name === 'AbortError') {
+                        throw new Error('リクエストがタイムアウトしました（90秒）。処理に時間がかかりすぎています。ファイル数や要素数を減らして再試行してください。');
+                    }
+                    throw error;
+                }
                 
                 progressBar.style.width = '80%';
                 progressText.textContent = '差分を分析中...';
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: 'サーバーエラーが発生しました' }));
+                    throw new Error(errorData.error || `HTTPエラー: ${response.status}`);
+                }
                 
                 const data = await response.json();
                 
@@ -3125,22 +3151,37 @@ EDITOR_TEMPLATE = r"""
                     html += `</div>`;
                     html += `</div>`;
                     
-                    if (data.differences && data.differences.length > 0) {
+                    // システムメッセージ（タイムアウトや制限）をチェック
+                    const systemMessages = data.differences ? data.differences.filter(d => d.type === 'system') : [];
+                    const actualDifferences = data.differences ? data.differences.filter(d => d.type !== 'system') : [];
+                    
+                    if (systemMessages.length > 0) {
+                        html += '<div style="margin-top: 20px; padding: 12px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px;">';
+                        html += '<h3 style="font-size: 14px; margin-bottom: 8px; color: #856404;">⚠️ 処理情報</h3>';
+                        systemMessages.forEach(msg => {
+                            html += `<div style="font-size: 12px; color: #856404; margin-bottom: 4px;">${msg.description}</div>`;
+                        });
+                        html += '</div>';
+                    }
+                    
+                    if (actualDifferences.length > 0) {
                         html += '<h3 style="font-size: 16px; margin-bottom: 10px; margin-top: 20px; color: var(--text-primary);">🔍 検出された差分</h3>';
                         html += '<div style="display: flex; flex-direction: column; gap: 8px;">';
                         
-                        data.differences.forEach((diff, index) => {
+                        actualDifferences.forEach((diff, index) => {
                             const typeColors = {
                                 'structure': '#f59e0b',
                                 'style': '#3b82f6',
                                 'content': '#ef4444',
-                                'attribute': '#8b5cf6'
+                                'attribute': '#8b5cf6',
+                                'system': '#6c757d'
                             };
                             const typeLabels = {
                                 'structure': '構造',
                                 'style': 'スタイル',
                                 'content': 'コンテンツ',
-                                'attribute': '属性'
+                                'attribute': '属性',
+                                'system': 'システム'
                             };
                             
                             html += `<div style="padding: 12px; background: white; border-radius: 8px; border-left: 4px solid ${typeColors[diff.type] || '#666'}; box-shadow: var(--shadow-sm);">`;
@@ -3160,6 +3201,10 @@ EDITOR_TEMPLATE = r"""
                             html += `</div>`;
                         });
                         
+                        html += '</div>';
+                    } else if (!systemMessages.length) {
+                        html += '<div style="margin-top: 20px; padding: 12px; background: #d1ecf1; border: 1px solid #bee5eb; border-radius: 8px;">';
+                        html += '<p style="font-size: 12px; color: #0c5460; margin: 0;">✅ 差分は検出されませんでした。すべてのファイルが同じ構造を持っています。</p>';
                         html += '</div>';
                     }
                     
@@ -4042,15 +4087,26 @@ EDITOR_TEMPLATE = r"""
 
 
 def get_session_file_info():
-    """セッションからファイル情報を取得"""
+    """
+    セッションからファイル情報を取得
+    
+    Returns:
+        dict: セッションに対応するファイル情報
+            - 'html_editor': HTMLEditorオブジェクト（未選択時はNone）
+            - 'html_file_path': ファイルパス（未選択時はNone）
+    """
+    # セッションIDを取得（存在しない場合は新規生成）
     session_id = session.get('session_id')
     if not session_id:
+        # 新規セッションの場合、16バイトのランダムな16進数文字列を生成
         session_id = secrets.token_hex(16)
         session['session_id'] = session_id
+        # セッション用のファイル情報を初期化
         session_files[session_id] = {
             'html_editor': None,
             'html_file_path': None
         }
+    # セッションIDに対応するファイル情報を返す（存在しない場合は空の辞書を返す）
     return session_files.get(session_id, {
         'html_editor': None,
         'html_file_path': None
@@ -4058,15 +4114,25 @@ def get_session_file_info():
 
 
 def set_session_file_info(html_editor_obj, file_path):
-    """セッションにファイル情報を保存"""
+    """
+    セッションにファイル情報を保存
+    
+    Args:
+        html_editor_obj: HTMLEditorオブジェクト
+        file_path: ファイルパス（Pathオブジェクトまたは文字列）
+    """
+    # セッションIDを取得（存在しない場合は新規生成）
     session_id = session.get('session_id')
     if not session_id:
+        # 新規セッションの場合、16バイトのランダムな16進数文字列を生成
         session_id = secrets.token_hex(16)
         session['session_id'] = session_id
     
+    # セッションIDがsession_filesに存在しない場合は初期化
     if session_id not in session_files:
         session_files[session_id] = {}
     
+    # セッションに対応するファイル情報を保存
     session_files[session_id]['html_editor'] = html_editor_obj
     session_files[session_id]['html_file_path'] = file_path
 
@@ -4083,6 +4149,7 @@ def index():
         scripts_count = 0
         
         # セッションからファイル情報を取得
+        # 各セッション（ユーザー）ごとに独立したファイル情報を管理
         file_info = get_session_file_info()
         html_editor = file_info.get('html_editor')
         html_file_path = file_info.get('html_file_path')
@@ -4153,6 +4220,7 @@ def save():
     """ファイルを保存"""
     try:
         # セッションからファイル情報を取得
+        # このセッションで選択されているファイルのみを保存
         file_info = get_session_file_info()
         html_file_path = file_info.get('html_file_path')
         
@@ -4166,7 +4234,7 @@ def save():
         with open(html_file_path, 'w', encoding='utf-8') as f:
             f.write(content)
         
-        # HTMLEditorを再読み込み
+        # HTMLEditorを再読み込みして、セッション情報を更新
         html_editor = HTMLEditor(str(html_file_path))
         set_session_file_info(html_editor, html_file_path)
         
@@ -4180,6 +4248,7 @@ def content():
     """HTMLコンテンツを取得"""
     try:
         # セッションからファイル情報を取得
+        # このセッションで選択されているファイルのコンテンツのみを返す
         file_info = get_session_file_info()
         html_file_path = file_info.get('html_file_path')
         
@@ -4199,6 +4268,7 @@ def reload():
     """ファイルを再読み込み"""
     try:
         # セッションからファイル情報を取得
+        # このセッションで選択されているファイルのみを再読み込み
         file_info = get_session_file_info()
         html_file_path = file_info.get('html_file_path')
         
@@ -4208,7 +4278,7 @@ def reload():
         with open(html_file_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # HTMLEditorを再読み込み
+        # HTMLEditorを再読み込みして、セッション情報を更新
         html_editor = HTMLEditor(str(html_file_path))
         set_session_file_info(html_editor, html_file_path)
         
@@ -4222,6 +4292,7 @@ def structure():
     """構造情報を取得"""
     try:
         # セッションからファイル情報を取得
+        # このセッションで選択されているファイルの構造情報のみを返す
         file_info = get_session_file_info()
         html_editor = file_info.get('html_editor')
         
@@ -4239,6 +4310,7 @@ def search():
     """要素を検索"""
     try:
         # セッションからファイル情報を取得
+        # このセッションで選択されているファイル内でのみ検索を実行
         file_info = get_session_file_info()
         html_editor = file_info.get('html_editor')
         
@@ -4337,6 +4409,7 @@ def upload_file():
         file.save(str(file_path))
         
         # セッションにファイル情報を保存
+        # このセッションでアップロードしたファイルを選択状態にする
         html_editor = HTMLEditor(str(file_path))
         set_session_file_info(html_editor, file_path)
         
@@ -4385,6 +4458,7 @@ def load_file(filename):
             content = f.read()
         
         # セッションにファイル情報を保存
+        # このセッションで読み込んだファイルを選択状態にする
         html_editor = HTMLEditor(str(file_path))
         set_session_file_info(html_editor, file_path)
         
@@ -4405,10 +4479,12 @@ def delete_file(filename):
             return jsonify({'success': False, 'error': 'ファイルが見つかりません'}), 404
         
         # 現在開いているファイルを削除する場合は、そのセッションのエディタをクリア
-        # すべてのセッションをチェック
+        # 削除対象のファイルを開いているすべてのセッションをチェック
+        # 複数のセッションが同じファイルを開いている可能性があるため、すべてのセッションを確認
         for session_id, file_info in list(session_files.items()):
             session_file_path = file_info.get('html_file_path')
             if session_file_path and Path(session_file_path) == file_path:
+                # 該当セッションのファイル情報をクリア
                 session_files[session_id]['html_editor'] = None
                 session_files[session_id]['html_file_path'] = None
         
@@ -4521,11 +4597,24 @@ def diff_analysis():
 
 
 def analyze_differences(parsed_files, options):
-    """HTMLファイル間の差分を分析"""
+    """
+    HTMLファイル間の差分を分析
+    
+    処理を最適化するため、以下の制限を設けています:
+    - 最大要素数: 1000要素（パフォーマンス向上のため）
+    - タイムアウト: 60秒（長時間実行を防ぐため）
+    """
+    import time
+    import signal
+    
     differences = []
     
     if len(parsed_files) < 2:
         return differences
+    
+    # タイムアウト設定（60秒）
+    start_time = time.time()
+    timeout = 60
     
     # 基準ファイル（最初のファイル）
     base_file = parsed_files[0]
@@ -4533,10 +4622,24 @@ def analyze_differences(parsed_files, options):
     
     # 各要素を比較
     def get_all_elements(soup):
-        """すべての要素を取得"""
+        """すべての要素を取得（最大1000要素に制限）"""
         elements = []
         if soup.body:
-            elements.extend(soup.body.find_all())
+            body_elements = soup.body.find_all()
+            # 要素数を制限（パフォーマンス向上のため）
+            max_elements = 1000
+            if len(body_elements) > max_elements:
+                # 重要な要素（idやclassを持つ要素）を優先的に取得
+                important_elements = [e for e in body_elements if e.get('id') or e.get('class')]
+                if len(important_elements) < max_elements:
+                    # 重要でない要素も追加
+                    other_elements = [e for e in body_elements if not (e.get('id') or e.get('class'))]
+                    elements.extend(important_elements)
+                    elements.extend(other_elements[:max_elements - len(important_elements)])
+                else:
+                    elements.extend(important_elements[:max_elements])
+            else:
+                elements.extend(body_elements)
         if soup.head and options.get('styles', True):
             elements.extend(soup.head.find_all(['style', 'link']))
         return elements
@@ -4566,27 +4669,55 @@ def analyze_differences(parsed_files, options):
     # 基準ファイルの要素を取得
     base_elements = get_all_elements(base_soup)
     
+    # タイムアウトチェック用のカウンター
+    processed_count = 0
+    total_elements = len(base_elements)
+    
     # 各要素について、他のファイルと比較
     for base_elem in base_elements:
+        # タイムアウトチェック
+        if time.time() - start_time > timeout:
+            differences.append({
+                'type': 'system',
+                'element': 'timeout',
+                'description': f'処理がタイムアウトしました（{timeout}秒）。処理済み: {processed_count}/{total_elements}要素',
+                'files': []
+            })
+            break
+        
+        processed_count += 1
+        
         base_sig = get_element_signature(base_elem)
         if not base_sig:
             continue
         
-        # セレクタを生成
+        # セレクタを生成（最適化: 複雑なセレクタを避ける）
         selector = base_sig['tag']
         if base_sig['id']:
-            selector += f"#{base_sig['id']}"
-        if base_sig['classes']:
-            selector += '.' + '.'.join(base_sig['classes'])
+            # IDがある場合はIDセレクタのみを使用（高速）
+            selector = f"#{base_sig['id']}"
+        elif base_sig['classes']:
+            # クラスのみの場合はクラスセレクタを使用
+            selector = base_sig['tag'] + '.' + '.'.join(base_sig['classes'][:3])  # 最大3つのクラスのみ使用
         
         # 他のファイルで同じ要素を探す
         matching_files = [base_file['filename']]
         different_files = []
         
         for other_file in parsed_files[1:]:
+            # タイムアウトチェック
+            if time.time() - start_time > timeout:
+                break
+                
             other_soup = other_file['soup']
             try:
-                found = other_soup.select_one(selector)
+                # セレクタが複雑な場合は、より単純な方法で検索
+                if base_sig['id']:
+                    found = other_soup.find(id=base_sig['id'])
+                elif base_sig['classes']:
+                    found = other_soup.find(base_sig['tag'], class_=base_sig['classes'][0] if base_sig['classes'] else None)
+                else:
+                    found = other_soup.select_one(selector) if selector else None
                 if found:
                     matching_files.append(other_file['filename'])
                     
@@ -4648,12 +4779,13 @@ def analyze_differences(parsed_files, options):
                             'type': 'structure',
                             'message': '要素が見つかりません'
                         })
-            except Exception:
+            except Exception as e:
                 # セレクタが無効な場合はスキップ
+                # エラーをログに記録しない（パフォーマンス向上のため）
                 pass
         
-        # 差分がある場合は記録
-        if different_files:
+        # 差分がある場合は記録（最大1000件に制限）
+        if different_files and len(differences) < 1000:
             diff_type = different_files[0]['type']
             affected_files = [df['file'] for df in different_files]
             
@@ -4664,15 +4796,29 @@ def analyze_differences(parsed_files, options):
                 'files': affected_files,
                 'matchingFiles': matching_files
             })
+        
+        # 差分が多すぎる場合は早期終了
+        if len(differences) >= 1000:
+            differences.append({
+                'type': 'system',
+                'element': 'limit',
+                'description': f'差分が多すぎるため、処理を中断しました（最大1000件）。処理済み: {processed_count}/{total_elements}要素',
+                'files': []
+            })
+            break
     
-    # スタイルの差分をチェック
-    if options.get('styles', True):
+    # スタイルの差分をチェック（タイムアウトチェック付き）
+    if options.get('styles', True) and time.time() - start_time < timeout:
         base_styles = []
         if base_soup.head:
             base_styles.extend(base_soup.head.find_all('style'))
             base_styles.extend(base_soup.head.find_all('link', rel='stylesheet'))
         
         for other_file in parsed_files[1:]:
+            # タイムアウトチェック
+            if time.time() - start_time > timeout:
+                break
+                
             other_soup = other_file['soup']
             other_styles = []
             if other_soup.head:
