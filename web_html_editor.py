@@ -352,6 +352,79 @@ EDITOR_TEMPLATE = r"""
         .editor-container.free-mode .resizer {
             display: none;
         }
+        /* 通常モードでのパネルリサイズハンドル */
+        .editor-panel .panel-resize-handle {
+            position: absolute;
+            background: transparent;
+            z-index: 1000;
+            transition: background 0.2s;
+        }
+        .editor-panel .panel-resize-handle:hover {
+            background: rgba(99, 102, 241, 0.2);
+        }
+        .editor-panel .panel-resize-handle.n {
+            top: 0;
+            left: 8px;
+            right: 8px;
+            height: 8px;
+            cursor: n-resize;
+        }
+        .editor-panel .panel-resize-handle.s {
+            bottom: 0;
+            left: 8px;
+            right: 8px;
+            height: 8px;
+            cursor: s-resize;
+        }
+        .editor-panel .panel-resize-handle.e {
+            top: 8px;
+            right: 0;
+            bottom: 8px;
+            width: 8px;
+            cursor: e-resize;
+        }
+        .editor-panel .panel-resize-handle.w {
+            top: 8px;
+            left: 0;
+            bottom: 8px;
+            width: 8px;
+            cursor: w-resize;
+        }
+        .editor-panel .panel-resize-handle.ne {
+            top: 0;
+            right: 0;
+            width: 12px;
+            height: 12px;
+            cursor: ne-resize;
+        }
+        .editor-panel .panel-resize-handle.nw {
+            top: 0;
+            left: 0;
+            width: 12px;
+            height: 12px;
+            cursor: nw-resize;
+        }
+        .editor-panel .panel-resize-handle.se {
+            bottom: 0;
+            right: 0;
+            width: 12px;
+            height: 12px;
+            cursor: se-resize;
+        }
+        .editor-panel .panel-resize-handle.sw {
+            bottom: 0;
+            left: 0;
+            width: 12px;
+            height: 12px;
+            cursor: sw-resize;
+        }
+        .editor-panel .panel-resize-handle.resizing {
+            background: rgba(99, 102, 241, 0.4);
+        }
+        /* 自由配置モードでは通常のリサイズハンドルを使用 */
+        .editor-container.free-mode .editor-panel .panel-resize-handle {
+            display: none;
+        }
         .resizer:hover {
             background: var(--primary-light);
             width: 8px;
@@ -1618,6 +1691,14 @@ EDITOR_TEMPLATE = r"""
         
         <div class="editor-container">
             <div class="editor-panel" id="editorPanel">
+                <div class="panel-resize-handle n"></div>
+                <div class="panel-resize-handle s"></div>
+                <div class="panel-resize-handle e"></div>
+                <div class="panel-resize-handle w"></div>
+                <div class="panel-resize-handle ne"></div>
+                <div class="panel-resize-handle nw"></div>
+                <div class="panel-resize-handle se"></div>
+                <div class="panel-resize-handle sw"></div>
                 <div class="panel-header"><span>📄 HTMLソース</span></div>
                 <div class="editor-wrapper">
                     <textarea id="htmlEditor" class="editor" spellcheck="false" data-filename="{{ filename|e }}" data-has-content="{% if has_content %}true{% else %}false{% endif %}"></textarea>
@@ -1626,6 +1707,14 @@ EDITOR_TEMPLATE = r"""
             </div>
             <div class="resizer" id="resizer"></div>
             <div class="editor-panel" id="previewPanel">
+                <div class="panel-resize-handle n"></div>
+                <div class="panel-resize-handle s"></div>
+                <div class="panel-resize-handle e"></div>
+                <div class="panel-resize-handle w"></div>
+                <div class="panel-resize-handle ne"></div>
+                <div class="panel-resize-handle nw"></div>
+                <div class="panel-resize-handle se"></div>
+                <div class="panel-resize-handle sw"></div>
                 <div class="panel-header">
                     <span>👁️ プレビュー</span>
                     <button class="btn btn-success" onclick="downloadPreview()" id="downloadPreviewBtn" style="font-size: 12px; padding: 6px 12px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; font-weight: 600;" title="プレビューをHTMLファイルとしてダウンロード" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
@@ -2057,6 +2146,9 @@ EDITOR_TEMPLATE = r"""
                 });
             }
             
+            // 通常モードでのパネルリサイズ機能の初期化
+            initPanelResize();
+            
             // 自由配置モードの初期化
             initFreeMode();
             
@@ -2126,6 +2218,200 @@ EDITOR_TEMPLATE = r"""
         let panelStartY = 0;
         let panelStartWidth = 0;
         let panelStartHeight = 0;
+        
+        function initPanelResize() {
+            // 通常モードでのパネルリサイズ機能
+            const editorPanel = document.getElementById('editorPanel');
+            const previewPanel = document.getElementById('previewPanel');
+            const editorContainer = document.querySelector('.editor-container');
+            
+            if (!editorPanel || !previewPanel || !editorContainer) return;
+            
+            // 各パネルにリサイズ機能を追加
+            [editorPanel, previewPanel].forEach(panel => {
+                const handles = panel.querySelectorAll('.panel-resize-handle');
+                handles.forEach(handle => {
+                    handle.addEventListener('mousedown', function(e) {
+                        // 自由配置モードの場合は無効
+                        if (editorContainer.classList.contains('free-mode')) return;
+                        
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        const direction = handle.className.split(' ').find(c => c !== 'panel-resize-handle' && c !== 'resizing');
+                        if (!direction) return;
+                        
+                        const containerRect = editorContainer.getBoundingClientRect();
+                        const panelRect = panel.getBoundingClientRect();
+                        const otherPanel = panel === editorPanel ? previewPanel : editorPanel;
+                        
+                        let startX = e.clientX;
+                        let startY = e.clientY;
+                        let startWidth = panelRect.width;
+                        let startHeight = panelRect.height;
+                        let startLeft = panelRect.left - containerRect.left;
+                        let startTop = panelRect.top - containerRect.top;
+                        let startOtherWidth = otherPanel.offsetWidth;
+                        
+                        panel.classList.add('resizing');
+                        handle.classList.add('resizing');
+                        document.body.style.cursor = getComputedStyle(handle).cursor;
+                        document.body.style.userSelect = 'none';
+                        
+                        function onMouseMove(e) {
+                            const diffX = e.clientX - startX;
+                            const diffY = e.clientY - startY;
+                            
+                            let newWidth = startWidth;
+                            let newHeight = startHeight;
+                            let newLeft = startLeft;
+                            let newTop = startTop;
+                            
+                            // 方向に応じてサイズを調整
+                            if (direction.includes('e')) {
+                                newWidth = startWidth + diffX;
+                            }
+                            if (direction.includes('w')) {
+                                newWidth = startWidth - diffX;
+                                newLeft = startLeft + diffX;
+                            }
+                            if (direction.includes('s')) {
+                                newHeight = startHeight + diffY;
+                            }
+                            if (direction.includes('n')) {
+                                newHeight = startHeight - diffY;
+                                newTop = startTop + diffY;
+                            }
+                            
+                            // 最小サイズ制限
+                            const minWidth = 200;
+                            const minHeight = 200;
+                            
+                            if (newWidth < minWidth) {
+                                if (direction.includes('w')) {
+                                    newLeft = startLeft + startWidth - minWidth;
+                                }
+                                newWidth = minWidth;
+                            }
+                            if (newHeight < minHeight) {
+                                if (direction.includes('n')) {
+                                    newTop = startTop + startHeight - minHeight;
+                                }
+                                newHeight = minHeight;
+                            }
+                            
+                            // コンテナ内に制限
+                            const maxWidth = containerRect.width - (panel === editorPanel ? 6 : 0) - (panel === previewPanel ? 6 : 0) - minWidth;
+                            const maxHeight = containerRect.height;
+                            
+                            if (newWidth > maxWidth) {
+                                newWidth = maxWidth;
+                                if (direction.includes('w')) {
+                                    newLeft = containerRect.width - maxWidth - (panel === editorPanel ? 6 : 0);
+                                }
+                            }
+                            if (newHeight > maxHeight) {
+                                newHeight = maxHeight;
+                                if (direction.includes('n')) {
+                                    newTop = 0;
+                                }
+                            }
+                            
+                            // 横方向のリサイズ（左右のパネル間）
+                            if (direction.includes('e') || direction.includes('w')) {
+                                // パネルの幅を直接設定（flexを無効化）
+                                panel.style.flex = `0 0 ${newWidth}px`;
+                                panel.style.width = `${newWidth}px`;
+                                
+                                // もう一方のパネルも調整
+                                const remainingWidth = containerRect.width - newWidth - 6; // 6pxはresizerの幅
+                                if (remainingWidth >= minWidth) {
+                                    otherPanel.style.flex = `1 1 ${remainingWidth}px`;
+                                }
+                            }
+                            
+                            // 縦方向のリサイズ
+                            if (direction.includes('n') || direction.includes('s')) {
+                                panel.style.height = `${newHeight}px`;
+                                panel.style.minHeight = `${newHeight}px`;
+                                
+                                // エディタ/プレビューの高さも調整
+                                const headerHeight = panel.querySelector('.panel-header')?.offsetHeight || 60;
+                                const contentHeight = newHeight - headerHeight;
+                                
+                                if (panel === editorPanel) {
+                                    const editorWrapper = panel.querySelector('.editor-wrapper');
+                                    if (editorWrapper) {
+                                        editorWrapper.style.height = `${contentHeight}px`;
+                                    }
+                                } else {
+                                    const preview = panel.querySelector('.preview');
+                                    if (preview) {
+                                        preview.style.height = `${contentHeight}px`;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        function onMouseUp() {
+                            panel.classList.remove('resizing');
+                            handle.classList.remove('resizing');
+                            document.body.style.cursor = '';
+                            document.body.style.userSelect = '';
+                            document.removeEventListener('mousemove', onMouseMove);
+                            document.removeEventListener('mouseup', onMouseUp);
+                            
+                            // サイズを保存
+                            const panelId = panel.id;
+                            const savedSize = {
+                                width: panel.offsetWidth,
+                                height: panel.offsetHeight
+                            };
+                            localStorage.setItem(`htmlEditor_${panelId}_size`, JSON.stringify(savedSize));
+                        }
+                        
+                        document.addEventListener('mousemove', onMouseMove);
+                        document.addEventListener('mouseup', onMouseUp);
+                    });
+                });
+            });
+            
+            // 保存されたサイズを復元
+            [editorPanel, previewPanel].forEach(panel => {
+                const panelId = panel.id;
+                const savedSize = localStorage.getItem(`htmlEditor_${panelId}_size`);
+                if (savedSize) {
+                    try {
+                        const size = JSON.parse(savedSize);
+                        if (size.width && size.width >= 200) {
+                            panel.style.flex = `0 0 ${size.width}px`;
+                            panel.style.width = `${size.width}px`;
+                        }
+                        if (size.height && size.height >= 200) {
+                            panel.style.height = `${size.height}px`;
+                            panel.style.minHeight = `${size.height}px`;
+                            
+                            const headerHeight = panel.querySelector('.panel-header')?.offsetHeight || 60;
+                            const contentHeight = size.height - headerHeight;
+                            
+                            if (panel === editorPanel) {
+                                const editorWrapper = panel.querySelector('.editor-wrapper');
+                                if (editorWrapper) {
+                                    editorWrapper.style.height = `${contentHeight}px`;
+                                }
+                            } else {
+                                const preview = panel.querySelector('.preview');
+                                if (preview) {
+                                    preview.style.height = `${contentHeight}px`;
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Failed to restore panel size:', e);
+                    }
+                }
+            });
+        }
         
         function initFreeMode() {
             // 保存された状態を復元
