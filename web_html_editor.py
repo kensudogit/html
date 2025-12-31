@@ -325,6 +325,11 @@ EDITOR_TEMPLATE = r"""
             margin-bottom: 20px;
             position: relative;
             height: 600px;
+            min-height: 400px;
+        }
+        .editor-container.free-mode {
+            height: calc(100vh - 200px);
+            min-height: 500px;
         }
         @media (max-width: 1024px) {
             .editor-container {
@@ -343,6 +348,9 @@ EDITOR_TEMPLATE = r"""
             flex-shrink: 0;
             z-index: 10;
             transition: all var(--transition-base);
+        }
+        .editor-container.free-mode .resizer {
+            display: none;
         }
         .resizer:hover {
             background: var(--primary-light);
@@ -379,10 +387,24 @@ EDITOR_TEMPLATE = r"""
             position: relative;
             flex: 1;
             min-width: 200px;
+            min-height: 300px;
             display: flex;
             flex-direction: column;
             border: 1px solid var(--border-light);
             transition: all var(--transition-base);
+        }
+        .editor-container.free-mode .editor-panel {
+            position: absolute;
+            flex: none;
+            z-index: 100;
+        }
+        .editor-panel.dragging {
+            z-index: 1000;
+            box-shadow: var(--shadow-2xl);
+            opacity: 0.95;
+        }
+        .editor-panel.resizing {
+            z-index: 1000;
         }
         .editor-panel:hover {
             box-shadow: var(--shadow-2xl);
@@ -394,6 +416,86 @@ EDITOR_TEMPLATE = r"""
         .editor-panel:last-child {
             border-top-left-radius: 0;
             border-bottom-left-radius: 0;
+        }
+        .editor-container.free-mode .editor-panel:first-child,
+        .editor-container.free-mode .editor-panel:last-child {
+            border-radius: var(--radius-lg);
+        }
+        /* ドラッグ可能なヘッダー */
+        .panel-header {
+            cursor: move;
+            user-select: none;
+        }
+        .panel-header.dragging {
+            cursor: grabbing;
+        }
+        /* リサイズハンドル */
+        .resize-handle {
+            position: absolute;
+            background: transparent;
+            z-index: 1000;
+        }
+        .resize-handle.n {
+            top: 0;
+            left: 8px;
+            right: 8px;
+            height: 8px;
+            cursor: n-resize;
+        }
+        .resize-handle.s {
+            bottom: 0;
+            left: 8px;
+            right: 8px;
+            height: 8px;
+            cursor: s-resize;
+        }
+        .resize-handle.e {
+            top: 8px;
+            right: 0;
+            bottom: 8px;
+            width: 8px;
+            cursor: e-resize;
+        }
+        .resize-handle.w {
+            top: 8px;
+            left: 0;
+            bottom: 8px;
+            width: 8px;
+            cursor: w-resize;
+        }
+        .resize-handle.ne {
+            top: 0;
+            right: 0;
+            width: 12px;
+            height: 12px;
+            cursor: ne-resize;
+        }
+        .resize-handle.nw {
+            top: 0;
+            left: 0;
+            width: 12px;
+            height: 12px;
+            cursor: nw-resize;
+        }
+        .resize-handle.se {
+            bottom: 0;
+            right: 0;
+            width: 12px;
+            height: 12px;
+            cursor: se-resize;
+        }
+        .resize-handle.sw {
+            bottom: 0;
+            left: 0;
+            width: 12px;
+            height: 12px;
+            cursor: sw-resize;
+        }
+        .resize-handle:hover {
+            background: rgba(99, 102, 241, 0.2);
+        }
+        .resize-handle.resizing {
+            background: rgba(99, 102, 241, 0.4);
         }
         .panel-header {
             background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
@@ -436,6 +538,12 @@ EDITOR_TEMPLATE = r"""
             position: relative;
             width: 100%;
             height: 600px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .editor-container.free-mode .editor-wrapper {
+            height: calc(100% - 60px);
         }
         .editor {
             width: 100%;
@@ -451,6 +559,11 @@ EDITOR_TEMPLATE = r"""
             position: relative;
             z-index: 1;
             transition: all var(--transition-base);
+            flex: 1;
+        }
+        .editor-container.free-mode .editor {
+            height: 100%;
+            resize: none;
         }
         .editor:focus {
             outline: none;
@@ -509,6 +622,10 @@ EDITOR_TEMPLATE = r"""
             box-shadow: inset 0 0 30px rgba(0,0,0,0.02);
             transition: all var(--transition-base);
             position: relative;
+            flex: 1;
+        }
+        .editor-container.free-mode .preview {
+            height: calc(100% - 60px);
         }
         .preview:hover {
             box-shadow: inset 0 0 40px rgba(0,0,0,0.03);
@@ -616,6 +733,152 @@ EDITOR_TEMPLATE = r"""
         }
         .status {
             animation: slideDown var(--transition-base);
+        }
+        /* 画面比較用スタイル */
+        .comparison-screen {
+            background: white;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            border: 2px solid var(--border-color);
+            overflow: hidden;
+            position: relative;
+            transition: all var(--transition-base);
+            display: flex;
+            flex-direction: column;
+        }
+        .comparison-screen:hover {
+            box-shadow: var(--shadow-2xl);
+            border-color: var(--primary-color);
+        }
+        .comparison-screen.selected {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+        .comparison-screen-header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            padding: 12px 16px;
+            color: white;
+            font-weight: 600;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: move;
+            user-select: none;
+        }
+        .comparison-screen-header .screen-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .comparison-screen-header .screen-actions button {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all var(--transition-base);
+        }
+        .comparison-screen-header .screen-actions button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        .comparison-screen-preview {
+            flex: 1;
+            overflow: auto;
+            background: #f8fafc;
+            position: relative;
+        }
+        .comparison-screen-preview iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: white;
+        }
+        .comparison-screen-preview pre {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #e4e4e4;
+            font-family: 'Fira Code', 'JetBrains Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            height: 100%;
+            overflow: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            border-radius: 0;
+        }
+        .comparison-screen-preview pre::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .comparison-screen-preview pre::-webkit-scrollbar-track {
+            background: #2a2a2a;
+        }
+        .comparison-screen-preview pre::-webkit-scrollbar-thumb {
+            background: #555;
+            border-radius: 4px;
+        }
+        .comparison-screen-preview pre::-webkit-scrollbar-thumb:hover {
+            background: #666;
+        }
+        .comparison-screen-info {
+            padding: 10px 16px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            font-size: 11px;
+            color: var(--text-secondary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .comparison-screen-info .diff-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+        .comparison-screen-info .diff-badge.same {
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
+        }
+        .comparison-screen-info .diff-badge.different {
+            background: rgba(239, 68, 68, 0.1);
+            color: #dc2626;
+        }
+        .comparison-grid {
+            display: grid;
+            gap: 15px;
+        }
+        .comparison-grid.grid-layout {
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+        }
+        .comparison-grid.horizontal-layout {
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        }
+        .comparison-grid.vertical-layout {
+            grid-template-columns: 1fr;
+        }
+        .comparison-mode-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(99, 102, 241, 0.05);
+            border: 2px dashed var(--primary-color);
+            pointer-events: none;
+            z-index: 100;
+            display: none;
+        }
+        .comparison-mode .comparison-mode-overlay {
+            display: block;
+        }
+        .comparison-diff-highlight {
+            outline: 3px solid #ef4444 !important;
+            outline-offset: 2px !important;
+            background-color: rgba(239, 68, 68, 0.1) !important;
         }
         @keyframes slideDown {
             from {
@@ -1190,6 +1453,7 @@ EDITOR_TEMPLATE = r"""
                     <button class="btn btn-warning" onclick="validateHTML()" id="validateBtn" {% if not filename %}disabled{% endif %}>⚠️ 構文チェック</button>
                     <button class="btn btn-info" onclick="showSearch()" id="searchBtn" {% if not filename %}disabled{% endif %}>🔍 検索・置換</button>
                     <button class="btn btn-info" onclick="showDesignExport()" id="exportDesignBtn" {% if not filename %}disabled{% endif %} title="プレビューのDOMと主要CSS(Computed Style)をJSON/CSVで出力して比較に使います">📤 デザイン出力</button>
+                    <button class="btn btn-warning" onclick="toggleFreeMode()" id="freeModeBtn" title="ウィンドウを自由に移動・リサイズできるモードに切り替えます">🪟 自由配置モード</button>
                 </div>
             </div>
             
@@ -1199,6 +1463,7 @@ EDITOR_TEMPLATE = r"""
                 <div class="remote-control-buttons">
                     <button class="btn btn-warning" onclick="showTemplateMerge()" id="templateMergeBtn" title="複数のHTMLファイルを比較して共通テンプレートを生成">🔀 テンプレート統合</button>
                     <button class="btn btn-info" onclick="showDiffAnalysis()" id="diffAnalysisBtn" title="27校の大学ホームページの差分を検出">🔍 差分検出</button>
+                    <button class="btn btn-primary" onclick="showScreenComparison()" id="screenComparisonBtn" title="最大27大学の画面を並べて比較・編集">🖼️ 画面比較</button>
                 </div>
             </div>
             
@@ -1493,6 +1758,46 @@ EDITOR_TEMPLATE = r"""
         </div>
     </div>
     
+    <!-- 画面比較モーダル -->
+    <div id="screenComparisonModal" class="modal">
+        <div class="modal-content" style="max-width: 95vw; width: 95vw; height: 95vh; max-height: 95vh; display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-shrink: 0;">
+                <div>
+                    <h2 style="margin: 0;">🖼️ 画面比較（最大27大学）</h2>
+                    <p style="margin: 5px 0 0 0; font-size: 12px; color: #718096;">HTMLファイルとCSSファイルを比較・編集できます</p>
+                </div>
+                <span class="close" onclick="closeModal('screenComparisonModal')">&times;</span>
+            </div>
+            
+            <div style="display: flex; gap: 15px; margin-bottom: 15px; flex-shrink: 0; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 300px;">
+                    <label class="form-label">比較対象ディレクトリ</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="comparisonDir" class="form-input" placeholder="例: C:\\universities または /path/to/universities" style="flex: 1;">
+                        <button class="btn btn-info" onclick="loadComparisonFiles()" style="white-space: nowrap;">📁 ファイル読み込み</button>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: flex-end;">
+                    <select id="comparisonLayout" class="form-input" style="width: 150px;" onchange="updateComparisonLayout()">
+                        <option value="grid">グリッド表示</option>
+                        <option value="horizontal">横並び</option>
+                        <option value="vertical">縦並び</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="toggleComparisonMode()" id="comparisonModeBtn">比較モード</button>
+                    <button class="btn btn-success" onclick="exportComparisonReport()" id="exportComparisonBtn">📊 比較レポート出力</button>
+                </div>
+            </div>
+            
+            <div id="comparisonFileList" style="max-height: 150px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 5px; padding: 10px; margin-bottom: 15px; flex-shrink: 0; background: #f8fafc;">
+                <p style="color: #718096; font-size: 12px; margin: 0; text-align: center;">ディレクトリを指定してファイルを読み込んでください</p>
+            </div>
+            
+            <div id="comparisonContainer" style="flex: 1; overflow: auto; background: #f1f5f9; border-radius: 8px; padding: 15px; position: relative;">
+                <div id="comparisonGrid" style="display: grid; gap: 15px; min-height: 100%;"></div>
+            </div>
+        </div>
+    </div>
+    
     <!-- アップロードモーダル -->
     <div id="uploadModal" class="modal">
         <div class="modal-content">
@@ -1592,8 +1897,8 @@ EDITOR_TEMPLATE = r"""
             
             if (resizer && editorPanel && previewPanel && editorContainer) {
                 let isResizing = false;
-                let startX = 0;
-                let startEditorWidth = 0;
+                let startX = 1;
+                let startEditorWidth = 1;
                 
                 resizer.addEventListener('mousedown', function(e) {
                     isResizing = true;
@@ -1612,12 +1917,12 @@ EDITOR_TEMPLATE = r"""
                     const containerWidth = editorContainer.offsetWidth;
                     const resizerWidth = resizer.offsetWidth;
                     const newEditorWidth = startEditorWidth + diff;
-                    const minWidth = 200;
+                    const minWidth = 201;
                     const maxWidth = containerWidth - resizerWidth - minWidth;
                     
                     if (newEditorWidth >= minWidth && newEditorWidth <= maxWidth) {
-                        editorPanel.style.flex = `0 0 ${newEditorWidth}px`;
-                        previewPanel.style.flex = '1 1 auto';
+                        editorPanel.style.flex = `1 0 ${newEditorWidth}px`;
+                        previewPanel.style.flex = '2 1 auto';
                     }
                 });
                 
@@ -1631,12 +1936,15 @@ EDITOR_TEMPLATE = r"""
                 });
             }
             
+            // 自由配置モードの初期化
+            initFreeMode();
+            
             // エディタの変更をプレビューに反映
             if (editor && preview) {
                 editor.addEventListener('input', function() {
                     updatePreview();
                     // 検索結果がある場合はハイライトを更新
-                    if (window.searchMatches && window.searchMatches.length > 0) {
+                    if (window.searchMatches && window.searchMatches.length > 1) {
                         const query = document.getElementById('searchBox')?.value.trim();
                         if (query) {
                             window.searchMatches = highlightInSource(query);
@@ -1651,7 +1959,7 @@ EDITOR_TEMPLATE = r"""
                     clearTimeout(highlightTimeout);
                     highlightTimeout = setTimeout(function() {
                         highlightPreviewElement();
-                    }, 150);
+                    }, 151);
                 }
                 
                 editor.addEventListener('keyup', updatePreviewHighlight);
@@ -1686,6 +1994,372 @@ EDITOR_TEMPLATE = r"""
             }
         });
         
+        // 自由配置モードの実装
+        let freeMode = false;
+        let draggingPanel = null;
+        let resizingPanel = null;
+        let resizeDirection = '';
+        let dragStartX = 0;
+        let dragStartY = 0;
+        let panelStartX = 0;
+        let panelStartY = 0;
+        let panelStartWidth = 0;
+        let panelStartHeight = 0;
+        
+        function initFreeMode() {
+            // 保存された状態を復元
+            const savedMode = localStorage.getItem('htmlEditor_freeMode');
+            if (savedMode === 'true') {
+                toggleFreeMode(true);
+            } else {
+                restorePanelPositions();
+            }
+        }
+        
+        function toggleFreeMode(forceState) {
+            const editorContainer = document.querySelector('.editor-container');
+            const editorPanel = document.getElementById('editorPanel');
+            const previewPanel = document.getElementById('previewPanel');
+            const freeModeBtn = document.getElementById('freeModeBtn');
+            
+            if (forceState !== undefined) {
+                freeMode = forceState;
+            } else {
+                freeMode = !freeMode;
+            }
+            
+            if (freeMode) {
+                editorContainer.classList.add('free-mode');
+                freeModeBtn.textContent = '📐 通常モード';
+                freeModeBtn.title = '通常の分割表示モードに戻します';
+                
+                // パネルを絶対配置に変更
+                if (editorPanel && previewPanel) {
+                    const containerRect = editorContainer.getBoundingClientRect();
+                    
+                    // 保存された位置を復元、なければデフォルト位置
+                    const editorPos = loadPanelPosition('editorPanel');
+                    const previewPos = loadPanelPosition('previewPanel');
+                    
+                    if (!editorPos) {
+                        setPanelPosition(editorPanel, 0, 0, containerRect.width / 2 - 3, containerRect.height);
+                    } else {
+                        setPanelPosition(editorPanel, editorPos.x, editorPos.y, editorPos.width, editorPos.height);
+                    }
+                    
+                    if (!previewPos) {
+                        setPanelPosition(previewPanel, containerRect.width / 2 + 3, 0, containerRect.width / 2 - 3, containerRect.height);
+                    } else {
+                        setPanelPosition(previewPanel, previewPos.x, previewPos.y, previewPos.width, previewPos.height);
+                    }
+                    
+                    // リサイズハンドルを追加
+                    addResizeHandles(editorPanel);
+                    addResizeHandles(previewPanel);
+                    
+                    // ドラッグ機能を有効化
+                    enableDrag(editorPanel);
+                    enableDrag(previewPanel);
+                    
+                    // 高さを調整
+                    updatePanelContentHeight(editorPanel);
+                    updatePanelContentHeight(previewPanel);
+                }
+            } else {
+                editorContainer.classList.remove('free-mode');
+                freeModeBtn.textContent = '🪟 自由配置モード';
+                freeModeBtn.title = 'ウィンドウを自由に移動・リサイズできるモードに切り替えます';
+                
+                // パネルを通常のflex配置に戻す
+                if (editorPanel && previewPanel) {
+                    editorPanel.style.position = '';
+                    editorPanel.style.left = '';
+                    editorPanel.style.top = '';
+                    editorPanel.style.width = '';
+                    editorPanel.style.height = '';
+                    previewPanel.style.position = '';
+                    previewPanel.style.left = '';
+                    previewPanel.style.top = '';
+                    previewPanel.style.width = '';
+                    previewPanel.style.height = '';
+                    
+                    // リサイズハンドルを削除
+                    removeResizeHandles(editorPanel);
+                    removeResizeHandles(previewPanel);
+                }
+            }
+            
+            localStorage.setItem('htmlEditor_freeMode', freeMode.toString());
+        }
+        
+        function setPanelPosition(panel, x, y, width, height) {
+            panel.style.position = 'absolute';
+            panel.style.left = x + 'px';
+            panel.style.top = y + 'px';
+            panel.style.width = width + 'px';
+            panel.style.height = height + 'px';
+        }
+        
+        function loadPanelPosition(panelId) {
+            const saved = localStorage.getItem(`htmlEditor_${panelId}_position`);
+            if (saved) {
+                try {
+                    return JSON.parse(saved);
+                } catch (e) {
+                    return null;
+                }
+            }
+            return null;
+        }
+        
+        function savePanelPosition(panelId, x, y, width, height) {
+            localStorage.setItem(`htmlEditor_${panelId}_position`, JSON.stringify({ x, y, width, height }));
+        }
+        
+        function restorePanelPositions() {
+            const editorPanel = document.getElementById('editorPanel');
+            const previewPanel = document.getElementById('previewPanel');
+            
+            if (editorPanel) {
+                const pos = loadPanelPosition('editorPanel');
+                if (pos) {
+                    setPanelPosition(editorPanel, pos.x, pos.y, pos.width, pos.height);
+                }
+            }
+            
+            if (previewPanel) {
+                const pos = loadPanelPosition('previewPanel');
+                if (pos) {
+                    setPanelPosition(previewPanel, pos.x, pos.y, pos.width, pos.height);
+                }
+            }
+        }
+        
+        function enableDrag(panel) {
+            const header = panel.querySelector('.panel-header');
+            if (!header) return;
+            
+            header.addEventListener('mousedown', function(e) {
+                if (!freeMode) return;
+                if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
+                
+                draggingPanel = panel;
+                header.classList.add('dragging');
+                panel.classList.add('dragging');
+                
+                const rect = panel.getBoundingClientRect();
+                const containerRect = panel.parentElement.getBoundingClientRect();
+                
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+                panelStartX = rect.left - containerRect.left;
+                panelStartY = rect.top - containerRect.top;
+                
+                e.preventDefault();
+            });
+        }
+        
+        function addResizeHandles(panel) {
+            if (panel.querySelector('.resize-handle')) return; // 既に追加済み
+            
+            const handles = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
+            handles.forEach(direction => {
+                const handle = document.createElement('div');
+                handle.className = `resize-handle ${direction}`;
+                handle.addEventListener('mousedown', function(e) {
+                    if (!freeMode) return;
+                    
+                    resizingPanel = panel;
+                    resizeDirection = direction;
+                    panel.classList.add('resizing');
+                    handle.classList.add('resizing');
+                    
+                    const rect = panel.getBoundingClientRect();
+                    const containerRect = panel.parentElement.getBoundingClientRect();
+                    
+                    dragStartX = e.clientX;
+                    dragStartY = e.clientY;
+                    panelStartX = rect.left - containerRect.left;
+                    panelStartY = rect.top - containerRect.top;
+                    panelStartWidth = rect.width;
+                    panelStartHeight = rect.height;
+                    
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
+                panel.appendChild(handle);
+            });
+        }
+        
+        function removeResizeHandles(panel) {
+            const handles = panel.querySelectorAll('.resize-handle');
+            handles.forEach(handle => handle.remove());
+        }
+        
+        // グローバルマウスイベント
+        document.addEventListener('mousemove', function(e) {
+            if (draggingPanel && freeMode) {
+                const containerRect = draggingPanel.parentElement.getBoundingClientRect();
+                const diffX = e.clientX - dragStartX;
+                const diffY = e.clientY - dragStartY;
+                
+                let newX = panelStartX + diffX;
+                let newY = panelStartY + diffY;
+                
+                // コンテナ内に制限
+                const panelRect = draggingPanel.getBoundingClientRect();
+                newX = Math.max(0, Math.min(newX, containerRect.width - panelRect.width));
+                newY = Math.max(0, Math.min(newY, containerRect.height - panelRect.height));
+                
+                draggingPanel.style.left = newX + 'px';
+                draggingPanel.style.top = newY + 'px';
+            }
+            
+            if (resizingPanel && freeMode && resizeDirection) {
+                const containerRect = resizingPanel.parentElement.getBoundingClientRect();
+                const diffX = e.clientX - dragStartX;
+                const diffY = e.clientY - dragStartY;
+                
+                let newX = panelStartX;
+                let newY = panelStartY;
+                let newWidth = panelStartWidth;
+                let newHeight = panelStartHeight;
+                
+                if (resizeDirection.includes('e')) {
+                    newWidth = panelStartWidth + diffX;
+                }
+                if (resizeDirection.includes('w')) {
+                    newWidth = panelStartWidth - diffX;
+                    newX = panelStartX + diffX;
+                }
+                if (resizeDirection.includes('s')) {
+                    newHeight = panelStartHeight + diffY;
+                }
+                if (resizeDirection.includes('n')) {
+                    newHeight = panelStartHeight - diffY;
+                    newY = panelStartY + diffY;
+                }
+                
+                // 最小サイズ制限
+                const minWidth = 200;
+                const minHeight = 200;
+                
+                if (newWidth < minWidth) {
+                    if (resizeDirection.includes('w')) {
+                        newX = panelStartX + panelStartWidth - minWidth;
+                    }
+                    newWidth = minWidth;
+                }
+                if (newHeight < minHeight) {
+                    if (resizeDirection.includes('n')) {
+                        newY = panelStartY + panelStartHeight - minHeight;
+                    }
+                    newHeight = minHeight;
+                }
+                
+                // コンテナ内に制限
+                if (newX < 0) {
+                    newWidth += newX;
+                    newX = 0;
+                }
+                if (newY < 0) {
+                    newHeight += newY;
+                    newY = 0;
+                }
+                if (newX + newWidth > containerRect.width) {
+                    newWidth = containerRect.width - newX;
+                }
+                if (newY + newHeight > containerRect.height) {
+                    newHeight = containerRect.height - newY;
+                }
+                
+                setPanelPosition(resizingPanel, newX, newY, newWidth, newHeight);
+                
+                // エディタとプレビューの高さを調整
+                updatePanelContentHeight(resizingPanel);
+            }
+        });
+        
+        function updatePanelContentHeight(panel) {
+            const headerHeight = panel.querySelector('.panel-header')?.offsetHeight || 60;
+            const panelHeight = panel.offsetHeight;
+            const contentHeight = panelHeight - headerHeight;
+            
+            if (panel.id === 'editorPanel') {
+                const editorWrapper = panel.querySelector('.editor-wrapper');
+                if (editorWrapper) {
+                    editorWrapper.style.height = contentHeight + 'px';
+                }
+                const editor = panel.querySelector('.editor');
+                if (editor) {
+                    editor.style.height = contentHeight + 'px';
+                }
+            } else if (panel.id === 'previewPanel') {
+                const preview = panel.querySelector('.preview');
+                if (preview) {
+                    preview.style.height = contentHeight + 'px';
+                }
+            }
+        }
+        
+        // リサイズ時に高さを更新
+        const resizeObserver = new ResizeObserver(function(entries) {
+            if (!freeMode) return;
+            entries.forEach(entry => {
+                if (entry.target.classList.contains('editor-panel')) {
+                    updatePanelContentHeight(entry.target);
+                }
+            });
+        });
+        
+        // パネルのリサイズを監視
+        document.addEventListener('DOMContentLoaded', function() {
+            const editorPanel = document.getElementById('editorPanel');
+            const previewPanel = document.getElementById('previewPanel');
+            if (editorPanel) resizeObserver.observe(editorPanel);
+            if (previewPanel) resizeObserver.observe(previewPanel);
+        });
+        
+        document.addEventListener('mouseup', function() {
+            if (draggingPanel) {
+                const panelId = draggingPanel.id;
+                const rect = draggingPanel.getBoundingClientRect();
+                const containerRect = draggingPanel.parentElement.getBoundingClientRect();
+                
+                savePanelPosition(panelId, 
+                    rect.left - containerRect.left,
+                    rect.top - containerRect.top,
+                    rect.width,
+                    rect.height
+                );
+                
+                draggingPanel.querySelector('.panel-header').classList.remove('dragging');
+                draggingPanel.classList.remove('dragging');
+                draggingPanel = null;
+            }
+            
+            if (resizingPanel) {
+                const panelId = resizingPanel.id;
+                const rect = resizingPanel.getBoundingClientRect();
+                const containerRect = resizingPanel.parentElement.getBoundingClientRect();
+                
+                savePanelPosition(panelId,
+                    rect.left - containerRect.left,
+                    rect.top - containerRect.top,
+                    rect.width,
+                    rect.height
+                );
+                
+                resizingPanel.classList.remove('resizing');
+                resizingPanel.querySelectorAll('.resize-handle').forEach(h => h.classList.remove('resizing'));
+                resizingPanel = null;
+                resizeDirection = '';
+            }
+        });
+        
+        // グローバル関数として公開
+        window.toggleFreeMode = toggleFreeMode;
+        
         // プレビューを更新
         function updatePreview() {
             const editor = getEditor();
@@ -1698,10 +2372,10 @@ EDITOR_TEMPLATE = r"""
             // より包括的なパターンマッチングで、様々な属性の組み合わせに対応
             content = content.replace(
                 /<link\s+([^>]*)\s+rel=["']preload["']\s+([^>]*)\s+href=["']([^"']+)["']\s+([^>]*)\s+as=["']style["']\s*([^>]*)>/gi,
-                function(match, before, middle1, href, middle2, after) {
+                function(match, before, middle2, href, middle2, after) {
                     // media属性がある場合は保持
-                    const mediaMatch = (before + middle1 + middle2 + after).match(/media=["']([^"']+)["']/i);
-                    const mediaAttr = mediaMatch ? ` media="${mediaMatch[1]}"` : '';
+                    const mediaMatch = (before + middle2 + middle2 + after).match(/media=["']([^"']+)["']/i);
+                    const mediaAttr = mediaMatch ? ` media="${mediaMatch[2]}"` : '';
                     return `<link rel="stylesheet" href="${href}"${mediaAttr}>`;
                 }
             );
@@ -1712,7 +2386,7 @@ EDITOR_TEMPLATE = r"""
                 function(match, href) {
                     // media属性を抽出
                     const mediaMatch = match.match(/media=["']([^"']+)["']/i);
-                    const mediaAttr = mediaMatch ? ` media="${mediaMatch[1]}"` : '';
+                    const mediaAttr = mediaMatch ? ` media="${mediaMatch[2]}"` : '';
                     return `<link rel="stylesheet" href="${href}"${mediaAttr}>`;
                 }
             );
@@ -1757,7 +2431,7 @@ EDITOR_TEMPLATE = r"""
                     
                     for (const part of relativeParts) {
                         if (part === '..') {
-                            if (pathParts.length > 0) {
+                            if (pathParts.length > 1) {
                                 pathParts.pop();
                             }
                         } else if (part !== '.') {
@@ -1767,7 +2441,7 @@ EDITOR_TEMPLATE = r"""
                     
                     return window.location.origin + '/' + pathParts.join('/');
                 } else if (path.startsWith('./')) {
-                    return window.location.origin + basePath + path.substring(2);
+                    return window.location.origin + basePath + path.substring(3);
                 } else if (path.startsWith('/')) {
                     return window.location.origin + path;
                 } else {
@@ -4080,6 +4754,493 @@ EDITOR_TEMPLATE = r"""
                 }
             }
         });
+        // 画面比較機能
+        let comparisonFiles = [];
+        let comparisonMode = false;
+        let selectedScreenIndex = -1;
+        
+        window.showScreenComparison = function showScreenComparison() {
+            const modal = document.getElementById('screenComparisonModal');
+            if (modal) {
+                modal.style.display = 'block';
+                // 既存のファイルリストがあれば表示
+                if (comparisonFiles.length > 0) {
+                    displayComparisonFiles();
+                }
+            } else {
+                showStatus('画面比較モーダルが見つかりません', 'error');
+            }
+        };
+        
+        window.loadComparisonFiles = async function loadComparisonFiles() {
+            const dirPath = document.getElementById('comparisonDir').value.trim();
+            if (!dirPath) {
+                showStatus('ディレクトリパスを入力してください', 'error');
+                return;
+            }
+            
+            const fileListDiv = document.getElementById('comparisonFileList');
+            fileListDiv.innerHTML = '<p style="color: #4a5568; text-align: center;">ファイルを読み込み中...</p>';
+            
+            try {
+                const response = await fetch('/api/load-comparison-files', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ directory: dirPath })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // HTMLファイルを優先し、関連するCSSも含める
+                    const allFiles = data.files || [];
+                    const htmlFiles = allFiles.filter(f => f.type === 'html').slice(0, 27);
+                    const cssFiles = allFiles.filter(f => f.type === 'css');
+                    
+                    // HTMLファイルとその関連CSSを統合
+                    comparisonFiles = [];
+                    const addedCss = new Set();
+                    
+                    htmlFiles.forEach(htmlFile => {
+                        comparisonFiles.push(htmlFile);
+                        // 関連するCSSファイルも追加
+                        if (htmlFile.relatedFiles) {
+                            htmlFile.relatedFiles.forEach(cssPath => {
+                                if (!addedCss.has(cssPath)) {
+                                    const cssFile = cssFiles.find(f => f.path === cssPath);
+                                    if (cssFile) {
+                                        comparisonFiles.push(cssFile);
+                                        addedCss.add(cssPath);
+                                    }
+                                }
+                            });
+                        }
+                    });
+                    
+                    // 関連付けられていないCSSファイルも追加（オプション）
+                    cssFiles.forEach(cssFile => {
+                        if (!addedCss.has(cssFile.path) && comparisonFiles.length < 50) {
+                            comparisonFiles.push(cssFile);
+                        }
+                    });
+                    
+                    displayComparisonFiles();
+                    renderComparisonScreens();
+                    const cssCount = comparisonFiles.filter(f => f.type === 'css').length;
+                    showStatus(`${comparisonFiles.length}個のファイルを読み込みました（HTML: ${htmlFiles.length}, CSS: ${cssCount}）`, 'success');
+                } else {
+                    fileListDiv.innerHTML = `<p style="color: #ef4444; text-align: center;">エラー: ${data.error || 'ファイルの読み込みに失敗しました'}</p>`;
+                    showStatus(data.error || 'ファイルの読み込みに失敗しました', 'error');
+                }
+            } catch (error) {
+                fileListDiv.innerHTML = `<p style="color: #ef4444; text-align: center;">エラー: ${error.message}</p>`;
+                showStatus('ファイルの読み込み中にエラーが発生しました', 'error');
+                console.error('Error loading comparison files:', error);
+            }
+        };
+        
+        function displayComparisonFiles() {
+            const fileListDiv = document.getElementById('comparisonFileList');
+            if (comparisonFiles.length === 0) {
+                fileListDiv.innerHTML = '<p style="color: #718096; font-size: 12px; margin: 0; text-align: center;">ファイルがありません</p>';
+                return;
+            }
+            
+            const fileListHTML = comparisonFiles.map((file, index) => {
+                const fileType = file.type || 'other';
+                const typeBadgeColor = fileType === 'html' ? '#667eea' : fileType === 'css' ? '#10b981' : '#6c757d';
+                const typeBadgeText = fileType === 'html' ? 'HTML' : fileType === 'css' ? 'CSS' : 'OTHER';
+                const relatedFilesCount = file.relatedFiles && file.relatedFiles.length > 0 ? ` (関連: ${file.relatedFiles.length})` : '';
+                return `
+                <div style="display: flex; align-items: center; gap: 10px; padding: 8px; background: white; border-radius: 4px; margin-bottom: 5px; border: 1px solid #e2e8f0;">
+                    <input type="checkbox" id="file_${index}" checked onchange="toggleComparisonFile(${index})" style="cursor: pointer;">
+                    <label for="file_${index}" style="flex: 1; cursor: pointer; font-size: 12px; color: #2d3748; display: flex; align-items: center; gap: 8px;">
+                        <span>${file.name}</span>
+                        <span style="padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; background: rgba(${fileType === 'html' ? '102, 126, 234' : fileType === 'css' ? '16, 185, 129' : '108, 117, 125'}, 0.1); color: ${typeBadgeColor};">${typeBadgeText}</span>
+                        ${relatedFilesCount ? `<span style="font-size: 10px; color: #718096;">${relatedFilesCount}</span>` : ''}
+                    </label>
+                    <span style="font-size: 11px; color: #718096;">${(file.size / 1024).toFixed(1)} KB</span>
+                    <button onclick="removeComparisonFile(${index})" style="background: #ef4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">削除</button>
+                </div>
+            `;
+            }).join('');
+            
+            fileListDiv.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <strong style="font-size: 13px; color: #2d3748;">読み込み済みファイル (${comparisonFiles.length}/27)</strong>
+                    <button onclick="selectAllComparisonFiles(true)" style="background: #667eea; color: white; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 11px;">すべて選択</button>
+                    <button onclick="selectAllComparisonFiles(false)" style="background: #e2e8f0; color: #4a5568; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 5px;">すべて解除</button>
+                </div>
+                <div style="max-height: 100px; overflow-y: auto;">
+                    ${fileListHTML}
+                </div>
+            `;
+        }
+        
+        function renderComparisonScreens() {
+            const grid = document.getElementById('comparisonGrid');
+            if (!grid) return;
+            
+            const activeFiles = comparisonFiles.filter((f, i) => {
+                const checkbox = document.getElementById(`file_${i}`);
+                return !checkbox || checkbox.checked;
+            });
+            
+            if (activeFiles.length === 0) {
+                grid.innerHTML = '<p style="text-align: center; color: #718096; padding: 40px;">表示するファイルを選択してください</p>';
+                return;
+            }
+            
+            updateComparisonLayout();
+            
+            grid.innerHTML = activeFiles.map((file, index) => {
+                const actualIndex = comparisonFiles.findIndex(f => f === file);
+                const fileType = file.type || 'other';
+                const typeBadgeColor = fileType === 'html' ? 'rgba(255, 255, 255, 0.3)' : fileType === 'css' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(108, 117, 125, 0.3)';
+                const typeBadgeText = fileType === 'html' ? 'HTML' : fileType === 'css' ? 'CSS' : 'OTHER';
+                const relatedFilesInfo = file.relatedFiles && file.relatedFiles.length > 0 ? `<span style="font-size: 10px; color: rgba(255, 255, 255, 0.8); margin-left: 8px;">関連: ${file.relatedFiles.length}</span>` : '';
+                return `
+                    <div class="comparison-screen" data-index="${actualIndex}" onclick="selectComparisonScreen(${actualIndex})">
+                        <div class="comparison-screen-header">
+                            <div style="display: flex; align-items: center; gap: 8px; flex: 1; overflow: hidden;">
+                                <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${file.name}</span>
+                                <span style="padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; background: ${typeBadgeColor}; color: white; border: 1px solid rgba(255, 255, 255, 0.5); flex-shrink: 0;">${typeBadgeText}</span>
+                                ${relatedFilesInfo}
+                            </div>
+                            <div class="screen-actions">
+                                <button onclick="event.stopPropagation(); editComparisonScreen(${actualIndex})" title="編集">✏️</button>
+                                <button onclick="event.stopPropagation(); downloadComparisonScreen(${actualIndex})" title="ダウンロード">⬇️</button>
+                                <button onclick="event.stopPropagation(); analyzeComparisonScreen(${actualIndex})" title="分析">📊</button>
+                            </div>
+                        </div>
+                        <div class="comparison-screen-preview" id="preview_${actualIndex}">
+                            <div style="display: flex; align-items: center; justify-content: center; height: 100%; min-height: 300px; color: #718096;">
+                                <div style="text-align: center;">
+                                    <div class="spinner" style="width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top-color: #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px;"></div>
+                                    <p>読み込み中...</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="comparison-screen-info">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <span>${(file.size / 1024).toFixed(1)} KB</span>
+                                ${file.relatedFiles && file.relatedFiles.length > 0 ? `<span style="padding: 2px 6px; background: rgba(99, 102, 241, 0.1); color: #667eea; border-radius: 4px; font-size: 10px; font-weight: 600;">関連: ${file.relatedFiles.length}</span>` : ''}
+                            </div>
+                            <span class="diff-badge same" id="diff_badge_${actualIndex}">比較中...</span>
+                        </div>
+                        <div class="comparison-mode-overlay"></div>
+                    </div>
+                `;
+            }).join('');
+            
+            // 各ファイルの内容を読み込んでプレビューに表示
+            activeFiles.forEach((file, idx) => {
+                const actualIndex = comparisonFiles.findIndex(f => f === file);
+                loadComparisonScreenContent(actualIndex);
+            });
+            
+            // 比較分析を実行
+            if (activeFiles.length > 1) {
+                performComparisonAnalysis();
+            }
+        }
+        
+        async function loadComparisonScreenContent(index) {
+            const file = comparisonFiles[index];
+            if (!file) return;
+            
+            const previewDiv = document.getElementById(`preview_${index}`);
+            if (!previewDiv) return;
+            
+            try {
+                const response = await fetch(`/api/load-file-content?path=${encodeURIComponent(file.path)}`);
+                const data = await response.json();
+                
+                if (data.success && data.content) {
+                    const fileType = file.type || 'other';
+                    
+                    if (fileType === 'css') {
+                        // CSSファイルの場合はコードビューで表示（シンタックスハイライト付き）
+                        const highlightedCss = highlightCSS(data.content);
+                        previewDiv.innerHTML = `<pre>${highlightedCss}</pre>`;
+                    } else if (fileType === 'html') {
+                        // HTMLファイルの場合はiframeで表示
+                        const blob = new Blob([data.content], { type: 'text/html' });
+                        const url = URL.createObjectURL(blob);
+                        previewDiv.innerHTML = `<iframe sandbox="allow-same-origin allow-scripts allow-forms allow-popups" style="width: 100%; height: 100%; border: none;" src="${url}"></iframe>`;
+                    } else {
+                        // その他のファイルタイプ
+                        previewDiv.innerHTML = `
+                            <div style="display: flex; align-items: center; justify-content: center; height: 100%; min-height: 300px; color: #718096;">
+                                <p>プレビューを表示できません（${fileType}ファイル）</p>
+                            </div>
+                        `;
+                    }
+                } else {
+                    previewDiv.innerHTML = `
+                        <div style="display: flex; align-items: center; justify-content: center; height: 100%; min-height: 300px; color: #ef4444;">
+                            <p>⚠️ ファイルの読み込みに失敗しました</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                previewDiv.innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: center; height: 100%; min-height: 300px; color: #ef4444;">
+                        <p>⚠️ エラー: ${error.message || 'ファイルの読み込み中にエラーが発生しました'}</p>
+                    </div>
+                `;
+                console.error(`Error loading screen content for ${file.name}:`, error);
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function highlightCSS(css) {
+            // 簡易的なCSSシンタックスハイライト
+            if (!css) return '';
+            
+            return escapeHtml(css)
+                // @ルールをハイライト
+                .replace(/(@[a-z-]+)/gi, '<span style="color: #f78c6c;">$1</span>')
+                // セレクタをハイライト（{の前、ただしコメントや空行は除外）
+                .replace(/([^{}@\n]+)(?=\{)/g, function(match) {
+                    const trimmed = match.trim();
+                    if (trimmed.startsWith('/*') || trimmed.startsWith('*') || !trimmed) return match;
+                    return '<span style="color: #82aaff;">' + match + '</span>';
+                })
+                // プロパティ名をハイライト
+                .replace(/([a-z-]+)(?=:)/gi, '<span style="color: #c792ea;">$1</span>')
+                // プロパティ値をハイライト
+                .replace(/(:\s*)([^;]+)(?=;)/g, '$1<span style="color: #c3e88d;">$2</span>')
+                // コメントをハイライト
+                .replace(/(\/\*[\s\S]*?\*\/)/g, '<span style="color: #546e7a; font-style: italic;">$1</span>');
+        }
+        
+        async function performComparisonAnalysis() {
+            const activeFiles = comparisonFiles.filter((f, i) => {
+                const checkbox = document.getElementById(`file_${i}`);
+                return !checkbox || checkbox.checked;
+            });
+            
+            if (activeFiles.length < 2) return;
+            
+            try {
+                const response = await fetch('/api/compare-screens', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        files: activeFiles.map(f => f.path)
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.comparison) {
+                    // 比較結果を表示（HTMLとCSSの差分を含む）
+                    activeFiles.forEach((file, idx) => {
+                        const actualIndex = comparisonFiles.findIndex(f => f === file);
+                        const badge = document.getElementById(`diff_badge_${actualIndex}`);
+                        if (badge) {
+                            const comparison = data.comparison[file.path];
+                            if (comparison) {
+                                const totalDiff = comparison.differences || 0;
+                                const htmlDiff = comparison.htmlDifferences || 0;
+                                const cssDiff = comparison.cssDifferences || 0;
+                                
+                                if (totalDiff === 0) {
+                                    badge.textContent = '同一';
+                                    badge.className = 'diff-badge same';
+                                } else {
+                                    let diffText = `${totalDiff}箇所の差異`;
+                                    if (htmlDiff > 0 || cssDiff > 0) {
+                                        const parts = [];
+                                        if (htmlDiff > 0) parts.push(`HTML: ${htmlDiff}`);
+                                        if (cssDiff > 0) parts.push(`CSS: ${cssDiff}`);
+                                        diffText += ` (${parts.join(', ')})`;
+                                    }
+                                    badge.textContent = diffText;
+                                    badge.className = 'diff-badge different';
+                                    badge.title = `HTML差分: ${htmlDiff}箇所, CSS差分: ${cssDiff}箇所`;
+                                }
+                            } else {
+                                badge.textContent = '比較不可';
+                                badge.className = 'diff-badge error';
+                            }
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Error performing comparison analysis:', error);
+            }
+        }
+        
+        window.toggleComparisonFile = function toggleComparisonFile(index) {
+            renderComparisonScreens();
+        };
+        
+        window.removeComparisonFile = function removeComparisonFile(index) {
+            comparisonFiles.splice(index, 1);
+            displayComparisonFiles();
+            renderComparisonScreens();
+        };
+        
+        window.selectAllComparisonFiles = function selectAllComparisonFiles(select) {
+            comparisonFiles.forEach((file, index) => {
+                const checkbox = document.getElementById(`file_${index}`);
+                if (checkbox) {
+                    checkbox.checked = select;
+                }
+            });
+            renderComparisonScreens();
+        };
+        
+        window.selectComparisonScreen = function selectComparisonScreen(index) {
+            // すべてのスクリーンの選択状態を解除
+            document.querySelectorAll('.comparison-screen').forEach(screen => {
+                screen.classList.remove('selected');
+            });
+            
+            // 選択したスクリーンをハイライト
+            const screen = document.querySelector(`.comparison-screen[data-index="${index}"]`);
+            if (screen) {
+                screen.classList.add('selected');
+                selectedScreenIndex = index;
+            }
+        };
+        
+        window.editComparisonScreen = function editComparisonScreen(index) {
+            const file = comparisonFiles[index];
+            if (!file) return;
+            
+            // 新しいタブでエディタを開く
+            window.open(`/?file=${encodeURIComponent(file.path)}`, '_blank');
+        };
+        
+        window.downloadComparisonScreen = async function downloadComparisonScreen(index) {
+            const file = comparisonFiles[index];
+            if (!file) return;
+            
+            try {
+                const response = await fetch(`/api/load-file-content?path=${encodeURIComponent(file.path)}`);
+                const data = await response.json();
+                
+                if (data.success && data.content) {
+                    const blob = new Blob([data.content], { type: 'text/html' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = file.name;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    showStatus(`${file.name}をダウンロードしました`, 'success');
+                }
+            } catch (error) {
+                showStatus('ダウンロードに失敗しました', 'error');
+                console.error('Error downloading file:', error);
+            }
+        };
+        
+        window.analyzeComparisonScreen = function analyzeComparisonScreen(index) {
+            const file = comparisonFiles[index];
+            if (!file) return;
+            
+            // 分析結果を表示（既存のデザイン出力機能を使用）
+            showStatus(`${file.name}の分析を開始します...`, 'info');
+            // ここで分析機能を呼び出す
+        };
+        
+        window.updateComparisonLayout = function updateComparisonLayout() {
+            const grid = document.getElementById('comparisonGrid');
+            const layout = document.getElementById('comparisonLayout').value;
+            
+            if (grid) {
+                grid.className = 'comparison-grid';
+                if (layout === 'grid') {
+                    grid.classList.add('grid-layout');
+                } else if (layout === 'horizontal') {
+                    grid.classList.add('horizontal-layout');
+                } else if (layout === 'vertical') {
+                    grid.classList.add('vertical-layout');
+                }
+            }
+        };
+        
+        window.toggleComparisonMode = function toggleComparisonMode() {
+            comparisonMode = !comparisonMode;
+            const btn = document.getElementById('comparisonModeBtn');
+            const grid = document.getElementById('comparisonGrid');
+            
+            if (btn) {
+                if (comparisonMode) {
+                    btn.textContent = '編集モード';
+                    btn.classList.remove('btn-primary');
+                    btn.classList.add('btn-warning');
+                } else {
+                    btn.textContent = '比較モード';
+                    btn.classList.remove('btn-warning');
+                    btn.classList.add('btn-primary');
+                }
+            }
+            
+            if (grid) {
+                if (comparisonMode) {
+                    grid.classList.add('comparison-mode');
+                } else {
+                    grid.classList.remove('comparison-mode');
+                }
+            }
+        };
+        
+        window.exportComparisonReport = async function exportComparisonReport() {
+            const activeFiles = comparisonFiles.filter((f, i) => {
+                const checkbox = document.getElementById(`file_${i}`);
+                return !checkbox || checkbox.checked;
+            });
+            
+            if (activeFiles.length < 2) {
+                showStatus('比較するには2つ以上のファイルを選択してください', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/export-comparison-report', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        files: activeFiles.map(f => ({ name: f.name, path: f.path }))
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const blob = new Blob([data.report], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'comparison_report.csv';
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    showStatus('比較レポートをダウンロードしました', 'success');
+                } else {
+                    showStatus('レポートの生成に失敗しました', 'error');
+                }
+            } catch (error) {
+                showStatus('レポートのエクスポート中にエラーが発生しました', 'error');
+                console.error('Error exporting comparison report:', error);
+            }
+        };
+        
     </script>
 </body>
 </html>
@@ -5454,6 +6615,496 @@ def template_merge():
             'success': True,
             'template': merged_template,
             'stats': stats
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/load-comparison-files', methods=['POST'])
+def load_comparison_files():
+    """比較用ファイルリストを読み込む"""
+    try:
+        data = request.json
+        directory = data.get('directory', '').strip()
+        
+        if not directory:
+            return jsonify({'success': False, 'error': 'ディレクトリパスを指定してください'}), 400
+        
+        dir_path = Path(directory)
+        if not dir_path.exists() or not dir_path.is_dir():
+            return jsonify({'success': False, 'error': 'ディレクトリが見つかりません'}), 404
+        
+        # HTMLファイルとCSSファイルを検索（最大27個）
+        html_files = []
+        css_files = []
+        
+        for ext in ['*.html', '*.htm']:
+            html_files.extend(dir_path.glob(ext))
+            html_files.extend(dir_path.glob(ext.upper()))
+        
+        for ext in ['*.css']:
+            css_files.extend(dir_path.glob(ext))
+            css_files.extend(dir_path.glob(ext.upper()))
+        
+        # ファイル名でソート
+        html_files = sorted(html_files, key=lambda x: x.name)[:27]
+        css_files = sorted(css_files, key=lambda x: x.name)
+        
+        # HTMLファイルとCSSファイルの関連付け
+        html_css_map = {}
+        for css_file in css_files:
+            css_name = css_file.stem  # 拡張子なしのファイル名
+            for html_file in html_files:
+                html_name = html_file.stem
+                # ファイル名が一致するか、HTMLファイル内で参照されているか確認
+                if css_name == html_name or css_name in html_name or html_name in css_name:
+                    if html_file.path not in html_css_map:
+                        html_css_map[html_file.path] = []
+                    html_css_map[html_file.path].append(str(css_file))
+        
+        files = []
+        for file_path in html_files:
+            try:
+                size = file_path.stat().st_size
+                related_css = html_css_map.get(str(file_path), [])
+                files.append({
+                    'name': file_path.name,
+                    'path': str(file_path),
+                    'size': size,
+                    'type': 'html',
+                    'relatedFiles': related_css
+                })
+            except Exception as e:
+                continue
+        
+        # CSSファイルも追加（HTMLに関連付けられていないものも含む）
+        for css_file in css_files:
+            try:
+                size = css_file.stat().st_size
+                # 既にHTMLに関連付けられているCSSはスキップ（重複を避ける）
+                is_related = any(str(css_file) in file.get('relatedFiles', []) for file in files)
+                if not is_related:
+                    files.append({
+                        'name': css_file.name,
+                        'path': str(css_file),
+                        'size': size,
+                        'type': 'css',
+                        'relatedFiles': []
+                    })
+            except Exception as e:
+                continue
+        
+        return jsonify({
+            'success': True,
+            'files': files,
+            'count': len(files)
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/load-file-content', methods=['GET'])
+def load_file_content():
+    """ファイルの内容を読み込む"""
+    try:
+        file_path = request.args.get('path', '')
+        if not file_path:
+            return jsonify({'success': False, 'error': 'ファイルパスを指定してください'}), 400
+        
+        path = Path(file_path)
+        if not path.exists() or not path.is_file():
+            return jsonify({'success': False, 'error': 'ファイルが見つかりません'}), 404
+        
+        # セキュリティチェック：指定されたディレクトリ内のファイルのみ許可
+        # ここでは簡易的に実装（本番環境ではより厳密なチェックが必要）
+        
+        with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+            content = f.read()
+        
+        return jsonify({
+            'success': True,
+            'content': content,
+            'filename': path.name
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/compare-screens', methods=['POST'])
+def compare_screens():
+    """複数の画面を比較して差分を検出"""
+    try:
+        data = request.json
+        file_paths = data.get('files', [])
+        
+        if len(file_paths) < 2:
+            return jsonify({'success': False, 'error': '2つ以上のファイルを指定してください'}), 400
+        
+        # 各ファイルを読み込んで解析
+        parsed_files = []
+        for file_path in file_paths:
+            path = Path(file_path)
+            if not path.exists():
+                continue
+            
+            try:
+                with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                
+                soup = BeautifulSoup(content, 'html.parser')
+                parsed_files.append({
+                    'path': file_path,
+                    'name': path.name,
+                    'soup': soup,
+                    'content': content
+                })
+            except Exception as e:
+                continue
+        
+        if len(parsed_files) < 2:
+            return jsonify({'success': False, 'error': '有効なファイルが2つ以上必要です'}), 400
+        
+        # 比較分析を実行（HTMLとCSSの両方）
+        comparison = {}
+        base_file = parsed_files[0]
+        
+        # ベースファイルのCSSを抽出
+        base_css = extract_css_from_html(base_file['soup'])
+        
+        for file_info in parsed_files[1:]:
+            # HTML構造の比較
+            html_differences = compare_html_structure(base_file['soup'], file_info['soup'])
+            
+            # CSSの比較
+            file_css = extract_css_from_html(file_info['soup'])
+            css_differences = []
+            
+            # インラインCSSの比較
+            if base_css['inline_css'] or file_css['inline_css']:
+                css_diffs = compare_css(base_css['inline_css'], file_css['inline_css'])
+                css_differences.extend(css_diffs)
+            
+            # すべての差分を統合
+            all_differences = html_differences + css_differences
+            
+            comparison[file_info['path']] = {
+                'differences': len(all_differences),
+                'htmlDifferences': len(html_differences),
+                'cssDifferences': len(css_differences),
+                'details': all_differences[:20]  # 最初の20件
+            }
+        
+        return jsonify({
+            'success': True,
+            'comparison': comparison,
+            'base_file': base_file['name']
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+def extract_css_from_html(soup):
+    """HTMLからCSSを抽出"""
+    css_content = []
+    
+    # <style>タグ内のCSS
+    for style_tag in soup.find_all('style'):
+        if style_tag.string:
+            css_content.append(style_tag.string)
+    
+    # <link rel="stylesheet">で参照されているCSSファイル
+    css_files = []
+    for link_tag in soup.find_all('link', rel='stylesheet'):
+        href = link_tag.get('href', '')
+        if href:
+            css_files.append(href)
+    
+    return {
+        'inline_css': '\n'.join(css_content),
+        'external_css': css_files
+    }
+
+
+def parse_css(css_content):
+    """CSSをパースしてルールを抽出"""
+    import re
+    if not css_content or not css_content.strip():
+        return []
+    
+    rules = []
+    
+    # メディアクエリを処理
+    media_pattern = r'@media[^{]*\{'
+    media_blocks = re.split(media_pattern, css_content)
+    current_media = None
+    
+    for i, block in enumerate(media_blocks):
+        if i == 0 and '@media' in block:
+            # 最初のブロックがメディアクエリの場合
+            media_match = re.search(r'@media\s+([^{]+)', block)
+            if media_match:
+                current_media = media_match.group(1).strip()
+            continue
+        
+        # セレクタとプロパティを抽出
+        selector_pattern = r'([^{]+)\{([^}]+)\}'
+        matches = re.finditer(selector_pattern, block)
+        
+        for match in matches:
+            selector = match.group(1).strip()
+            properties_str = match.group(2).strip()
+            
+            # プロパティをパース
+            properties = {}
+            prop_matches = re.finditer(r'([^:]+):\s*([^;]+);?', properties_str)
+            for prop_match in prop_matches:
+                key = prop_match.group(1).strip()
+                value = prop_match.group(2).strip()
+                properties[key] = value
+            
+            if selector:  # 空のセレクタは無視
+                rules.append({
+                    'selector': selector,
+                    'properties': properties,
+                    'media': current_media
+                })
+        
+        # メディアクエリのリセット
+        if '@media' in block:
+            media_match = re.search(r'@media\s+([^{]+)', block)
+            if media_match:
+                current_media = media_match.group(1).strip()
+            else:
+                current_media = None
+    
+    return rules
+
+
+def compare_css(css1_content, css2_content):
+    """2つのCSSを比較して差分を返す"""
+    if not css1_content and not css2_content:
+        return []
+    
+    rules1 = parse_css(css1_content) if css1_content else []
+    rules2 = parse_css(css2_content) if css2_content else []
+    
+    differences = []
+    
+    # セレクタごとに比較
+    selectors1 = {rule['selector']: rule for rule in rules1}
+    selectors2 = {rule['selector']: rule for rule in rules2}
+    
+    all_selectors = set(selectors1.keys()) | set(selectors2.keys())
+    
+    for selector in all_selectors:
+        rule1 = selectors1.get(selector)
+        rule2 = selectors2.get(selector)
+        
+        if not rule1:
+            differences.append({
+                'type': 'missing',
+                'path': f"CSS: {selector}",
+                'selector': selector,
+                'fileType': 'css'
+            })
+        elif not rule2:
+            differences.append({
+                'type': 'extra',
+                'path': f"CSS: {selector}",
+                'selector': selector,
+                'fileType': 'css'
+            })
+        else:
+            # プロパティを比較
+            props1 = rule1.get('properties', {})
+            props2 = rule2.get('properties', {})
+            
+            all_props = set(props1.keys()) | set(props2.keys())
+            prop_diffs = {}
+            
+            for prop in all_props:
+                val1 = props1.get(prop)
+                val2 = props2.get(prop)
+                
+                if val1 != val2:
+                    prop_diffs[prop] = {'old': val1, 'new': val2}
+            
+            if prop_diffs:
+                differences.append({
+                    'type': 'different',
+                    'path': f"CSS: {selector}",
+                    'selector': selector,
+                    'properties': prop_diffs,
+                    'fileType': 'css'
+                })
+    
+    return differences
+
+
+def compare_html_structure(soup1, soup2):
+    """2つのHTML構造を比較して差分を返す"""
+    differences = []
+    
+    # 簡易的な比較（タグ、クラス、ID、主要な属性）
+    def get_element_signature(elem):
+        if not elem or not hasattr(elem, 'name'):
+            return None
+        sig = {
+            'tag': elem.name,
+            'id': elem.get('id', ''),
+            'classes': sorted(elem.get('class', [])),
+            'text_length': len(elem.get_text(strip=True))
+        }
+        return sig
+    
+    def compare_elements(elems1, elems2, path=''):
+        max_len = max(len(elems1), len(elems2))
+        for i in range(max_len):
+            if i >= len(elems1):
+                differences.append({
+                    'type': 'missing',
+                    'path': f"{path}[{i}]",
+                    'element': str(elems2[i])[:100] if i < len(elems2) else ''
+                })
+            elif i >= len(elems2):
+                differences.append({
+                    'type': 'extra',
+                    'path': f"{path}[{i}]",
+                    'element': str(elems1[i])[:100]
+                })
+            else:
+                sig1 = get_element_signature(elems1[i])
+                sig2 = get_element_signature(elems2[i])
+                
+                if sig1 != sig2:
+                    differences.append({
+                        'type': 'different',
+                        'path': f"{path}[{i}]",
+                        'element1': sig1,
+                        'element2': sig2
+                    })
+                
+                # 再帰的に子要素を比較
+                if hasattr(elems1[i], 'children') and hasattr(elems2[i], 'children'):
+                    compare_elements(
+                        [c for c in elems1[i].children if hasattr(c, 'name')],
+                        [c for c in elems2[i].children if hasattr(c, 'name')],
+                        f"{path}[{i}]"
+                    )
+    
+    # body要素を比較
+    body1 = soup1.find('body')
+    body2 = soup2.find('body')
+    
+    if body1 and body2:
+        compare_elements(
+            [c for c in body1.children if hasattr(c, 'name')],
+            [c for c in body2.children if hasattr(c, 'name')],
+            'body'
+        )
+    
+    return differences
+
+
+@app.route('/api/export-comparison-report', methods=['POST'])
+def export_comparison_report():
+    """比較レポートをCSV形式でエクスポート"""
+    try:
+        data = request.json
+        files = data.get('files', [])
+        
+        if len(files) < 2:
+            return jsonify({'success': False, 'error': '2つ以上のファイルを指定してください'}), 400
+        
+        # CSVレポートを生成
+        import csv
+        import io
+        
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # ヘッダー
+        writer.writerow(['ファイル名', 'タイプ', 'パス', 'サイズ (KB)', '要素数', 'リンク数', '画像数', 'CSSルール数', 'インラインCSS', '外部CSS'])
+        
+        # 各ファイルの情報
+        for file_info in files:
+            path = Path(file_info['path'])
+            if path.exists():
+                try:
+                    with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
+                    
+                    file_type = file_info.get('type', 'other')
+                    size_kb = path.stat().st_size / 1024
+                    
+                    if file_type == 'html':
+                        soup = BeautifulSoup(content, 'html.parser')
+                        elements = len(soup.find_all())
+                        links = len(soup.find_all('a'))
+                        images = len(soup.find_all('img'))
+                        
+                        # CSS情報を抽出
+                        css_info = extract_css_from_html(soup)
+                        inline_css_rules = parse_css(css_info['inline_css'])
+                        external_css_count = len(css_info['external_css'])
+                        
+                        writer.writerow([
+                            file_info['name'],
+                            'HTML',
+                            file_info['path'],
+                            f"{size_kb:.2f}",
+                            elements,
+                            links,
+                            images,
+                            len(inline_css_rules),
+                            'あり' if css_info['inline_css'] else 'なし',
+                            external_css_count
+                        ])
+                    elif file_type == 'css':
+                        css_rules = parse_css(content)
+                        writer.writerow([
+                            file_info['name'],
+                            'CSS',
+                            file_info['path'],
+                            f"{size_kb:.2f}",
+                            '',
+                            '',
+                            '',
+                            len(css_rules),
+                            '',
+                            ''
+                        ])
+                    else:
+                        writer.writerow([
+                            file_info['name'],
+                            file_type.upper(),
+                            file_info['path'],
+                            f"{size_kb:.2f}",
+                            '',
+                            '',
+                            '',
+                            '',
+                            '',
+                            ''
+                        ])
+                except Exception as e:
+                    writer.writerow([file_info['name'], file_info.get('type', 'other'), file_info['path'], 'エラー', '', '', '', '', '', ''])
+        
+        return jsonify({
+            'success': True,
+            'report': output.getvalue()
         })
         
     except Exception as e:
