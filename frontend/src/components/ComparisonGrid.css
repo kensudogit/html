@@ -1,0 +1,65 @@
+.comparison-grid {
+  display: grid;
+  gap: 15px;
+  min-height: 400px;
+}
+
+.comparison-grid-grid {
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+}
+
+.comparison-grid-horizontal {
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.comparison-grid-vertical {
+  grid-template-columns: 1fr;
+}
+
+.comparison-grid.comparison-mode {
+  position: relative;
+}
+
+.comparison-grid.comparison-mode::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(99, 102, 241, 0.05);
+  border: 2px dashed #667eea;
+  pointer-events: none;
+  z-index: 1;
+  border-radius: 8px;
+}
+
+.comparison-grid-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: #718096;
+  background: white;
+  border-radius: 8px;
+  border: 2px dashed #e2e8f0;
+}
+
+.comparison-grid-empty p {
+  font-size: 16px;
+}
+
+/* レスポンシブデザイン */
+@media (max-width: 768px) {
+  .comparison-grid-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .comparison-grid-horizontal {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .comparison-grid-grid {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
+}
