@@ -1661,6 +1661,30 @@ EDITOR_TEMPLATE = r"""
                 </div>
             </div>
             
+            <!-- 画面比較クイック操作セクション -->
+            <div class="remote-control-section" id="screenComparisonQuickSection" style="display: none;">
+                <div class="remote-control-section-title">画面比較クイック操作</div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="quickComparisonDir" class="form-input" placeholder="C:\html" style="flex: 1; font-size: 11px; padding: 6px 10px;" title="比較対象ディレクトリパス">
+                        <button class="btn btn-info" onclick="quickLoadComparisonFiles()" style="font-size: 11px; padding: 6px 12px; white-space: nowrap;" title="ファイルを読み込み">📁 読み込み</button>
+                    </div>
+                    <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                        <select id="quickLayout" class="form-input" style="flex: 1; min-width: 100px; font-size: 11px; padding: 6px 8px;" onchange="quickUpdateLayout()" title="レイアウト選択">
+                            <option value="grid">グリッド</option>
+                            <option value="horizontal">横並び</option>
+                            <option value="vertical">縦並び</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="quickToggleComparisonMode()" id="quickComparisonModeBtn" style="font-size: 11px; padding: 6px 12px; white-space: nowrap;" title="比較モード切り替え">比較モード</button>
+                        <button class="btn btn-success" onclick="quickExportReport()" style="font-size: 11px; padding: 6px 12px; white-space: nowrap;" title="比較レポート出力">📊 レポート</button>
+                    </div>
+                    <div style="display: flex; gap: 5px; flex-wrap: wrap; font-size: 10px; color: #666;">
+                        <span id="quickFileCount" style="padding: 4px 8px; background: #f0f4f8; border-radius: 4px;">ファイル: 0件</span>
+                        <span id="quickSelectedCount" style="padding: 4px 8px; background: #e6ffed; border-radius: 4px;">選択: 0件</span>
+                    </div>
+                </div>
+            </div>
+            
             <!-- 要素検索セクション -->
             <div class="remote-control-section">
                 <div class="remote-control-section-title">要素検索</div>
@@ -5215,16 +5239,99 @@ EDITOR_TEMPLATE = r"""
         
         window.showScreenComparison = function showScreenComparison() {
             const modal = document.getElementById('screenComparisonModal');
+            const quickSection = document.getElementById('screenComparisonQuickSection');
+            
             if (modal) {
                 modal.style.display = 'block';
+                // クイック操作セクションを表示
+                if (quickSection) {
+                    quickSection.style.display = 'block';
+                }
                 // 既存のファイルリストがあれば表示
                 if (comparisonFiles.length > 0) {
                     displayComparisonFiles();
+                    updateQuickFileCount();
+                }
+                // リモコン盤のディレクトリパスをモーダルに同期
+                const quickDir = document.getElementById('quickComparisonDir');
+                const modalDir = document.getElementById('comparisonDir');
+                if (quickDir && modalDir && quickDir.value) {
+                    modalDir.value = quickDir.value;
                 }
             } else {
                 showStatus('画面比較モーダルが見つかりません', 'error');
             }
         };
+        
+        // リモコン盤からのクイック操作関数
+        window.quickLoadComparisonFiles = async function quickLoadComparisonFiles() {
+            const quickDir = document.getElementById('quickComparisonDir');
+            const modalDir = document.getElementById('comparisonDir');
+            
+            if (!quickDir || !quickDir.value.trim()) {
+                showStatus('ディレクトリパスを入力してください', 'error');
+                return;
+            }
+            
+            // モーダルが開いていない場合は開く
+            const modal = document.getElementById('screenComparisonModal');
+            if (modal && modal.style.display !== 'block') {
+                showScreenComparison();
+            }
+            
+            // モーダルのディレクトリ入力に値を設定
+            if (modalDir) {
+                modalDir.value = quickDir.value.trim();
+            }
+            
+            // ファイル読み込みを実行
+            await loadComparisonFiles();
+            updateQuickFileCount();
+        };
+        
+        window.quickUpdateLayout = function quickUpdateLayout() {
+            const quickLayout = document.getElementById('quickLayout');
+            const modalLayout = document.getElementById('comparisonLayout');
+            
+            if (quickLayout && modalLayout) {
+                modalLayout.value = quickLayout.value;
+                updateComparisonLayout();
+            }
+        };
+        
+        window.quickToggleComparisonMode = function quickToggleComparisonMode() {
+            toggleComparisonMode();
+            // ボタンの状態を更新
+            const quickBtn = document.getElementById('quickComparisonModeBtn');
+            const modalBtn = document.getElementById('comparisonModeBtn');
+            if (quickBtn && modalBtn) {
+                quickBtn.textContent = modalBtn.textContent;
+                quickBtn.className = modalBtn.className;
+            }
+        };
+        
+        window.quickExportReport = function quickExportReport() {
+            exportComparisonReport();
+        };
+        
+        function updateQuickFileCount() {
+            const fileCountSpan = document.getElementById('quickFileCount');
+            const selectedCountSpan = document.getElementById('quickSelectedCount');
+            
+            if (fileCountSpan) {
+                fileCountSpan.textContent = `ファイル: ${comparisonFiles.length}件`;
+            }
+            
+            if (selectedCountSpan) {
+                const selectedCount = comparisonFiles.filter((f, i) => {
+                    const checkbox = document.getElementById(`file_${i}`);
+                    return checkbox && checkbox.checked;
+                }).length;
+                selectedCountSpan.textContent = `選択: ${selectedCount}件`;
+            }
+        }
+        
+        // ファイル選択状態が変更されたときにカウントを更新（後で定義される関数をラップ）
         
         window.loadComparisonFiles = async function loadComparisonFiles() {
             let dirPath = document.getElementById('comparisonDir').value.trim();
@@ -5292,6 +5399,7 @@ EDITOR_TEMPLATE = r"""
                     
                     displayComparisonFiles();
                     renderComparisonScreens();
+                    updateQuickFileCount();
                     const cssCount = comparisonFiles.filter(f => f.type === 'css').length;
                     showStatus(`${comparisonFiles.length}個のファイルを読み込みました（HTML: ${htmlFiles.length}, CSS: ${cssCount}）`, 'success');
                 } else {
@@ -5625,6 +5733,7 @@ EDITOR_TEMPLATE = r"""
         
         window.toggleComparisonFile = function toggleComparisonFile(index) {
             renderComparisonScreens();
+            updateQuickFileCount();
         };
         
         window.removeComparisonFile = function removeComparisonFile(index) {
@@ -5641,6 +5750,7 @@ EDITOR_TEMPLATE = r"""
                 }
             });
             renderComparisonScreens();
+            updateQuickFileCount();
         };
         
         window.selectComparisonScreen = function selectComparisonScreen(index) {
