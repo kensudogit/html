@@ -1789,7 +1789,7 @@ EDITOR_TEMPLATE = r"""
             
             <div class="form-group" style="margin-top: 20px;">
                 <label class="form-label">分析対象ディレクトリ</label>
-                <input type="text" id="diffAnalysisDir" class="form-input" placeholder="例: C:\\universities または /path/to/universities" value="">
+                <input type="text" id="diffAnalysisDir" class="form-input" placeholder="例: C:\\html または C:/html (絶対パスを指定)" value="" title="Windows: C:\\html または C:/html&#10;Linux/Mac: /path/to/html">
                 <small style="color: #718096; font-size: 12px; display: block; margin-top: 8px;">
                     ※ ディレクトリ内のすべてのHTMLファイル（.html, .htm）を分析対象とします
                 </small>
@@ -4130,10 +4130,20 @@ EDITOR_TEMPLATE = r"""
         
         // 差分検出を実行
         window.performDiffAnalysis = async function performDiffAnalysis() {
-            const dirPath = document.getElementById('diffAnalysisDir').value.trim();
+            let dirPath = document.getElementById('diffAnalysisDir').value.trim();
             if (!dirPath) {
                 showStatus('ディレクトリパスを入力してください', 'error');
                 return;
+            }
+            
+            // Windowsパスの正規化
+            // バックスラッシュのエスケープを処理（c:\\html -> c:\html）
+            dirPath = dirPath.replace(/\\\\/g, '\\');
+            
+            // スラッシュをバックスラッシュに変換（Windowsの場合）
+            if (dirPath.match(/^[a-zA-Z]:/)) {
+                // Windowsのドライブレターがある場合
+                dirPath = dirPath.replace(/\//g, '\\');
             }
             
             const options = {
@@ -4295,14 +4305,34 @@ EDITOR_TEMPLATE = r"""
                     exportCSVBtn.style.display = 'inline-block';
                     showStatus('差分検出が完了しました', 'success');
                 } else {
-                    resultContent.innerHTML = `<p style="color: #f56565;">エラー: ${data.error}</p>`;
+                    const errorMsg = data.error || '差分検出に失敗しました';
+                    resultContent.innerHTML = `
+                        <div style="color: #f56565; padding: 15px; background: #fee; border: 1px solid #fcc; border-radius: 8px;">
+                            <p style="margin: 0 0 10px 0; font-weight: 600; font-size: 14px;">エラー: ${errorMsg}</p>
+                            ${errorMsg.includes('ディレクトリが見つかりません') ? `
+                                <p style="margin: 0; font-size: 12px; color: #666;">
+                                    パスの例: C:\\html または C:/html<br>
+                                    絶対パスを指定してください
+                                </p>
+                            ` : ''}
+                        </div>
+                    `;
                     resultDiv.style.display = 'block';
-                    showStatus('エラー: ' + data.error, 'error');
+                    showStatus('エラー: ' + errorMsg, 'error');
                 }
             } catch (error) {
-                resultContent.innerHTML = `<p style="color: #f56565;">エラー: ${error.message}</p>`;
+                const errorMsg = error.message || '差分検出中にエラーが発生しました';
+                resultContent.innerHTML = `
+                    <div style="color: #f56565; padding: 15px; background: #fee; border: 1px solid #fcc; border-radius: 8px;">
+                        <p style="margin: 0 0 10px 0; font-weight: 600; font-size: 14px;">エラー: ${errorMsg}</p>
+                        <p style="margin: 0; font-size: 12px; color: #666;">
+                            パスの例: C:\\html または C:/html<br>
+                            絶対パスを指定してください
+                        </p>
+                    </div>
+                `;
                 resultDiv.style.display = 'block';
-                showStatus('エラー: ' + error.message, 'error');
+                showStatus('エラー: ' + errorMsg, 'error');
             } finally {
                 performBtn.disabled = false;
                 setTimeout(() => {
@@ -6120,16 +6150,45 @@ def diff_analysis():
     """27校の大学ホームページの差分を検出"""
     try:
         data = request.json
-        directory = data.get('directory', '')
+        directory = data.get('directory', '').strip()
         options = data.get('options', {})
         
         if not directory:
             return jsonify({'success': False, 'error': 'ディレクトリパスが指定されていません'}), 400
         
+        # Windowsパスの処理: バックスラッシュを正規化
+        # c:\\html や c:\html を正しく処理
+        directory = directory.replace('\\\\', '\\').replace('/', '\\')
+        
+        # パスを正規化
+        try:
+            dir_path = Path(directory).resolve()
+        except Exception as e:
+            return jsonify({
+                'success': False, 
+                'error': f'無効なパス形式です: {directory}。エラー: {str(e)}'
+            }), 400
+        
         # ディレクトリの存在確認
-        dir_path = Path(directory)
-        if not dir_path.exists() or not dir_path.is_dir():
-            return jsonify({'success': False, 'error': f'ディレクトリが見つかりません: {directory}'}), 404
+        if not dir_path.exists():
+            # より詳細なエラーメッセージ
+            error_msg = f'ディレクトリが見つかりません: {directory}'
+            if not dir_path.is_absolute():
+                error_msg += f' (絶対パスを指定してください。現在のパス: {dir_path})'
+            else:
+                # 親ディレクトリの存在確認
+                parent = dir_path.parent
+                if not parent.exists():
+                    error_msg += f' (親ディレクトリも存在しません: {parent})'
+                else:
+                    error_msg += f' (親ディレクトリは存在します: {parent})'
+            return jsonify({'success': False, 'error': error_msg}), 404
+        
+        if not dir_path.is_dir():
+            return jsonify({
+                'success': False, 
+                'error': f'指定されたパスはディレクトリではありません: {directory}'
+            }), 400
         
         # HTMLファイルを取得
         html_files = list(dir_path.glob('*.html')) + list(dir_path.glob('*.htm'))
