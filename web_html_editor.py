@@ -2082,11 +2082,33 @@ EDITOR_TEMPLATE = r"""
     
     <!-- ファイル一覧モーダル -->
     <div id="fileListModal" class="modal">
-        <div class="modal-content" style="max-width: 800px;">
+        <div class="modal-content" style="max-width: 900px;">
             <span class="close" onclick="closeModal('fileListModal')">&times;</span>
             <h2>📁 ファイル一覧</h2>
+            
+            <div style="margin-top: 20px; margin-bottom: 15px;">
+                <div style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 300px;">
+                        <label class="form-label">ディレクトリパス（空欄の場合はアップロードフォルダ）</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="fileListDir" class="form-input" placeholder="例: C:\html または空欄でアップロードフォルダ" style="flex: 1;" title="Windows: C:\\html または C:/html&#10;空欄の場合はアップロードフォルダを表示">
+                            <button class="btn btn-info" onclick="loadDirectoryFiles()" style="white-space: nowrap;">📁 読み込み</button>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 5px;">
+                        <select id="fileListTypeFilter" class="form-input" style="width: 120px; font-size: 12px; padding: 6px 10px;" onchange="filterFileList()">
+                            <option value="all">すべて</option>
+                            <option value="html">HTML</option>
+                            <option value="css">CSS</option>
+                            <option value="other">その他</option>
+                        </select>
+                        <input type="text" id="fileListSearch" class="form-input" placeholder="🔍 検索..." style="width: 150px; font-size: 12px; padding: 6px 10px;" oninput="filterFileList()">
+                    </div>
+                </div>
+            </div>
+            
             <div id="fileListContent" style="margin-top: 20px;">
-                <p>読み込み中...</p>
+                <p style="text-align: center; padding: 40px; color: #718096;">ディレクトリを指定してファイルを読み込んでください</p>
             </div>
         </div>
     </div>
@@ -4923,39 +4945,202 @@ EDITOR_TEMPLATE = r"""
         }
         
         // ファイル一覧を表示
-        async function showFileList() {
+        window.showFileList = function showFileList() {
+            document.getElementById('fileListModal').style.display = 'block';
+            // ディレクトリが指定されていない場合はアップロードフォルダを表示
+            const dirInput = document.getElementById('fileListDir');
+            if (!dirInput || !dirInput.value.trim()) {
+                loadUploadedFiles();
+            } else {
+                loadDirectoryFiles();
+            }
+        };
+        
+        // アップロードフォルダのファイルを読み込み
+        async function loadUploadedFiles() {
             try {
                 const response = await fetch('/files');
                 const data = await response.json();
                 if (data.success) {
-                    let html = '<div style="max-height: 400px; overflow-y: auto;">';
-                    if (data.files.length > 0) {
-                        html += '<table style="width: 100%; border-collapse: collapse;">';
-                        html += '<thead><tr style="background: #f7fafc; border-bottom: 2px solid #e2e8f0;"><th style="padding: 10px; text-align: left;">ファイル名</th><th style="padding: 10px; text-align: right;">サイズ</th><th style="padding: 10px; text-align: center;">操作</th></tr></thead>';
-                        html += '<tbody>';
-                        data.files.forEach(file => {
-                            html += `<tr style="border-bottom: 1px solid #e2e8f0;">`;
-                            html += `<td style="padding: 10px;">${file.name}</td>`;
-                            html += `<td style="padding: 10px; text-align: right;">${file.size} bytes</td>`;
-                            html += `<td style="padding: 10px; text-align: center;">`;
-                            html += `<button class="btn btn-primary" style="padding: 5px 15px; font-size: 12px;" onclick="loadFile('${file.name}')">開く</button> `;
-                            html += `<button class="btn btn-danger" style="padding: 5px 15px; font-size: 12px;" onclick="deleteFile('${file.name}')">削除</button>`;
-                            html += `</td></tr>`;
-                        });
-                        html += '</tbody></table>';
-                    } else {
-                        html += '<p style="text-align: center; padding: 40px; color: #718096;">アップロードされたファイルがありません</p>';
-                    }
-                    html += '</div>';
-                    document.getElementById('fileListContent').innerHTML = html;
-                    document.getElementById('fileListModal').style.display = 'block';
+                    // ファイルタイプを追加
+                    const filesWithType = data.files.map(file => ({
+                        ...file,
+                        type: file.name.match(/\.html?$/i) ? 'html' : 'other'
+                    }));
+                    displayFileList(filesWithType, 'アップロードフォルダ');
                 } else {
                     showStatus('エラー: ' + data.error, 'error');
+                    document.getElementById('fileListContent').innerHTML = `<p style="text-align: center; padding: 40px; color: #ef4444;">エラー: ${data.error}</p>`;
+                }
+            } catch (error) {
+                showStatus('エラー: ' + error.message, 'error');
+                document.getElementById('fileListContent').innerHTML = `<p style="text-align: center; padding: 40px; color: #ef4444;">エラー: ${error.message}</p>`;
+            }
+        }
+        
+        // 指定ディレクトリのファイルを読み込み
+        window.loadDirectoryFiles = async function loadDirectoryFiles() {
+            const dirInput = document.getElementById('fileListDir');
+            const dirPath = dirInput ? dirInput.value.trim() : '';
+            
+            const fileListContent = document.getElementById('fileListContent');
+            fileListContent.innerHTML = '<p style="text-align: center; padding: 40px; color: #4a5568;">ファイルを読み込み中...</p>';
+            
+            try {
+                let response;
+                if (!dirPath) {
+                    // ディレクトリが空の場合はアップロードフォルダを読み込み
+                    response = await fetch('/files');
+                    const data = await response.json();
+                    if (data.success) {
+                        const filesWithType = data.files.map(file => ({
+                            ...file,
+                            type: file.name.match(/\.html?$/i) ? 'html' : 'other'
+                        }));
+                        displayFileList(filesWithType, 'アップロードフォルダ');
+                    }
+                    return;
+                } else {
+                    // Windowsパスの正規化
+                    let normalizedPath = dirPath.replace(/\\\\/g, '\\');
+                    if (normalizedPath.match(/^[a-zA-Z]:/)) {
+                        normalizedPath = normalizedPath.replace(/\//g, '\\');
+                    }
+                    
+                    response = await fetch('/api/list-directory-files', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ directory: normalizedPath })
+                    });
+                }
+                
+                const data = await response.json();
+                if (data.success) {
+                    displayFileList(data.files, dirPath);
+                } else {
+                    fileListContent.innerHTML = `
+                        <div style="color: #ef4444; text-align: center; padding: 20px;">
+                            <p style="margin: 0 0 10px 0; font-weight: 600;">エラー: ${data.error || 'ファイルの読み込みに失敗しました'}</p>
+                            ${data.error && data.error.includes('ディレクトリ') ? `
+                                <p style="margin: 0; font-size: 12px; color: #718096;">
+                                    パスの例: C:\\html または C:/html<br>
+                                    絶対パスを指定してください
+                                </p>
+                            ` : ''}
+                        </div>
+                    `;
+                    showStatus(data.error || 'ファイルの読み込みに失敗しました', 'error');
+                }
+            } catch (error) {
+                fileListContent.innerHTML = `<p style="text-align: center; padding: 40px; color: #ef4444;">エラー: ${error.message}</p>`;
+                showStatus('ファイルの読み込み中にエラーが発生しました', 'error');
+                console.error('Error loading directory files:', error);
+            }
+        };
+        
+        // ファイル一覧を表示（共通関数）
+        let allFileListFiles = [];
+        function displayFileList(files, directoryName) {
+            allFileListFiles = files;
+            filterFileList();
+        }
+        
+        // ファイル一覧をフィルタリング
+        window.filterFileList = function filterFileList() {
+            const fileListContent = document.getElementById('fileListContent');
+            const searchInput = document.getElementById('fileListSearch');
+            const typeFilter = document.getElementById('fileListTypeFilter');
+            
+            const searchTerm = (searchInput ? searchInput.value.toLowerCase() : '').trim();
+            const typeFilterValue = typeFilter ? typeFilter.value : 'all';
+            
+            // フィルタリング
+            const filteredFiles = allFileListFiles.filter(file => {
+                const matchesSearch = !searchTerm || file.name.toLowerCase().includes(searchTerm);
+                const fileType = file.type || (file.name.match(/\.(html?|css)$/i) ? 
+                    (file.name.match(/\.html?$/i) ? 'html' : 'css') : 'other');
+                const matchesType = typeFilterValue === 'all' || fileType === typeFilterValue;
+                return matchesSearch && matchesType;
+            });
+            
+            if (filteredFiles.length === 0) {
+                fileListContent.innerHTML = '<p style="text-align: center; padding: 40px; color: #718096;">該当するファイルがありません</p>';
+                return;
+            }
+            
+            let html = '<div style="max-height: 500px; overflow-y: auto;">';
+            html += '<table style="width: 100%; border-collapse: collapse;">';
+            html += '<thead><tr style="background: #f7fafc; border-bottom: 2px solid #e2e8f0; position: sticky; top: 0; z-index: 10;">';
+            html += '<th style="padding: 12px; text-align: left; font-weight: 600; color: #2d3748;">ファイル名</th>';
+            html += '<th style="padding: 12px; text-align: center; font-weight: 600; color: #2d3748;">タイプ</th>';
+            html += '<th style="padding: 12px; text-align: right; font-weight: 600; color: #2d3748;">サイズ</th>';
+            html += '<th style="padding: 12px; text-align: center; font-weight: 600; color: #2d3748;">操作</th>';
+            html += '</tr></thead>';
+            html += '<tbody>';
+            
+            filteredFiles.forEach(file => {
+                const fileType = file.type || (file.name.match(/\.(html?|css)$/i) ? 
+                    (file.name.match(/\.html?$/i) ? 'html' : 'css') : 'other');
+                const typeBadgeColor = fileType === 'html' ? '#667eea' : fileType === 'css' ? '#10b981' : '#6c757d';
+                const typeBadgeText = fileType === 'html' ? 'HTML' : fileType === 'css' ? 'CSS' : 'OTHER';
+                const fileSize = file.size || 0;
+                const sizeText = fileSize >= 1024 * 1024 ? 
+                    `${(fileSize / (1024 * 1024)).toFixed(2)} MB` : 
+                    fileSize >= 1024 ? 
+                    `${(fileSize / 1024).toFixed(2)} KB` : 
+                    `${fileSize} bytes`;
+                
+                html += `<tr style="border-bottom: 1px solid #e2e8f0; transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">`;
+                html += `<td style="padding: 12px; font-weight: 500; color: #2d3748;">${escapeHtml(file.name)}</td>`;
+                html += `<td style="padding: 12px; text-align: center;">`;
+                html += `<span style="padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; background: rgba(${fileType === 'html' ? '102, 126, 234' : fileType === 'css' ? '16, 185, 129' : '108, 117, 125'}, 0.1); color: ${typeBadgeColor};">${typeBadgeText}</span>`;
+                html += `</td>`;
+                html += `<td style="padding: 12px; text-align: right; color: #718096; font-size: 12px;">${sizeText}</td>`;
+                html += `<td style="padding: 12px; text-align: center;">`;
+                if (file.path) {
+                    // ディレクトリから読み込んだファイル
+                    html += `<button class="btn btn-primary" style="padding: 6px 15px; font-size: 12px; margin-right: 5px;" onclick="loadFileFromPath('${escapeHtml(file.path)}', '${escapeHtml(file.name)}')" title="ファイルを開く">開く</button>`;
+                } else {
+                    // アップロードフォルダのファイル
+                    html += `<button class="btn btn-primary" style="padding: 6px 15px; font-size: 12px; margin-right: 5px;" onclick="loadFile('${escapeHtml(file.name)}')" title="ファイルを開く">開く</button>`;
+                    html += `<button class="btn btn-danger" style="padding: 6px 15px; font-size: 12px;" onclick="deleteFile('${escapeHtml(file.name)}')" title="ファイルを削除">削除</button>`;
+                }
+                html += `</td></tr>`;
+            });
+            
+            html += '</tbody></table>';
+            html += `<div style="margin-top: 15px; padding: 10px; background: #f0f4f8; border-radius: 5px; font-size: 12px; color: #4a5568;">`;
+            html += `表示中: ${filteredFiles.length}件 / 合計: ${allFileListFiles.length}件`;
+            html += `</div>`;
+            html += '</div>';
+            
+            fileListContent.innerHTML = html;
+        };
+        
+        // パスからファイルを読み込む
+        window.loadFileFromPath = async function loadFileFromPath(filePath, fileName) {
+            try {
+                const response = await fetch(`/api/load-file-content?path=${encodeURIComponent(filePath)}`);
+                const data = await response.json();
+                if (data.success && data.content) {
+                    const editor = getEditor();
+                    if (editor) {
+                        editor.value = data.content;
+                        updatePreview();
+                        closeModal('fileListModal');
+                        showStatus(`${fileName} を読み込みました`, 'success');
+                    } else {
+                        showStatus('エディタが見つかりません', 'error');
+                    }
+                } else {
+                    showStatus('エラー: ' + (data.error || 'ファイルの読み込みに失敗しました'), 'error');
                 }
             } catch (error) {
                 showStatus('エラー: ' + error.message, 'error');
             }
-        }
+        };
         
         // ファイルを読み込む（グローバル関数として明示的に定義）
         window.loadFile = async function loadFile(filename) {
@@ -7295,6 +7480,97 @@ def template_merge():
             'success': True,
             'template': merged_template,
             'stats': stats
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/list-directory-files', methods=['POST'])
+def list_directory_files():
+    """指定ディレクトリ内のファイル一覧を取得"""
+    try:
+        data = request.json
+        directory = data.get('directory', '').strip()
+        
+        if not directory:
+            return jsonify({'success': False, 'error': 'ディレクトリパスを指定してください'}), 400
+        
+        # Windowsパスの処理: バックスラッシュを正規化
+        directory = directory.replace('\\\\', '\\').replace('/', '\\')
+        
+        # パスを正規化
+        try:
+            dir_path = Path(directory).resolve()
+        except Exception as e:
+            return jsonify({
+                'success': False, 
+                'error': f'無効なパス形式です: {directory}。エラー: {str(e)}'
+            }), 400
+        
+        # ディレクトリの存在確認
+        if not dir_path.exists():
+            error_msg = f'ディレクトリが見つかりません: {directory}'
+            if not dir_path.is_absolute():
+                error_msg += f' (絶対パスを指定してください。現在のパス: {dir_path})'
+            return jsonify({'success': False, 'error': error_msg}), 404
+        
+        if not dir_path.is_dir():
+            return jsonify({
+                'success': False, 
+                'error': f'指定されたパスはディレクトリではありません: {directory}'
+            }), 400
+        
+        # すべてのファイルを検索（HTML、CSS、その他）
+        files = []
+        
+        # HTMLファイル
+        for ext in ['*.html', '*.htm']:
+            for file_path in dir_path.glob(ext):
+                try:
+                    files.append({
+                        'name': file_path.name,
+                        'path': str(file_path),
+                        'size': file_path.stat().st_size,
+                        'type': 'html'
+                    })
+                except Exception:
+                    continue
+        
+        # CSSファイル
+        for file_path in dir_path.glob('*.css'):
+            try:
+                files.append({
+                    'name': file_path.name,
+                    'path': str(file_path),
+                    'size': file_path.stat().st_size,
+                    'type': 'css'
+                })
+            except Exception:
+                continue
+        
+        # その他のテキストファイル（オプション）
+        for ext in ['*.txt', '*.js', '*.json', '*.xml']:
+            for file_path in dir_path.glob(ext):
+                try:
+                    files.append({
+                        'name': file_path.name,
+                        'path': str(file_path),
+                        'size': file_path.stat().st_size,
+                        'type': 'other'
+                    })
+                except Exception:
+                    continue
+        
+        # ファイル名でソート
+        files.sort(key=lambda x: x['name'])
+        
+        return jsonify({
+            'success': True,
+            'files': files,
+            'count': len(files)
         })
         
     except Exception as e:
