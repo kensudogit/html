@@ -1998,8 +1998,25 @@ EDITOR_TEMPLATE = r"""
                 </div>
             </div>
             
-            <div id="comparisonFileList" style="max-height: 150px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 5px; padding: 10px; margin-bottom: 15px; flex-shrink: 0; background: #f8fafc;">
-                <p style="color: #718096; font-size: 12px; margin: 0; text-align: center;">ディレクトリを指定してファイルを読み込んでください</p>
+            <div style="margin-bottom: 15px; flex-shrink: 0;">
+                <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 200px;">
+                        <input type="text" id="fileSearchInput" class="form-input" placeholder="🔍 ファイル名で検索..." style="font-size: 12px; padding: 6px 10px;" oninput="filterComparisonFiles()">
+                    </div>
+                    <select id="fileTypeFilter" class="form-input" style="width: 120px; font-size: 12px; padding: 6px 10px;" onchange="filterComparisonFiles()">
+                        <option value="all">すべて</option>
+                        <option value="html">HTMLのみ</option>
+                        <option value="css">CSSのみ</option>
+                    </select>
+                    <select id="fileSortOption" class="form-input" style="width: 120px; font-size: 12px; padding: 6px 10px;" onchange="sortComparisonFiles()">
+                        <option value="name">名前順</option>
+                        <option value="size">サイズ順</option>
+                        <option value="type">タイプ順</option>
+                    </select>
+                </div>
+                <div id="comparisonFileList" style="max-height: 200px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 5px; padding: 10px; background: #f8fafc;">
+                    <p style="color: #718096; font-size: 12px; margin: 0; text-align: center;">ディレクトリを指定してファイルを読み込んでください</p>
+                </div>
             </div>
             
             <div id="comparisonContainer" style="flex: 1; overflow: auto; background: #f1f5f9; border-radius: 8px; padding: 15px; position: relative;">
@@ -5297,6 +5314,9 @@ EDITOR_TEMPLATE = r"""
             }
         };
         
+        // ファイル検索・フィルタ用の変数
+        let filteredComparisonFiles = [];
+        
         function displayComparisonFiles() {
             const fileListDiv = document.getElementById('comparisonFileList');
             if (comparisonFiles.length === 0) {
@@ -5304,36 +5324,101 @@ EDITOR_TEMPLATE = r"""
                 return;
             }
             
-            const fileListHTML = comparisonFiles.map((file, index) => {
+            // フィルタリング
+            applyFileFilters();
+        }
+        
+        function applyFileFilters() {
+            const fileListDiv = document.getElementById('comparisonFileList');
+            const searchInput = document.getElementById('fileSearchInput');
+            const typeFilter = document.getElementById('fileTypeFilter');
+            
+            const searchTerm = (searchInput ? searchInput.value.toLowerCase() : '').trim();
+            const typeFilterValue = typeFilter ? typeFilter.value : 'all';
+            
+            // フィルタリング
+            filteredComparisonFiles = comparisonFiles.filter((file, index) => {
+                const matchesSearch = !searchTerm || file.name.toLowerCase().includes(searchTerm);
+                const matchesType = typeFilterValue === 'all' || file.type === typeFilterValue;
+                return matchesSearch && matchesType;
+            });
+            
+            // 表示
+            if (filteredComparisonFiles.length === 0) {
+                fileListDiv.innerHTML = '<p style="color: #718096; font-size: 12px; margin: 0; text-align: center; padding: 20px;">該当するファイルがありません</p>';
+                return;
+            }
+            
+            const fileListHTML = filteredComparisonFiles.map((file, filteredIndex) => {
+                // 元のインデックスを取得
+                const originalIndex = comparisonFiles.findIndex(f => f === file);
                 const fileType = file.type || 'other';
                 const typeBadgeColor = fileType === 'html' ? '#667eea' : fileType === 'css' ? '#10b981' : '#6c757d';
                 const typeBadgeText = fileType === 'html' ? 'HTML' : fileType === 'css' ? 'CSS' : 'OTHER';
                 const relatedFilesCount = file.relatedFiles && file.relatedFiles.length > 0 ? ` (関連: ${file.relatedFiles.length})` : '';
+                const checkbox = document.getElementById(`file_${originalIndex}`);
+                const isChecked = checkbox ? checkbox.checked : true;
+                
                 return `
-                <div style="display: flex; align-items: center; gap: 10px; padding: 8px; background: white; border-radius: 4px; margin-bottom: 5px; border: 1px solid #e2e8f0;">
-                    <input type="checkbox" id="file_${index}" checked onchange="toggleComparisonFile(${index})" style="cursor: pointer;">
-                    <label for="file_${index}" style="flex: 1; cursor: pointer; font-size: 12px; color: #2d3748; display: flex; align-items: center; gap: 8px;">
-                        <span>${file.name}</span>
-                        <span style="padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; background: rgba(${fileType === 'html' ? '102, 126, 234' : fileType === 'css' ? '16, 185, 129' : '108, 117, 125'}, 0.1); color: ${typeBadgeColor};">${typeBadgeText}</span>
-                        ${relatedFilesCount ? `<span style="font-size: 10px; color: #718096;">${relatedFilesCount}</span>` : ''}
+                <div class="comparison-file-item" data-index="${originalIndex}" style="display: flex; align-items: center; gap: 10px; padding: 8px; background: white; border-radius: 4px; margin-bottom: 5px; border: 1px solid #e2e8f0; transition: all 0.2s;">
+                    <input type="checkbox" id="file_${originalIndex}" ${isChecked ? 'checked' : ''} onchange="toggleComparisonFile(${originalIndex})" style="cursor: pointer;">
+                    <label for="file_${originalIndex}" style="flex: 1; cursor: pointer; font-size: 12px; color: #2d3748; display: flex; align-items: center; gap: 8px;">
+                        <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${file.name}</span>
+                        <span style="padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; background: rgba(${fileType === 'html' ? '102, 126, 234' : fileType === 'css' ? '16, 185, 129' : '108, 117, 125'}, 0.1); color: ${typeBadgeColor}; flex-shrink: 0;">${typeBadgeText}</span>
+                        ${relatedFilesCount ? `<span style="font-size: 10px; color: #718096; flex-shrink: 0;">${relatedFilesCount}</span>` : ''}
                     </label>
-                    <span style="font-size: 11px; color: #718096;">${(file.size / 1024).toFixed(1)} KB</span>
-                    <button onclick="removeComparisonFile(${index})" style="background: #ef4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">削除</button>
+                    <span style="font-size: 11px; color: #718096; flex-shrink: 0; min-width: 60px; text-align: right;">${(file.size / 1024).toFixed(1)} KB</span>
+                    <button onclick="event.stopPropagation(); removeComparisonFile(${originalIndex})" style="background: #ef4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; flex-shrink: 0;" title="ファイルを削除">削除</button>
                 </div>
             `;
             }).join('');
             
+            const selectedCount = comparisonFiles.filter((f, i) => {
+                const checkbox = document.getElementById(`file_${i}`);
+                return checkbox && checkbox.checked;
+            }).length;
+            
             fileListDiv.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <strong style="font-size: 13px; color: #2d3748;">読み込み済みファイル (${comparisonFiles.length}/27)</strong>
-                    <button onclick="selectAllComparisonFiles(true)" style="background: #667eea; color: white; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 11px;">すべて選択</button>
-                    <button onclick="selectAllComparisonFiles(false)" style="background: #e2e8f0; color: #4a5568; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 5px;">すべて解除</button>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <strong style="font-size: 13px; color: #2d3748;">読み込み済み: ${comparisonFiles.length}件</strong>
+                        ${searchTerm || typeFilterValue !== 'all' ? `<span style="font-size: 12px; color: #667eea;">表示中: ${filteredComparisonFiles.length}件</span>` : ''}
+                        <span style="font-size: 12px; color: #10b981;">選択中: ${selectedCount}件</span>
+                    </div>
+                    <div style="display: flex; gap: 5px;">
+                        <button onclick="selectAllComparisonFiles(true)" style="background: #667eea; color: white; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 11px;">すべて選択</button>
+                        <button onclick="selectAllComparisonFiles(false)" style="background: #e2e8f0; color: #4a5568; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 11px;">すべて解除</button>
+                    </div>
                 </div>
-                <div style="max-height: 100px; overflow-y: auto;">
+                <div style="max-height: 150px; overflow-y: auto;">
                     ${fileListHTML}
                 </div>
             `;
         }
+        
+        window.filterComparisonFiles = function filterComparisonFiles() {
+            applyFileFilters();
+        };
+        
+        window.sortComparisonFiles = function sortComparisonFiles() {
+            const sortOption = document.getElementById('fileSortOption').value;
+            
+            comparisonFiles.sort((a, b) => {
+                switch (sortOption) {
+                    case 'name':
+                        return a.name.localeCompare(b.name);
+                    case 'size':
+                        return (b.size || 0) - (a.size || 0);
+                    case 'type':
+                        const typeOrder = { 'html': 1, 'css': 2, 'other': 3 };
+                        return (typeOrder[a.type] || 99) - (typeOrder[b.type] || 99);
+                    default:
+                        return 0;
+                }
+            });
+            
+            displayComparisonFiles();
+        };
         
         function renderComparisonScreens() {
             const grid = document.getElementById('comparisonGrid');
