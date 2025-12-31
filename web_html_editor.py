@@ -1983,7 +1983,7 @@ EDITOR_TEMPLATE = r"""
                 <div style="flex: 1; min-width: 300px;">
                     <label class="form-label">比較対象ディレクトリ</label>
                     <div style="display: flex; gap: 10px;">
-                        <input type="text" id="comparisonDir" class="form-input" placeholder="例: C:\\universities または /path/to/universities" style="flex: 1;">
+                        <input type="text" id="comparisonDir" class="form-input" placeholder="例: C:\\html または C:/html (絶対パスを指定)" style="flex: 1;" title="Windows: C:\\html または C:/html&#10;Linux/Mac: /path/to/html">
                         <button class="btn btn-info" onclick="loadComparisonFiles()" style="white-space: nowrap;">📁 ファイル読み込み</button>
                     </div>
                 </div>
@@ -5180,10 +5180,20 @@ EDITOR_TEMPLATE = r"""
         };
         
         window.loadComparisonFiles = async function loadComparisonFiles() {
-            const dirPath = document.getElementById('comparisonDir').value.trim();
+            let dirPath = document.getElementById('comparisonDir').value.trim();
             if (!dirPath) {
                 showStatus('ディレクトリパスを入力してください', 'error');
                 return;
+            }
+            
+            // Windowsパスの正規化
+            // バックスラッシュのエスケープを処理（c:\\html -> c:\html）
+            dirPath = dirPath.replace(/\\\\/g, '\\');
+            
+            // スラッシュをバックスラッシュに変換（Windowsの場合）
+            if (dirPath.match(/^[a-zA-Z]:/)) {
+                // Windowsのドライブレターがある場合
+                dirPath = dirPath.replace(/\//g, '\\');
             }
             
             const fileListDiv = document.getElementById('comparisonFileList');
@@ -5238,8 +5248,17 @@ EDITOR_TEMPLATE = r"""
                     const cssCount = comparisonFiles.filter(f => f.type === 'css').length;
                     showStatus(`${comparisonFiles.length}個のファイルを読み込みました（HTML: ${htmlFiles.length}, CSS: ${cssCount}）`, 'success');
                 } else {
-                    fileListDiv.innerHTML = `<p style="color: #ef4444; text-align: center;">エラー: ${data.error || 'ファイルの読み込みに失敗しました'}</p>`;
-                    showStatus(data.error || 'ファイルの読み込みに失敗しました', 'error');
+                    const errorMsg = data.error || 'ファイルの読み込みに失敗しました';
+                    fileListDiv.innerHTML = `
+                        <div style="color: #ef4444; text-align: center; padding: 10px;">
+                            <p style="margin: 0 0 10px 0; font-weight: 600;">エラー: ${errorMsg}</p>
+                            <p style="margin: 0; font-size: 11px; color: #718096;">
+                                パスの例: C:\\html または C:/html<br>
+                                絶対パスを指定してください
+                            </p>
+                        </div>
+                    `;
+                    showStatus(errorMsg, 'error');
                 }
             } catch (error) {
                 fileListDiv.innerHTML = `<p style="color: #ef4444; text-align: center;">エラー: ${error.message}</p>`;
@@ -7040,9 +7059,39 @@ def load_comparison_files():
         if not directory:
             return jsonify({'success': False, 'error': 'ディレクトリパスを指定してください'}), 400
         
-        dir_path = Path(directory)
-        if not dir_path.exists() or not dir_path.is_dir():
-            return jsonify({'success': False, 'error': 'ディレクトリが見つかりません'}), 404
+        # Windowsパスの処理: バックスラッシュを正規化
+        # c:\\html や c:\html を正しく処理
+        directory = directory.replace('\\\\', '\\').replace('/', '\\')
+        
+        # パスを正規化
+        try:
+            dir_path = Path(directory).resolve()
+        except Exception as e:
+            return jsonify({
+                'success': False, 
+                'error': f'無効なパス形式です: {directory}。エラー: {str(e)}'
+            }), 400
+        
+        # ディレクトリの存在確認
+        if not dir_path.exists():
+            # より詳細なエラーメッセージ
+            error_msg = f'ディレクトリが見つかりません: {directory}'
+            if not dir_path.is_absolute():
+                error_msg += f' (絶対パスを指定してください。現在のパス: {dir_path})'
+            else:
+                # 親ディレクトリの存在確認
+                parent = dir_path.parent
+                if not parent.exists():
+                    error_msg += f' (親ディレクトリも存在しません: {parent})'
+                else:
+                    error_msg += f' (親ディレクトリは存在します: {parent})'
+            return jsonify({'success': False, 'error': error_msg}), 404
+        
+        if not dir_path.is_dir():
+            return jsonify({
+                'success': False, 
+                'error': f'指定されたパスはディレクトリではありません: {directory}'
+            }), 400
         
         # HTMLファイルとCSSファイルを検索（最大27個）
         html_files = []
