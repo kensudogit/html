@@ -1352,25 +1352,31 @@ EDITOR_TEMPLATE = r"""
             <div class="usage-guide-step">
                 <div class="usage-guide-step-title">
                     <span class="usage-guide-step-number">1</span>
-                    ファイルのアップロード
+                    ファイルのアップロード・編集
                 </div>
                 <div class="usage-guide-step-content">
-                    リモコン盤の「📤 アップロード」ボタンからHTMLファイルをアップロードします。
+                    <ul>
+                        <li>リモコン盤の「📤 アップロード」ボタンからHTMLファイルをアップロード</li>
+                        <li>アップロード後、左側のエディタでHTMLソースを編集可能</li>
+                        <li>右側のプレビューでリアルタイムに変更内容を確認</li>
+                        <li>「💾 保存」ボタンで編集内容を保存（Ctrl+Sでも保存可能）</li>
+                    </ul>
                 </div>
             </div>
             
             <div class="usage-guide-step">
                 <div class="usage-guide-step-title">
                     <span class="usage-guide-step-number">2</span>
-                    差分検出とテンプレート生成（27大学のホームページ）
+                    自由配置モード（🪟 自由配置モード）
                 </div>
                 <div class="usage-guide-step-content">
                     <ul>
-                        <li>リモコン盤の「🔍 差分検出」ボタンをクリック</li>
-                        <li>27校のHTMLファイルが保存されているディレクトリパスを入力</li>
-                        <li>検出オプションを選択して「🔍 差分検出実行」をクリック</li>
-                        <li>差分検出完了後、「🔀 最大公約数テンプレート生成」をクリック</li>
-                        <li>共通部分と差分部分（変数化）を含むテンプレートが生成されます</li>
+                        <li>リモコン盤の「🪟 自由配置モード」ボタンをクリック</li>
+                        <li>HTMLソースとプレビューウィンドウを自由に移動・リサイズ可能</li>
+                        <li>ウィンドウのヘッダーをドラッグして移動</li>
+                        <li>ウィンドウの端や角をドラッグしてリサイズ</li>
+                        <li>配置は自動保存され、次回起動時にも復元されます</li>
+                        <li>「📐 通常モード」で元の分割表示に戻せます</li>
                     </ul>
                 </div>
             </div>
@@ -1378,13 +1384,24 @@ EDITOR_TEMPLATE = r"""
             <div class="usage-guide-step">
                 <div class="usage-guide-step-title">
                     <span class="usage-guide-step-number">3</span>
-                    27大学のホームページ生成
+                    画面比較機能（🖼️ 画面比較）
                 </div>
                 <div class="usage-guide-step-content">
                     <ul>
-                        <li>テンプレート生成後、「🏫 27大学のホームページを生成」をクリック</li>
-                        <li>各大学の現行デザインを保持したホームページが自動生成されます</li>
-                        <li>「📦 ZIPファイルをダウンロード」で一括ダウンロード可能</li>
+                        <li>リモコン盤の「🖼️ 画面比較」ボタンをクリック</li>
+                        <li>比較対象ディレクトリパスを入力（例: C:\universities）</li>
+                        <li>「📁 ファイル読み込み」でHTML/CSSファイルを自動検出（最大27ファイル）</li>
+                        <li>HTMLファイルとCSSファイルが自動的に関連付けられます</li>
+                        <li>ファイル一覧から比較したいファイルを選択（チェックボックス）</li>
+                        <li>レイアウト選択: グリッド表示 / 横並び / 縦並び</li>
+                        <li>各画面のアクション:
+                            <ul>
+                                <li>✏️ 編集: 新しいタブでエディタを開く</li>
+                                <li>⬇️ ダウンロード: ファイルをダウンロード</li>
+                                <li>📊 分析: 画面の詳細分析</li>
+                            </ul>
+                        </li>
+                        <li>「📊 比較レポート出力」でCSV形式の比較レポートをダウンロード</li>
                     </ul>
                 </div>
             </div>
@@ -1392,14 +1409,16 @@ EDITOR_TEMPLATE = r"""
             <div class="usage-guide-step">
                 <div class="usage-guide-step-title">
                     <span class="usage-guide-step-number">4</span>
-                    その他の機能
+                    HTML/CSS比較機能
                 </div>
                 <div class="usage-guide-step-content">
                     <ul>
-                        <li><strong>テンプレート統合:</strong> 複数ファイルから共通テンプレートを生成</li>
-                        <li><strong>検索・置換:</strong> HTMLソース内の文字列を検索・置換</li>
-                        <li><strong>構文チェック:</strong> HTMLの構文エラーを検出</li>
-                        <li><strong>デザイン出力:</strong> プレビューのスタイル情報をJSON/CSVで出力</li>
+                        <li>画面比較モードで複数ファイルを選択すると自動的に比較が実行されます</li>
+                        <li>HTML構造の比較: タグ、クラス、ID、属性の差分を検出</li>
+                        <li>CSS比較: セレクタ、プロパティ、値の差分を検出</li>
+                        <li>比較結果バッジに「HTML: X箇所, CSS: Y箇所」と表示</li>
+                        <li>CSSファイルはシンタックスハイライト付きで表示</li>
+                        <li>比較レポートにはHTML/CSSの両方の情報が含まれます</li>
                     </ul>
                 </div>
             </div>
@@ -1407,17 +1426,119 @@ EDITOR_TEMPLATE = r"""
             <div class="usage-guide-step">
                 <div class="usage-guide-step-title">
                     <span class="usage-guide-step-number">5</span>
-                    その他の機能
+                    差分検出とテンプレート生成（27大学のホームページ）
                 </div>
                 <div class="usage-guide-step-content">
                     <ul>
-                        <li><strong>テンプレート統合:</strong> 複数ファイルから共通テンプレートを生成</li>
-                        <li><strong>検索・置換:</strong> HTMLソース内の文字列を検索・置換</li>
-                        <li><strong>構文チェック:</strong> HTMLの構文エラーを検出</li>
-                        <li><strong>デザイン出力:</strong> プレビューのスタイル情報をJSON/CSVで出力</li>
+                        <li>リモコン盤の「🔍 差分検出」ボタンをクリック</li>
+                        <li>27校のHTMLファイルが保存されているディレクトリパスを入力</li>
+                        <li>検出オプションを選択:
+                            <ul>
+                                <li>構造の差分: HTML構造の違いを検出</li>
+                                <li>属性の差分: 属性値の違いを検出</li>
+                                <li>詳細な差分情報を表示: より詳細な比較結果</li>
+                            </ul>
+                        </li>
+                        <li>「🔍 差分検出実行」をクリックして処理開始</li>
+                        <li>差分検出完了後、「🔀 最大公約数テンプレート生成」をクリック</li>
+                        <li>共通部分と差分部分（変数化）を含むテンプレートが生成されます</li>
+                        <li>「📥 差分レポートをダウンロード」で詳細な差分情報を取得</li>
+                        <li>「📊 CSVでエクスポート」で比較結果をCSV形式で出力</li>
                     </ul>
                 </div>
             </div>
+            
+            <div class="usage-guide-step">
+                <div class="usage-guide-step-title">
+                    <span class="usage-guide-step-number">6</span>
+                    27大学のホームページ生成
+                </div>
+                <div class="usage-guide-step-content">
+                    <ul>
+                        <li>テンプレート生成後、「🏫 27大学のホームページを生成」をクリック</li>
+                        <li>各大学の現行デザインを保持したホームページが自動生成されます</li>
+                        <li>生成されたファイルは「📦 ZIPファイルをダウンロード」で一括ダウンロード可能</li>
+                        <li>各大学の個別ファイルも個別にダウンロードできます</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="usage-guide-step">
+                <div class="usage-guide-step-title">
+                    <span class="usage-guide-step-number">7</span>
+                    その他の主要機能
+                </div>
+                <div class="usage-guide-step-content">
+                    <ul>
+                        <li><strong>🔀 テンプレート統合:</strong> 複数ファイルから共通テンプレートを生成</li>
+                        <li><strong>📤 デザイン出力:</strong> プレビューのDOMと主要CSSをJSON/CSVで出力</li>
+                        <li><strong>🔍 検索・置換:</strong> HTMLソース内の文字列を検索・置換（Ctrl+F）</li>
+                        <li><strong>⚠️ 構文チェック:</strong> HTMLの構文エラーを検出</li>
+                        <li><strong>📁 ファイル一覧:</strong> 保存済みファイルの一覧を表示</li>
+                        <li><strong>💾 保存:</strong> 編集内容を保存（Ctrl+S）</li>
+                        <li><strong>⬇️ ダウンロード:</strong> 現在のHTMLファイルをダウンロード</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="usage-guide-step">
+                <div class="usage-guide-step-title">
+                    <span class="usage-guide-step-number">8</span>
+                    キーボードショートカット
+                </div>
+                <div class="usage-guide-step-content">
+                    <ul>
+                        <li><strong>Ctrl+S:</strong> ファイルを保存</li>
+                        <li><strong>Ctrl+F:</strong> 検索・置換ダイアログを開く</li>
+                        <li><strong>Ctrl+Z:</strong> 元に戻す（エディタ内）</li>
+                        <li><strong>Ctrl+Y:</strong> やり直す（エディタ内）</li>
+                        <li><strong>上下矢印キー:</strong> 検索結果間を移動（検索モード時）</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="usage-guide-step">
+                <div class="usage-guide-step-title">
+                    <span class="usage-guide-step-number">9</span>
+                    ファイル形式と対応機能
+                </div>
+                <div class="usage-guide-step-content">
+                    <ul>
+                        <li><strong>HTMLファイル (.html, .htm):</strong>
+                            <ul>
+                                <li>リアルタイムプレビュー表示</li>
+                                <li>構文チェック</li>
+                                <li>DOM構造解析</li>
+                                <li>CSS抽出・比較</li>
+                            </ul>
+                        </li>
+                        <li><strong>CSSファイル (.css):</strong>
+                            <ul>
+                                <li>シンタックスハイライト表示</li>
+                                <li>CSSルール解析</li>
+                                <li>比較機能対応</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="usage-guide-step">
+                <div class="usage-guide-step-title">
+                    <span class="usage-guide-step-number">10</span>
+                    トラブルシューティング
+                </div>
+                <div class="usage-guide-step-content">
+                    <ul>
+                        <li><strong>プレビューが表示されない:</strong> HTMLの構文エラーを確認（構文チェック機能を使用）</li>
+                        <li><strong>ファイルが保存できない:</strong> ファイルパスの権限を確認</li>
+                        <li><strong>比較機能が動作しない:</strong> ディレクトリパスが正しいか確認（絶対パス推奨）</li>
+                        <li><strong>自由配置モードでウィンドウが見えない:</strong> ブラウザをリロードして初期位置に戻す</li>
+                        <li><strong>CSS比較が正確でない:</strong> 外部CSSファイルも同じディレクトリに配置されているか確認</li>
+                    </ul>
+                </div>
+            </div>
+            
         </div>
     </div>
     
