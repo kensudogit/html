@@ -6587,6 +6587,15 @@ def diff_analysis():
         if not directory:
             return jsonify({'success': False, 'error': 'ディレクトリパスが指定されていません'}), 400
         
+        # Railway/Heroku環境ではWindowsパスは使用不可
+        is_cloud = os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('DYNO') or os.environ.get('VERCEL')
+        if is_cloud and directory and len(directory) >= 2 and directory[0].isalpha() and directory[1] == ':':
+            return jsonify({
+                'success': False, 
+                'error': f'Windowsパス（{directory}）はクラウド環境では使用できません。\n'
+                        f'Linux形式の絶対パス（例: /tmp/html）を指定してください。'
+            }), 400
+        
         # Windowsパスの処理: バックスラッシュとスラッシュを正規化
         # c:\\html, c:\html, c:/html を正しく処理
         directory = directory.strip()
@@ -6625,7 +6634,10 @@ def diff_analysis():
                     error_msg += f' (親ディレクトリも存在しません: {parent})'
                 else:
                     error_msg += f' (親ディレクトリは存在します: {parent})'
-            error_msg += f'\nパスの例: C:\\html または C:/html\n絶対パスを指定してください'
+            if not is_cloud:
+                error_msg += f'\nパスの例: C:\\html または C:/html\n絶対パスを指定してください'
+            else:
+                error_msg += f'\nパスの例: /tmp/html または /app/html\nLinux形式の絶対パスを指定してください'
             return jsonify({'success': False, 'error': error_msg}), 404
         
         if not dir_path.is_dir():
@@ -7562,6 +7574,16 @@ def list_directory_files():
         if not directory:
             return jsonify({'success': False, 'error': 'ディレクトリパスを指定してください'}), 400
         
+        # Railway/Heroku環境ではWindowsパスは使用不可
+        is_cloud = os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('DYNO') or os.environ.get('VERCEL')
+        if is_cloud and directory and len(directory) >= 2 and directory[0].isalpha() and directory[1] == ':':
+            return jsonify({
+                'success': False, 
+                'error': f'Windowsパス（{directory}）はクラウド環境では使用できません。\n'
+                        f'アップロードフォルダを使用する場合は、パスを空欄にしてください。\n'
+                        f'または、Linux形式の絶対パス（例: /tmp/html）を指定してください。'
+            }), 400
+        
         # Windowsパスの処理: バックスラッシュとスラッシュを正規化
         # c:\\html, c:\html, c:/html を正しく処理
         directory = directory.strip()
@@ -7716,13 +7738,24 @@ def load_comparison_files():
         if not directory:
             return jsonify({'success': False, 'error': 'ディレクトリパスを指定してください'}), 400
         
+        # Railway/Heroku環境ではWindowsパスは使用不可
+        is_cloud = os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('DYNO') or os.environ.get('VERCEL')
+        if is_cloud and directory and len(directory) >= 2 and directory[0].isalpha() and directory[1] == ':':
+            return jsonify({
+                'success': False, 
+                'error': f'Windowsパス（{directory}）はクラウド環境では使用できません。\n'
+                        f'アップロードフォルダを使用する場合は、パスを空欄にしてください。\n'
+                        f'または、Linux形式の絶対パス（例: /tmp/html）を指定してください。'
+            }), 400
+        
         # Windowsパスの処理: バックスラッシュとスラッシュを正規化
         # c:\\html, c:\html, c:/html を正しく処理
         directory = directory.strip()
         # スラッシュをバックスラッシュに変換（Windowsパスの場合）
         if directory and (directory[0].isalpha() and len(directory) > 1 and directory[1] == ':'):
             # Windows絶対パス（例: C:\html, C:/html）
-            directory = directory.replace('/', '\\')
+            # ドライブレターを大文字に正規化
+            directory = directory[0].upper() + directory[1:].replace('/', '\\')
         else:
             # 相対パスやその他の形式
             directory = directory.replace('\\\\', '\\').replace('/', '\\')
@@ -7753,7 +7786,10 @@ def load_comparison_files():
                     error_msg += f' (親ディレクトリも存在しません: {parent})'
                 else:
                     error_msg += f' (親ディレクトリは存在します: {parent})'
-            error_msg += f'\nパスの例: C:\\html または C:/html\n絶対パスを指定してください'
+            if not is_cloud:
+                error_msg += f'\nパスの例: C:\\html または C:/html\n絶対パスを指定してください'
+            else:
+                error_msg += f'\nパスの例: /tmp/html または /app/html\nLinux形式の絶対パスを指定してください'
             return jsonify({'success': False, 'error': error_msg}), 404
         
         if not dir_path.is_dir():
