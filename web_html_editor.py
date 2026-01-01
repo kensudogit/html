@@ -26,6 +26,14 @@ import secrets
 
 app = Flask(__name__)
 
+# CORS設定（Railway環境でのAPIリクエストを許可）
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
+
 # セッション管理の設定
 # SECRET_KEYはセッションの暗号化に使用される
 # 環境変数で指定されていない場合は、ランダムな32バイトの16進数文字列を生成
@@ -1800,7 +1808,7 @@ EDITOR_TEMPLATE = r"""
                         </button>
                     </div>
                 </div>
-                <iframe id="preview" class="preview" sandbox="allow-same-origin allow-scripts allow-forms allow-popups"></iframe>
+                <iframe id="preview" class="preview" sandbox="allow-same-origin allow-scripts allow-forms allow-popups" title="HTMLプレビュー"></iframe>
             </div>
         </div>
         
@@ -6282,7 +6290,7 @@ EDITOR_TEMPLATE = r"""
                         // HTMLファイルの場合はiframeで表示
                         const blob = new Blob([data.content], { type: 'text/html' });
                         const url = URL.createObjectURL(blob);
-                        previewDiv.innerHTML = `<iframe sandbox="allow-same-origin allow-scripts allow-forms allow-popups" style="width: 100%; height: 100%; border: none;" src="${url}"></iframe>`;
+                        previewDiv.innerHTML = `<iframe sandbox="allow-same-origin allow-scripts allow-forms allow-popups" style="width: 100%; height: 100%; border: none;" src="${url}" title="HTMLプレビュー"></iframe>`;
                     } else {
                         // その他のファイルタイプ
                         previewDiv.innerHTML = `
@@ -7004,9 +7012,11 @@ def validate():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@app.route('/diff-analysis', methods=['POST'])
+@app.route('/diff-analysis', methods=['POST', 'OPTIONS'])
 def diff_analysis():
     """27校の大学ホームページの差分を検出"""
+    if request.method == 'OPTIONS':
+        return '', 200
     try:
         data = request.json
         directory = data.get('directory', '').strip()
@@ -7950,9 +7960,11 @@ def download_university_pages():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@app.route('/template-merge', methods=['POST'])
+@app.route('/template-merge', methods=['POST', 'OPTIONS'])
 def template_merge():
     """複数のHTMLファイルを比較して共通テンプレートを生成"""
+    if request.method == 'OPTIONS':
+        return '', 200
     try:
         data = request.json
         files = data.get('files', [])
@@ -8006,9 +8018,11 @@ def template_merge():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@app.route('/api/list-directory-files', methods=['POST'])
+@app.route('/api/list-directory-files', methods=['POST', 'OPTIONS'])
 def list_directory_files():
     """指定ディレクトリ内のファイル一覧を取得"""
+    if request.method == 'OPTIONS':
+        return '', 200
     try:
         data = request.json
         directory = data.get('directory', '').strip()
@@ -8193,9 +8207,11 @@ def get_config():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@app.route('/api/load-comparison-files', methods=['POST'])
+@app.route('/api/load-comparison-files', methods=['POST', 'OPTIONS'])
 def load_comparison_files():
     """比較用ファイルリストを読み込む"""
+    if request.method == 'OPTIONS':
+        return '', 200
     try:
         data = request.json
         directory = data.get('directory', '').strip()
@@ -8370,9 +8386,11 @@ def load_file_content():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@app.route('/api/compare-screens', methods=['POST'])
+@app.route('/api/compare-screens', methods=['POST', 'OPTIONS'])
 def compare_screens():
     """複数の画面を比較して差分を検出"""
+    if request.method == 'OPTIONS':
+        return '', 200
     try:
         data = request.json
         file_paths = data.get('files', [])
