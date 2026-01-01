@@ -503,9 +503,47 @@ EDITOR_TEMPLATE = r"""
         .panel-header {
             cursor: move;
             user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         .panel-header.dragging {
             cursor: grabbing;
+        }
+        .btn-fullscreen {
+            transition: all 0.2s;
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .btn-fullscreen:hover {
+            background: rgba(255,255,255,0.3) !important;
+            transform: scale(1.1);
+        }
+        /* 全画面表示スタイル */
+        .panel-fullscreen {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 10000 !important;
+            margin: 0 !important;
+            border-radius: 0 !important;
+        }
+        .panel-fullscreen .panel-header {
+            border-radius: 0 !important;
+        }
+        .panel-fullscreen .editor-wrapper,
+        .panel-fullscreen .editor,
+        .panel-fullscreen .preview {
+            height: calc(100vh - 60px) !important;
         }
         /* リサイズハンドル */
         .resize-handle {
@@ -1139,12 +1177,16 @@ EDITOR_TEMPLATE = r"""
             background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
             border-radius: var(--radius-lg);
             box-shadow: var(--shadow-2xl);
-            min-width: 240px;
-            max-width: 90vw;
+            min-width: 180px;
+            max-width: 250px;
+            max-height: 90vh;
+            height: auto;
             transition: all var(--transition-slow);
             user-select: none;
             border: 1px solid rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
         }
         #remoteControl.collapsed {
             min-width: auto;
@@ -1203,8 +1245,10 @@ EDITOR_TEMPLATE = r"""
             display: flex;
             flex-direction: column;
             gap: 10px;
-            max-height: 80vh;
+            max-height: calc(90vh - 60px);
             overflow-y: auto;
+            overflow-x: hidden;
+            flex: 1;
         }
         .remote-control-section {
             display: flex;
@@ -1221,14 +1265,14 @@ EDITOR_TEMPLATE = r"""
         }
         .remote-control-buttons {
             display: flex;
-            flex-wrap: wrap;
+            flex-direction: column;
             gap: 4px;
         }
         .remote-control-buttons .btn {
-            flex: 1;
-            min-width: 85px;
+            width: 100%;
             font-size: 11px;
-            padding: 5px 8px;
+            padding: 6px 8px;
+            text-align: center;
         }
         .remote-control-search {
             display: flex;
@@ -1728,7 +1772,10 @@ EDITOR_TEMPLATE = r"""
                 <div class="panel-resize-handle nw"></div>
                 <div class="panel-resize-handle se"></div>
                 <div class="panel-resize-handle sw"></div>
-                <div class="panel-header"><span>📄 HTMLソース</span></div>
+                <div class="panel-header">
+                    <span>📄 HTMLソース</span>
+                    <button class="btn-fullscreen" onclick="toggleFullscreen('editorPanel')" title="全画面表示" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 8px;">⛶</button>
+                </div>
                 <div class="editor-wrapper">
                     <textarea id="htmlEditor" class="editor" spellcheck="false" data-filename="{{ filename|e }}" data-has-content="{% if has_content %}true{% else %}false{% endif %}"></textarea>
                     <div id="editorHighlight" class="editor-highlight"></div>
@@ -1746,9 +1793,12 @@ EDITOR_TEMPLATE = r"""
                 <div class="panel-resize-handle sw"></div>
                 <div class="panel-header">
                     <span>👁️ プレビュー</span>
-                    <button class="btn btn-success" onclick="downloadPreview()" id="downloadPreviewBtn" style="font-size: 12px; padding: 6px 12px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; font-weight: 600;" title="プレビューをHTMLファイルとしてダウンロード" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
-                        ⬇️ HTMLとして保存
-                    </button>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <button class="btn-fullscreen" onclick="toggleFullscreen('previewPanel')" title="全画面表示" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">⛶</button>
+                        <button class="btn btn-success" onclick="downloadPreview()" id="downloadPreviewBtn" style="font-size: 12px; padding: 6px 12px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; font-weight: 600;" title="プレビューをHTMLファイルとしてダウンロード" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+                            ⬇️ HTMLとして保存
+                        </button>
+                    </div>
                 </div>
                 <iframe id="preview" class="preview" sandbox="allow-same-origin allow-scripts allow-forms allow-popups"></iframe>
             </div>
@@ -1902,12 +1952,27 @@ EDITOR_TEMPLATE = r"""
             
             <div class="form-group" style="margin-top: 20px;">
                 <label class="form-label">比較対象ディレクトリ</label>
-                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                    <input type="text" id="templateMergeDir" class="form-input" placeholder="例: C:\html または空欄でアップロードフォルダ" style="flex: 1;" title="Windows: C:\\html または C:/html&#10;空欄の場合はアップロードフォルダを表示">
+                <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; align-items: center;">
+                    <select id="templateMergeDirSelect" class="form-input" style="flex: 1; min-width: 200px; max-width: 300px;" onchange="onTemplateMergeDirSelect()" title="フォルダを選択">
+                        <option value="">-- フォルダを選択 --</option>
+                        <option value="__upload__">📁 アップロードフォルダ</option>
+                        <option value="__env__" id="templateMergeEnvOption" style="display: none;">📁 環境変数フォルダ</option>
+                    </select>
+                    <input type="text" id="templateMergeDir" class="form-input" placeholder="または直接パスを入力: C:\html" style="flex: 1; min-width: 200px;" title="Windows: C:\\html または C:/html&#10;空欄の場合はアップロードフォルダを表示" list="templateMergeDirHistory">
+                    <datalist id="templateMergeDirHistory"></datalist>
                     <button class="btn btn-info" onclick="loadTemplateFileList()" style="white-space: nowrap;">📁 ファイル読み込み</button>
                 </div>
+                <div id="templateMergeCurrentDir" style="margin-bottom: 10px; padding: 12px; background: #f0f4f8; border-radius: 5px; border-left: 3px solid #667eea;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                        <div style="flex: 1;">
+                            <div style="font-size: 11px; color: #718096; margin-bottom: 4px;">📂 現在の検索フォルダ</div>
+                            <div id="templateMergeCurrentDirPath" style="font-size: 13px; color: #2d3748; font-family: monospace; font-weight: 500; word-break: break-all;"></div>
+                        </div>
+                        <button class="btn" onclick="selectTemplateMergeDir()" style="font-size: 11px; padding: 6px 12px; background: #e2e8f0; color: #4a5568; border: none; border-radius: 4px; cursor: pointer; white-space: nowrap;" title="別のフォルダを選択">🔄 変更</button>
+                    </div>
+                </div>
                 <small style="color: #718096; font-size: 12px; display: block; margin-bottom: 10px;">
-                    環境変数 HTML_DIRECTORY が設定されている場合、空欄でそのディレクトリが使用されます。
+                    ドロップダウンから選択するか、直接パスを入力してください。環境変数 HTML_DIRECTORY が設定されている場合、空欄でそのディレクトリが使用されます。
                 </small>
             </div>
             
@@ -2848,6 +2913,53 @@ EDITOR_TEMPLATE = r"""
         
         // グローバル関数として公開
         window.toggleFreeMode = toggleFreeMode;
+        
+        // 全画面表示の切り替え
+        window.toggleFullscreen = function toggleFullscreen(panelId) {
+            const panel = document.getElementById(panelId);
+            if (!panel) return;
+            
+            const isFullscreen = panel.classList.contains('panel-fullscreen');
+            const btn = panel.querySelector('.btn-fullscreen');
+            
+            if (isFullscreen) {
+                // 全画面を解除
+                panel.classList.remove('panel-fullscreen');
+                if (btn) {
+                    btn.textContent = '⛶';
+                    btn.title = '全画面表示';
+                }
+                // 他のパネルを表示
+                const otherPanel = panelId === 'editorPanel' ? document.getElementById('previewPanel') : document.getElementById('editorPanel');
+                const editorContainer = document.querySelector('.editor-container');
+                if (otherPanel && editorContainer) {
+                    otherPanel.style.display = '';
+                    editorContainer.style.display = 'flex';
+                }
+            } else {
+                // 全画面表示
+                panel.classList.add('panel-fullscreen');
+                if (btn) {
+                    btn.textContent = '⛶';
+                    btn.title = '全画面解除';
+                }
+                // 他のパネルを非表示
+                const otherPanel = panelId === 'editorPanel' ? document.getElementById('previewPanel') : document.getElementById('editorPanel');
+                const editorContainer = document.querySelector('.editor-container');
+                if (otherPanel && editorContainer) {
+                    otherPanel.style.display = 'none';
+                    editorContainer.style.display = 'block';
+                }
+                // エスケープキーで全画面解除
+                const escapeHandler = function(e) {
+                    if (e.key === 'Escape' && panel.classList.contains('panel-fullscreen')) {
+                        toggleFullscreen(panelId);
+                        document.removeEventListener('keydown', escapeHandler);
+                    }
+                };
+                document.addEventListener('keydown', escapeHandler);
+            }
+        };
         
         // プレビューを更新
         function updatePreview() {
@@ -4046,11 +4158,168 @@ EDITOR_TEMPLATE = r"""
             }
         };
         
+        // フォルダ履歴を保存
+        function saveTemplateMergeDirHistory(dirPath) {
+            if (!dirPath || dirPath.trim() === '') return;
+            
+            try {
+                let history = JSON.parse(localStorage.getItem('templateMergeDirHistory') || '[]');
+                // 既に存在する場合は削除
+                history = history.filter(h => h !== dirPath);
+                // 先頭に追加
+                history.unshift(dirPath);
+                // 最大10件まで保存
+                history = history.slice(0, 10);
+                localStorage.setItem('templateMergeDirHistory', JSON.stringify(history));
+                updateTemplateMergeDirHistory();
+            } catch (e) {
+                console.error('履歴の保存に失敗しました:', e);
+            }
+        }
+        
+        // フォルダ履歴を更新
+        function updateTemplateMergeDirHistory() {
+            try {
+                const history = JSON.parse(localStorage.getItem('templateMergeDirHistory') || '[]');
+                const datalist = document.getElementById('templateMergeDirHistory');
+                if (datalist) {
+                    datalist.innerHTML = '';
+                    history.forEach(dir => {
+                        const option = document.createElement('option');
+                        option.value = dir;
+                        datalist.appendChild(option);
+                    });
+                }
+            } catch (e) {
+                console.error('履歴の読み込みに失敗しました:', e);
+            }
+        }
+        
+        // フォルダ選択ドロップダウンの変更処理
+        function onTemplateMergeDirSelect() {
+            const select = document.getElementById('templateMergeDirSelect');
+            const dirInput = document.getElementById('templateMergeDir');
+            
+            if (select && dirInput) {
+                const selectedValue = select.value;
+                if (selectedValue === '__upload__') {
+                    dirInput.value = '';
+                    loadTemplateFileList();
+                } else if (selectedValue === '__env__') {
+                    dirInput.value = '';
+                    loadTemplateFileList();
+                } else if (selectedValue && selectedValue !== '') {
+                    dirInput.value = selectedValue;
+                    loadTemplateFileList();
+                }
+            }
+        }
+        
+        // フォルダ選択ダイアログを表示（簡易版）
+        function selectTemplateMergeDir() {
+            const dirInput = document.getElementById('templateMergeDir');
+            const select = document.getElementById('templateMergeDirSelect');
+            if (dirInput) {
+                const newPath = prompt('ディレクトリパスを入力してください:\n例: C:\\html または C:/html', dirInput.value || '');
+                if (newPath !== null && newPath.trim() !== '') {
+                    dirInput.value = newPath.trim();
+                    if (select) {
+                        select.value = '';
+                    }
+                    loadTemplateFileList();
+                }
+            }
+        }
+        
+        // フォルダ選択ドロップダウンを更新
+        function updateTemplateMergeDirSelect() {
+            const select = document.getElementById('templateMergeDirSelect');
+            const envOption = document.getElementById('templateMergeEnvOption');
+            
+            if (select) {
+                // 履歴からオプションを追加
+                try {
+                    const history = JSON.parse(localStorage.getItem('templateMergeDirHistory') || '[]');
+                    // 既存の履歴オプションを削除（環境変数オプション以外）
+                    const existingOptions = Array.from(select.options);
+                    existingOptions.forEach(opt => {
+                        if (opt.value !== '' && opt.value !== '__upload__' && opt.value !== '__env__') {
+                            opt.remove();
+                        }
+                    });
+                    
+                    // 履歴を追加
+                    history.forEach(dir => {
+                        const option = document.createElement('option');
+                        option.value = dir;
+                        option.textContent = `📁 ${dir}`;
+                        // 環境変数オプションの前に挿入
+                        if (envOption && envOption.parentNode) {
+                            envOption.parentNode.insertBefore(option, envOption);
+                        } else {
+                            select.appendChild(option);
+                        }
+                    });
+                } catch (e) {
+                    console.error('履歴の読み込みに失敗しました:', e);
+                }
+                
+                // 環境変数を確認
+                fetch('/api/config')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success && data.default_html_directory && envOption) {
+                            envOption.textContent = `📁 ${data.default_html_directory} (環境変数)`;
+                            envOption.style.display = 'block';
+                        } else if (envOption) {
+                            envOption.style.display = 'none';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('設定の読み込みに失敗しました:', error);
+                    });
+            }
+        }
+        
+        // 現在の検索フォルダを表示
+        function updateTemplateMergeCurrentDir(displayPath, source) {
+            const currentDirDiv = document.getElementById('templateMergeCurrentDir');
+            const currentDirPath = document.getElementById('templateMergeCurrentDirPath');
+            if (currentDirDiv && currentDirPath) {
+                if (displayPath) {
+                    let displayText = displayPath;
+                    let sourceText = '';
+                    if (source === 'env') {
+                        sourceText = ' (環境変数 HTML_DIRECTORY)';
+                    } else if (source === 'upload') {
+                        sourceText = ' (アップロードフォルダ)';
+                    } else if (source === 'user') {
+                        sourceText = ' (ユーザー指定)';
+                        // ユーザー指定の場合は履歴に保存
+                        saveTemplateMergeDirHistory(displayPath);
+                        // ドロップダウンも更新
+                        updateTemplateMergeDirSelect();
+                    }
+                    currentDirPath.textContent = displayText + sourceText;
+                    currentDirDiv.style.display = 'block';
+                } else {
+                    currentDirDiv.style.display = 'block';
+                    currentDirPath.textContent = '未設定 - アップロードフォルダまたは環境変数フォルダが使用されます';
+                }
+            }
+        }
+        
         // テンプレート統合モーダルを表示
         window.showTemplateMerge = function showTemplateMerge() {
             const modal = document.getElementById('templateMergeModal');
             if (modal) {
                 modal.style.display = 'block';
+                // フォルダ履歴を読み込み
+                updateTemplateMergeDirHistory();
+                // 環境変数オプションを更新
+                updateTemplateMergeDirSelect();
+                // 現在の検索フォルダ表示をリセット
+                updateTemplateMergeCurrentDir(null);
                 loadTemplateFileList();
             } else {
                 showStatus('テンプレート統合モーダルが見つかりません', 'error');
@@ -4076,8 +4345,12 @@ EDITOR_TEMPLATE = r"""
                     if (configData.success && configData.default_html_directory) {
                         // 環境変数が設定されている場合はそれを使用
                         dirPath = configData.default_html_directory;
+                        updateTemplateMergeCurrentDir(dirPath, 'env');
                     } else {
                         // 環境変数もない場合はアップロードフォルダを読み込み
+                        const uploadFolder = configData.success ? configData.upload_folder : 'uploads';
+                        updateTemplateMergeCurrentDir(uploadFolder, 'upload');
+                        
                         response = await fetch('/files');
                         const data = await response.json();
                         
@@ -4112,6 +4385,9 @@ EDITOR_TEMPLATE = r"""
                         // ドライブレターを大文字に正規化
                         normalizedPath = normalizedPath[0].toUpperCase() + normalizedPath.substring(1).replace(/\//g, '\\');
                     }
+                    
+                    // 表示用のパスを更新（正規化前のパスを表示）
+                    updateTemplateMergeCurrentDir(dirPath, 'user');
                     
                     response = await fetch('/api/list-directory-files', {
                         method: 'POST',
