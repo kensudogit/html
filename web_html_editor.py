@@ -7546,12 +7546,24 @@ def list_directory_files():
         if not directory:
             return jsonify({'success': False, 'error': 'ディレクトリパスを指定してください'}), 400
         
-        # Windowsパスの処理: バックスラッシュを正規化
-        directory = directory.replace('\\\\', '\\').replace('/', '\\')
+        # Windowsパスの処理: バックスラッシュとスラッシュを正規化
+        # c:\\html, c:\html, c:/html を正しく処理
+        directory = directory.strip()
+        # スラッシュをバックスラッシュに変換（Windowsパスの場合）
+        if directory and (directory[0].isalpha() and len(directory) > 1 and directory[1] == ':'):
+            # Windows絶対パス（例: C:\html, C:/html）
+            directory = directory.replace('/', '\\')
+        else:
+            # 相対パスやその他の形式
+            directory = directory.replace('\\\\', '\\').replace('/', '\\')
         
         # パスを正規化
         try:
-            dir_path = Path(directory).resolve()
+            # Windows絶対パスの場合、Path()で直接処理
+            if directory and len(directory) >= 2 and directory[0].isalpha() and directory[1] == ':':
+                dir_path = Path(directory)
+            else:
+                dir_path = Path(directory).resolve()
         except Exception as e:
             return jsonify({
                 'success': False, 
@@ -7563,6 +7575,12 @@ def list_directory_files():
             error_msg = f'ディレクトリが見つかりません: {directory}'
             if not dir_path.is_absolute():
                 error_msg += f' (絶対パスを指定してください。現在のパス: {dir_path})'
+            else:
+                # 親ディレクトリの存在確認
+                parent = dir_path.parent
+                if parent.exists():
+                    error_msg += f' (親ディレクトリは存在します: {parent})'
+            error_msg += f'\nパスの例: C:\\html または C:/html\n絶対パスを指定してください'
             return jsonify({'success': False, 'error': error_msg}), 404
         
         if not dir_path.is_dir():
@@ -7681,13 +7699,24 @@ def load_comparison_files():
         if not directory:
             return jsonify({'success': False, 'error': 'ディレクトリパスを指定してください'}), 400
         
-        # Windowsパスの処理: バックスラッシュを正規化
-        # c:\\html や c:\html を正しく処理
-        directory = directory.replace('\\\\', '\\').replace('/', '\\')
+        # Windowsパスの処理: バックスラッシュとスラッシュを正規化
+        # c:\\html, c:\html, c:/html を正しく処理
+        directory = directory.strip()
+        # スラッシュをバックスラッシュに変換（Windowsパスの場合）
+        if directory and (directory[0].isalpha() and len(directory) > 1 and directory[1] == ':'):
+            # Windows絶対パス（例: C:\html, C:/html）
+            directory = directory.replace('/', '\\')
+        else:
+            # 相対パスやその他の形式
+            directory = directory.replace('\\\\', '\\').replace('/', '\\')
         
         # パスを正規化
         try:
-            dir_path = Path(directory).resolve()
+            # Windows絶対パスの場合、Path()で直接処理
+            if directory and len(directory) >= 2 and directory[0].isalpha() and directory[1] == ':':
+                dir_path = Path(directory)
+            else:
+                dir_path = Path(directory).resolve()
         except Exception as e:
             return jsonify({
                 'success': False, 
@@ -7707,6 +7736,7 @@ def load_comparison_files():
                     error_msg += f' (親ディレクトリも存在しません: {parent})'
                 else:
                     error_msg += f' (親ディレクトリは存在します: {parent})'
+            error_msg += f'\nパスの例: C:\\html または C:/html\n絶対パスを指定してください'
             return jsonify({'success': False, 'error': error_msg}), 404
         
         if not dir_path.is_dir():
