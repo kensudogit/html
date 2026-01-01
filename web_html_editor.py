@@ -4207,7 +4207,8 @@ EDITOR_TEMPLATE = r"""
             // スラッシュをバックスラッシュに変換（Windowsの場合）
             if (dirPath.match(/^[a-zA-Z]:/)) {
                 // Windowsのドライブレターがある場合
-                dirPath = dirPath.replace(/\//g, '\\');
+                // ドライブレターを大文字に正規化
+                dirPath = dirPath[0].toUpperCase() + dirPath.substring(1).replace(/\//g, '\\');
             }
             
             const options = {
@@ -5005,7 +5006,8 @@ EDITOR_TEMPLATE = r"""
                     // Windowsパスの正規化
                     let normalizedPath = dirPath.replace(/\\\\/g, '\\');
                     if (normalizedPath.match(/^[a-zA-Z]:/)) {
-                        normalizedPath = normalizedPath.replace(/\//g, '\\');
+                        // ドライブレターを大文字に正規化
+                        normalizedPath = normalizedPath[0].toUpperCase() + normalizedPath.substring(1).replace(/\//g, '\\');
                     }
                     
                     response = await fetch('/api/list-directory-files', {
@@ -5580,7 +5582,8 @@ EDITOR_TEMPLATE = r"""
             // スラッシュをバックスラッシュに変換（Windowsの場合）
             if (dirPath.match(/^[a-zA-Z]:/)) {
                 // Windowsのドライブレターがある場合
-                dirPath = dirPath.replace(/\//g, '\\');
+                // ドライブレターを大文字に正規化
+                dirPath = dirPath[0].toUpperCase() + dirPath.substring(1).replace(/\//g, '\\');
             }
             
             const fileListDiv = document.getElementById('comparisonFileList');
@@ -6584,13 +6587,25 @@ def diff_analysis():
         if not directory:
             return jsonify({'success': False, 'error': 'ディレクトリパスが指定されていません'}), 400
         
-        # Windowsパスの処理: バックスラッシュを正規化
-        # c:\\html や c:\html を正しく処理
-        directory = directory.replace('\\\\', '\\').replace('/', '\\')
+        # Windowsパスの処理: バックスラッシュとスラッシュを正規化
+        # c:\\html, c:\html, c:/html を正しく処理
+        directory = directory.strip()
+        # スラッシュをバックスラッシュに変換（Windowsパスの場合）
+        if directory and (directory[0].isalpha() and len(directory) > 1 and directory[1] == ':'):
+            # Windows絶対パス（例: C:\html, C:/html）
+            # ドライブレターを大文字に正規化
+            directory = directory[0].upper() + directory[1:].replace('/', '\\')
+        else:
+            # 相対パスやその他の形式
+            directory = directory.replace('\\\\', '\\').replace('/', '\\')
         
         # パスを正規化
         try:
-            dir_path = Path(directory).resolve()
+            # Windows絶対パスの場合、Path()で直接処理
+            if directory and len(directory) >= 2 and directory[0].isalpha() and directory[1] == ':':
+                dir_path = Path(directory)
+            else:
+                dir_path = Path(directory).resolve()
         except Exception as e:
             return jsonify({
                 'success': False, 
@@ -6610,6 +6625,7 @@ def diff_analysis():
                     error_msg += f' (親ディレクトリも存在しません: {parent})'
                 else:
                     error_msg += f' (親ディレクトリは存在します: {parent})'
+            error_msg += f'\nパスの例: C:\\html または C:/html\n絶対パスを指定してください'
             return jsonify({'success': False, 'error': error_msg}), 404
         
         if not dir_path.is_dir():
@@ -7552,7 +7568,8 @@ def list_directory_files():
         # スラッシュをバックスラッシュに変換（Windowsパスの場合）
         if directory and (directory[0].isalpha() and len(directory) > 1 and directory[1] == ':'):
             # Windows絶対パス（例: C:\html, C:/html）
-            directory = directory.replace('/', '\\')
+            # ドライブレターを大文字に正規化
+            directory = directory[0].upper() + directory[1:].replace('/', '\\')
         else:
             # 相対パスやその他の形式
             directory = directory.replace('\\\\', '\\').replace('/', '\\')
