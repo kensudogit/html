@@ -2095,14 +2095,15 @@ EDITOR_TEMPLATE = r"""
                             <button class="btn btn-info" onclick="loadDirectoryFiles()" style="white-space: nowrap;">📁 読み込み</button>
                         </div>
                     </div>
-                    <div style="display: flex; gap: 5px;">
+                    <div style="display: flex; gap: 5px; flex-wrap: wrap;">
                         <select id="fileListTypeFilter" class="form-input" style="width: 120px; font-size: 12px; padding: 6px 10px;" onchange="filterFileList()">
                             <option value="all">すべて</option>
                             <option value="html">HTML</option>
                             <option value="css">CSS</option>
                             <option value="other">その他</option>
                         </select>
-                        <input type="text" id="fileListSearch" class="form-input" placeholder="🔍 検索..." style="width: 150px; font-size: 12px; padding: 6px 10px;" oninput="filterFileList()">
+                        <input type="text" id="fileListSearch" class="form-input" placeholder="🔍 ファイル名で検索..." style="width: 150px; font-size: 12px; padding: 6px 10px;" oninput="filterFileList()" title="ファイル名で検索">
+                        <input type="text" id="fileListIdentifierSearch" class="form-input" placeholder="🏷️ ID/クラスで検索..." style="width: 180px; font-size: 12px; padding: 6px 10px;" oninput="filterFileList()" title="HTMLファイル内のID、クラス名、data属性で検索">
                     </div>
                 </div>
             </div>
@@ -5051,18 +5052,36 @@ EDITOR_TEMPLATE = r"""
         window.filterFileList = function filterFileList() {
             const fileListContent = document.getElementById('fileListContent');
             const searchInput = document.getElementById('fileListSearch');
+            const identifierSearchInput = document.getElementById('fileListIdentifierSearch');
             const typeFilter = document.getElementById('fileListTypeFilter');
             
             const searchTerm = (searchInput ? searchInput.value.toLowerCase() : '').trim();
+            const identifierTerm = (identifierSearchInput ? identifierSearchInput.value.toLowerCase() : '').trim();
             const typeFilterValue = typeFilter ? typeFilter.value : 'all';
             
             // フィルタリング
             const filteredFiles = allFileListFiles.filter(file => {
+                // ファイル名での検索
                 const matchesSearch = !searchTerm || file.name.toLowerCase().includes(searchTerm);
+                
+                // ファイルタイプでのフィルタ
                 const fileType = file.type || (file.name.match(/\.(html?|css)$/i) ? 
                     (file.name.match(/\.html?$/i) ? 'html' : 'css') : 'other');
                 const matchesType = typeFilterValue === 'all' || fileType === typeFilterValue;
-                return matchesSearch && matchesType;
+                
+                // 識別子での検索（HTMLファイルのみ）
+                let matchesIdentifier = true;
+                if (identifierTerm && fileType === 'html' && file.identifiers) {
+                    const identifiers = file.identifiers;
+                    const allIdentifiers = [
+                        ...(identifiers.ids || []),
+                        ...(identifiers.classes || []),
+                        ...(identifiers.data_attrs || [])
+                    ].map(id => id.toLowerCase());
+                    matchesIdentifier = allIdentifiers.some(id => id.includes(identifierTerm));
+                }
+                
+                return matchesSearch && matchesType && matchesIdentifier;
             });
             
             if (filteredFiles.length === 0) {
@@ -5075,6 +5094,7 @@ EDITOR_TEMPLATE = r"""
             html += '<thead><tr style="background: #f7fafc; border-bottom: 2px solid #e2e8f0; position: sticky; top: 0; z-index: 10;">';
             html += '<th style="padding: 12px; text-align: left; font-weight: 600; color: #2d3748;">ファイル名</th>';
             html += '<th style="padding: 12px; text-align: center; font-weight: 600; color: #2d3748;">タイプ</th>';
+            html += '<th style="padding: 12px; text-align: center; font-weight: 600; color: #2d3748;">識別子</th>';
             html += '<th style="padding: 12px; text-align: right; font-weight: 600; color: #2d3748;">サイズ</th>';
             html += '<th style="padding: 12px; text-align: center; font-weight: 600; color: #2d3748;">操作</th>';
             html += '</tr></thead>';
@@ -5092,11 +5112,39 @@ EDITOR_TEMPLATE = r"""
                     `${(fileSize / 1024).toFixed(2)} KB` : 
                     `${fileSize} bytes`;
                 
+                // 識別子情報を表示
+                let identifierInfo = '';
+                if (fileType === 'html' && file.identifiers) {
+                    const ids = file.identifiers.ids || [];
+                    const classes = file.identifiers.classes || [];
+                    const dataAttrs = file.identifiers.data_attrs || [];
+                    const totalCount = ids.length + classes.length + dataAttrs.length;
+                    
+                    if (totalCount > 0) {
+                        const idsDisplay = ids.slice(0, 3).map(id => escapeHtml(id)).join(', ') + (ids.length > 3 ? '...' : '');
+                        const classesDisplay = classes.slice(0, 3).map(cls => escapeHtml(cls)).join(', ') + (classes.length > 3 ? '...' : '');
+                        const dataAttrsDisplay = dataAttrs.slice(0, 2).map(attr => escapeHtml(attr)).join(', ') + (dataAttrs.length > 2 ? '...' : '');
+                        identifierInfo = `
+                            <div style="display: flex; flex-direction: column; gap: 4px; font-size: 10px;">
+                                ${ids.length > 0 ? `<div><span style="color: #667eea; font-weight: 600;">ID:</span> <span style="color: #4a5568;">${idsDisplay}</span></div>` : ''}
+                                ${classes.length > 0 ? `<div><span style="color: #10b981; font-weight: 600;">Class:</span> <span style="color: #4a5568;">${classesDisplay}</span></div>` : ''}
+                                ${dataAttrs.length > 0 ? `<div><span style="color: #f59e0b; font-weight: 600;">Data:</span> <span style="color: #4a5568;">${dataAttrsDisplay}</span></div>` : ''}
+                                <div style="color: #718096; margin-top: 2px;">合計: ${totalCount}個</div>
+                            </div>
+                        `;
+                    } else {
+                        identifierInfo = '<span style="color: #cbd5e0; font-size: 11px;">識別子なし</span>';
+                    }
+                } else {
+                    identifierInfo = '<span style="color: #cbd5e0; font-size: 11px;">-</span>';
+                }
+                
                 html += `<tr style="border-bottom: 1px solid #e2e8f0; transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">`;
                 html += `<td style="padding: 12px; font-weight: 500; color: #2d3748;">${escapeHtml(file.name)}</td>`;
                 html += `<td style="padding: 12px; text-align: center;">`;
                 html += `<span style="padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; background: rgba(${fileType === 'html' ? '102, 126, 234' : fileType === 'css' ? '16, 185, 129' : '108, 117, 125'}, 0.1); color: ${typeBadgeColor};">${typeBadgeText}</span>`;
                 html += `</td>`;
+                html += `<td style="padding: 12px; text-align: left; max-width: 300px; font-size: 11px;">${identifierInfo}</td>`;
                 html += `<td style="padding: 12px; text-align: right; color: #718096; font-size: 12px;">${sizeText}</td>`;
                 html += `<td style="padding: 12px; text-align: center;">`;
                 if (file.path) {
@@ -7526,16 +7574,60 @@ def list_directory_files():
         # すべてのファイルを検索（HTML、CSS、その他）
         files = []
         
-        # HTMLファイル
+        # HTMLファイル（識別子情報も抽出）
         for ext in ['*.html', '*.htm']:
             for file_path in dir_path.glob(ext):
                 try:
-                    files.append({
+                    file_info = {
                         'name': file_path.name,
                         'path': str(file_path),
                         'size': file_path.stat().st_size,
                         'type': 'html'
-                    })
+                    }
+                    
+                    # HTMLファイル内の識別子を抽出
+                    try:
+                        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            content = f.read()
+                        soup = BeautifulSoup(content, 'html.parser')
+                        
+                        # IDを抽出
+                        ids = set()
+                        for elem in soup.find_all(id=True):
+                            elem_id = elem.get('id')
+                            if elem_id:
+                                ids.add(str(elem_id))
+                        
+                        # クラス名を抽出
+                        classes = set()
+                        for elem in soup.find_all(class_=True):
+                            elem_classes = elem.get('class', [])
+                            if isinstance(elem_classes, list):
+                                classes.update([str(c) for c in elem_classes if c])
+                            elif elem_classes:
+                                classes.add(str(elem_classes))
+                        
+                        # データ属性を抽出
+                        data_attrs = set()
+                        for elem in soup.find_all(attrs=lambda x: x and any(k.startswith('data-') for k in x.keys())):
+                            for attr in elem.attrs:
+                                if attr.startswith('data-'):
+                                    data_attrs.add(attr)
+                        
+                        file_info['identifiers'] = {
+                            'ids': sorted(list(ids)),
+                            'classes': sorted(list(classes)),
+                            'data_attrs': sorted(list(data_attrs))
+                        }
+                    except Exception as e:
+                        # HTML解析エラーは無視（識別子情報なしで続行）
+                        file_info['identifiers'] = {
+                            'ids': [],
+                            'classes': [],
+                            'data_attrs': []
+                        }
+                    
+                    files.append(file_info)
                 except Exception:
                     continue
         
