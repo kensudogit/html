@@ -17,6 +17,7 @@ import traceback
 import base64
 import json
 import zipfile
+import sqlite3
 from pathlib import Path
 from werkzeug.utils import secure_filename
 from flask import Flask, render_template_string, request, jsonify, send_from_directory, redirect, url_for, send_file, session
@@ -67,6 +68,89 @@ except Exception as e:
     else:
         print(f"Warning: Could not create upload directory: {e}", file=sys.stderr)
 
+# 大学データ管理用のデータベースパス
+DB_PATH = UPLOAD_DIR / 'university_data.db'
+UNIVERSITY_CONFIG_DIR = UPLOAD_DIR / 'university_configs'
+UNIVERSITY_CONFIG_DIR.mkdir(exist_ok=True, parents=True)
+
+# データベースの初期化
+def init_database():
+    """大学データ管理用のデータベースを初期化"""
+    conn = sqlite3.connect(str(DB_PATH))
+    cursor = conn.cursor()
+    
+    # 大学マスタテーブル
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS universities (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # ページタイトルマスタテーブル
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS page_titles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT UNIQUE NOT NULL,
+            display_order INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # 大学ごとのページデータテーブル
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS university_page_data (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            university_id INTEGER NOT NULL,
+            page_title_id INTEGER NOT NULL,
+            content TEXT,
+            metadata TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (university_id) REFERENCES universities(id),
+            FOREIGN KEY (page_title_id) REFERENCES page_titles(id),
+            UNIQUE(university_id, page_title_id)
+        )
+    ''')
+    
+    # デフォルトのページタイトルを挿入
+    default_titles = [
+        '入学手続TOP',
+        '個人情報取り扱いに関する同意条項宣誓書',
+        '本人情報',
+        '健康状況',
+        '保護者情報',
+        '身元保証人情報',
+        '緊急連絡先情報',
+        '入学前セミナー受講調査',
+        '写真アップロード',
+        '書類アップロード',
+        'アンケート',
+        '学費負担者情報',
+        '外国語の履修に関する調査',
+        '父母等の連絡',
+        '誓約書',
+        'アドミッション・ポリシー',
+        '家族情報',
+        '通学住所情報',
+        '利用規約・個人情報取扱いに関する同意条項',
+        '言語選択申請'
+    ]
+    
+    for i, title in enumerate(default_titles):
+        cursor.execute('''
+            INSERT OR IGNORE INTO page_titles (title, display_order) 
+            VALUES (?, ?)
+        ''', (title, i))
+    
+    conn.commit()
+    conn.close()
+
+# アプリケーション起動時にデータベースを初期化
+init_database()
 
 # HTMLエディタのテンプレート
 EDITOR_TEMPLATE = r"""
@@ -1713,6 +1797,7 @@ EDITOR_TEMPLATE = r"""
                     <button class="btn btn-warning" onclick="showTemplateMerge()" id="templateMergeBtn" title="複数のHTMLファイルを比較して共通テンプレートを生成">🔀 テンプレート統合</button>
                     <button class="btn btn-info" onclick="showDiffAnalysis()" id="diffAnalysisBtn" title="27校の大学ホームページの差分を検出">🔍 差分検出</button>
                     <button class="btn btn-primary" onclick="showScreenComparison()" id="screenComparisonBtn" title="最大27大学の画面を並べて比較・編集">🖼️ 画面比較</button>
+                    <button class="btn btn-success" onclick="showUniversityDataManagement()" id="universityDataBtn" title="27大学の入学手続きページデータを管理">🏫 大学データ管理</button>
                 </div>
             </div>
             
@@ -2045,6 +2130,127 @@ EDITOR_TEMPLATE = r"""
                 <button class="btn btn-primary" onclick="performTemplateMerge()" id="performMergeBtn">🔀 統合実行</button>
                 <button class="btn btn-success" onclick="downloadMergedTemplate()" id="downloadMergedBtn" style="display: none;">⬇️ 統合テンプレートをダウンロード</button>
                 <button class="btn" onclick="closeModal('templateMergeModal')" style="background: #e2e8f0; color: #4a5568;">キャンセル</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 大学データ管理モーダル -->
+    <div id="universityDataModal" class="modal">
+        <div class="modal-content" style="max-width: 1000px;">
+            <span class="close" onclick="closeModal('universityDataModal')">&times;</span>
+            <h2>🏫 大学データ管理（27大学の入学手続きページ）</h2>
+            <p style="margin-top: 10px; color: #4a5568; line-height: 1.6;">
+                各大学のページデータを管理し、共通テンプレートと統合してページを生成します。<br>
+                ①大学毎のデータ内容の違いはDBで管理、②項目の表示位置はJSONファイルで管理します。
+            </p>
+            
+            <div style="display: flex; gap: 20px; margin-top: 20px;">
+                <!-- 左側: 大学一覧 -->
+                <div style="flex: 1; min-width: 250px;">
+                    <div class="form-group">
+                        <label class="form-label">大学一覧</label>
+                        <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                            <input type="text" id="newUniversityCode" class="form-input" placeholder="大学コード" style="flex: 1;">
+                            <input type="text" id="newUniversityName" class="form-input" placeholder="大学名" style="flex: 2;">
+                            <button class="btn btn-primary" onclick="addUniversity()" style="white-space: nowrap;">追加</button>
+                        </div>
+                        <div id="universityList" style="max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 5px; padding: 10px;">
+                            <p style="color: #718096; font-size: 12px; margin: 0;">読み込み中...</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 右側: ページデータ管理 -->
+                <div style="flex: 2; min-width: 400px;">
+                    <div class="form-group">
+                        <label class="form-label">ページタイトル</label>
+                        <select id="pageTitleSelect" class="form-input" onchange="loadUniversityPageData()">
+                            <option value="">-- ページを選択 --</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">ページ内容</label>
+                        <textarea id="pageContentEditor" class="form-input" rows="10" placeholder="ページのHTMLコンテンツを入力"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">メタデータ（JSON形式）</label>
+                        <textarea id="pageMetadataEditor" class="form-input" rows="5" placeholder='{"key": "value"}'></textarea>
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; margin-top: 15px;">
+                        <button class="btn btn-primary" onclick="saveUniversityPageData()">💾 保存</button>
+                        <button class="btn btn-info" onclick="loadUniversityConfig()">⚙️ 表示位置設定</button>
+                        <button class="btn btn-success" onclick="generateUniversityPage()">🔀 ページ生成</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 表示位置設定モーダル（サブモーダル） -->
+            <div id="universityConfigModal" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); z-index: 10001; max-width: 900px; width: 90%; max-height: 90vh; overflow-y: auto;">
+                <h3 style="margin-top: 0;">⚙️ 出力項目の表示位置・属性設定</h3>
+                <p style="font-size: 12px; color: #718096; margin-bottom: 15px;">
+                    各出力項目の表示位置、スタイル、表示/非表示などの属性をJSON形式で管理します。
+                </p>
+                
+                <!-- タブ切り替え -->
+                <div style="display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #e2e8f0;">
+                    <button class="btn" id="configTabItems" onclick="switchConfigTab('items')" style="background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 4px 4px 0 0; cursor: pointer;">項目属性</button>
+                    <button class="btn" id="configTabLayout" onclick="switchConfigTab('layout')" style="background: #e2e8f0; color: #4a5568; border: none; padding: 8px 16px; border-radius: 4px 4px 0 0; cursor: pointer;">レイアウト設定</button>
+                    <button class="btn" id="configTabRaw" onclick="switchConfigTab('raw')" style="background: #e2e8f0; color: #4a5568; border: none; padding: 8px 16px; border-radius: 4px 4px 0 0; cursor: pointer;">JSON編集</button>
+                </div>
+                
+                <!-- 項目属性タブ -->
+                <div id="configTabItemsContent" style="display: block;">
+                    <div style="margin-bottom: 15px;">
+                        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                            <input type="text" id="newItemId" class="form-input" placeholder="項目ID" style="flex: 1;">
+                            <button class="btn btn-primary" onclick="addConfigItem()" style="white-space: nowrap;">項目を追加</button>
+                        </div>
+                        <div id="configItemsList" style="max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 5px; padding: 10px;">
+                            <p style="color: #718096; font-size: 12px; margin: 0;">項目がありません</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- レイアウト設定タブ -->
+                <div id="configTabLayoutContent" style="display: none;">
+                    <div class="form-group">
+                        <label class="form-label">表示順序（クラス名の配列）</label>
+                        <textarea id="displayOrderEditor" class="form-input" rows="5" placeholder='["section1", "section2", "section3"]' style="font-family: monospace; font-size: 12px;"></textarea>
+                    </div>
+                </div>
+                
+                <!-- JSON編集タブ -->
+                <div id="configTabRawContent" style="display: none;">
+                    <div class="form-group">
+                        <label class="form-label">JSON設定（完全編集）</label>
+                        <textarea id="universityConfigEditor" class="form-input" rows="20" style="font-family: monospace; font-size: 12px;" placeholder='{"layout": {}, "display_order": [], "items": {}}'></textarea>
+                        <small style="color: #718096; font-size: 11px; display: block; margin-top: 5px;">
+                            JSON形式の例:<br>
+                            {<br>
+                            &nbsp;&nbsp;"items": {<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;"item_id": {<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"id": "element_id",<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"class": "element-class",<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"visible": true,<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"order": 1,<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"styles": {"margin-top": "20px", "color": "#333"},<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"add_classes": ["new-class"],<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"attributes": {"data-id": "123"}<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;}<br>
+                            &nbsp;&nbsp;},<br>
+                            &nbsp;&nbsp;"display_order": ["section1", "section2"]<br>
+                            }
+                        </small>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 10px; margin-top: 15px; justify-content: flex-end;">
+                    <button class="btn btn-primary" onclick="saveUniversityConfig()">保存</button>
+                    <button class="btn" onclick="closeUniversityConfigModal()" style="background: #e2e8f0; color: #4a5568;">キャンセル</button>
+                </div>
             </div>
         </div>
     </div>
@@ -7037,6 +7243,422 @@ EDITOR_TEMPLATE = r"""
             }
         };
         
+        // ==================== 大学データ管理機能 ====================
+        let currentUniversityId = null;
+        let currentPageTitleId = null;
+        
+        window.showUniversityDataManagement = async function showUniversityDataManagement() {
+            const modal = document.getElementById('universityDataModal');
+            if (modal) {
+                modal.style.display = 'block';
+                await loadUniversities();
+                await loadPageTitles();
+            }
+        };
+        
+        async function loadUniversities() {
+            try {
+                const response = await fetch('/api/universities');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const listDiv = document.getElementById('universityList');
+                    if (data.universities.length === 0) {
+                        listDiv.innerHTML = '<p style="color: #718096; font-size: 12px; margin: 0;">大学が登録されていません</p>';
+                    } else {
+                        listDiv.innerHTML = data.universities.map(uni => `
+                            <div style="padding: 8px; margin-bottom: 5px; background: ${currentUniversityId === uni.id ? '#e0e7ff' : 'white'}; border-radius: 4px; cursor: pointer; border: 1px solid #e2e8f0;" 
+                                 onclick="selectUniversity(${uni.id}, '${uni.code}', '${uni.name}')">
+                                <div style="font-weight: 600; font-size: 13px;">${uni.name}</div>
+                                <div style="font-size: 11px; color: #718096;">コード: ${uni.code}</div>
+                            </div>
+                        `).join('');
+                    }
+                }
+            } catch (error) {
+                console.error('大学一覧の読み込みエラー:', error);
+            }
+        }
+        
+        async function loadPageTitles() {
+            try {
+                const response = await fetch('/api/page-titles');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const select = document.getElementById('pageTitleSelect');
+                    select.innerHTML = '<option value="">-- ページを選択 --</option>' +
+                        data.titles.map(title => 
+                            `<option value="${title.id}">${title.title}</option>`
+                        ).join('');
+                }
+            } catch (error) {
+                console.error('ページタイトル一覧の読み込みエラー:', error);
+            }
+        }
+        
+        window.selectUniversity = function selectUniversity(id, code, name) {
+            currentUniversityId = id;
+            loadUniversities();
+            loadUniversityPageData();
+        };
+        
+        window.addUniversity = async function addUniversity() {
+            const code = document.getElementById('newUniversityCode').value.trim();
+            const name = document.getElementById('newUniversityName').value.trim();
+            
+            if (!code || !name) {
+                showStatus('大学コードと名前を入力してください', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/universities', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({code, name})
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('newUniversityCode').value = '';
+                    document.getElementById('newUniversityName').value = '';
+                    await loadUniversities();
+                    showStatus('大学を登録しました', 'success');
+                } else {
+                    showStatus(data.error || '登録に失敗しました', 'error');
+                }
+            } catch (error) {
+                showStatus('登録に失敗しました', 'error');
+                console.error(error);
+            }
+        };
+        
+        window.loadUniversityPageData = async function loadUniversityPageData() {
+            if (!currentUniversityId) {
+                showStatus('大学を選択してください', 'error');
+                return;
+            }
+            
+            const pageTitleId = document.getElementById('pageTitleSelect').value;
+            if (!pageTitleId) {
+                document.getElementById('pageContentEditor').value = '';
+                document.getElementById('pageMetadataEditor').value = '{}';
+                return;
+            }
+            
+            currentPageTitleId = parseInt(pageTitleId);
+            
+            try {
+                const response = await fetch(`/api/university/${currentUniversityId}/page/${currentPageTitleId}`);
+                const data = await response.json();
+                
+                if (data.success && data.page) {
+                    document.getElementById('pageContentEditor').value = data.page.content || '';
+                    document.getElementById('pageMetadataEditor').value = data.page.metadata || '{}';
+                } else {
+                    document.getElementById('pageContentEditor').value = '';
+                    document.getElementById('pageMetadataEditor').value = '{}';
+                }
+            } catch (error) {
+                console.error('ページデータの読み込みエラー:', error);
+            }
+        };
+        
+        window.saveUniversityPageData = async function saveUniversityPageData() {
+            if (!currentUniversityId || !currentPageTitleId) {
+                showStatus('大学とページを選択してください', 'error');
+                return;
+            }
+            
+            const content = document.getElementById('pageContentEditor').value;
+            let metadata = {};
+            try {
+                metadata = JSON.parse(document.getElementById('pageMetadataEditor').value);
+            } catch (e) {
+                showStatus('メタデータのJSON形式が正しくありません', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/university/${currentUniversityId}/page/${currentPageTitleId}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({content, metadata})
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showStatus('ページデータを保存しました', 'success');
+                } else {
+                    showStatus(data.error || '保存に失敗しました', 'error');
+                }
+            } catch (error) {
+                showStatus('保存に失敗しました', 'error');
+                console.error(error);
+            }
+        };
+        
+        window.loadUniversityConfig = async function loadUniversityConfig() {
+            if (!currentUniversityId) {
+                showStatus('大学を選択してください', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/university/${currentUniversityId}/config`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const config = data.config || {layout: {}, display_order: [], items: {}};
+                    
+                    // JSONエディタに設定
+                    document.getElementById('universityConfigEditor').value = JSON.stringify(config, null, 2);
+                    
+                    // 表示順序エディタに設定
+                    document.getElementById('displayOrderEditor').value = JSON.stringify(config.display_order || [], null, 2);
+                    
+                    // 項目一覧を表示
+                    renderConfigItems(config.items || {});
+                    
+                    // モーダルを表示
+                    document.getElementById('universityConfigModal').style.display = 'block';
+                    switchConfigTab('items'); // デフォルトで項目属性タブを表示
+                }
+            } catch (error) {
+                console.error('設定の読み込みエラー:', error);
+            }
+        };
+        
+        window.switchConfigTab = function switchConfigTab(tab) {
+            // すべてのタブコンテンツを非表示
+            document.getElementById('configTabItemsContent').style.display = 'none';
+            document.getElementById('configTabLayoutContent').style.display = 'none';
+            document.getElementById('configTabRawContent').style.display = 'none';
+            
+            // すべてのタブボタンのスタイルをリセット
+            document.getElementById('configTabItems').style.background = '#e2e8f0';
+            document.getElementById('configTabItems').style.color = '#4a5568';
+            document.getElementById('configTabLayout').style.background = '#e2e8f0';
+            document.getElementById('configTabLayout').style.color = '#4a5568';
+            document.getElementById('configTabRaw').style.background = '#e2e8f0';
+            document.getElementById('configTabRaw').style.color = '#4a5568';
+            
+            // 選択されたタブを表示
+            if (tab === 'items') {
+                document.getElementById('configTabItemsContent').style.display = 'block';
+                document.getElementById('configTabItems').style.background = '#667eea';
+                document.getElementById('configTabItems').style.color = 'white';
+            } else if (tab === 'layout') {
+                document.getElementById('configTabLayoutContent').style.display = 'block';
+                document.getElementById('configTabLayout').style.background = '#667eea';
+                document.getElementById('configTabLayout').style.color = 'white';
+            } else if (tab === 'raw') {
+                document.getElementById('configTabRawContent').style.display = 'block';
+                document.getElementById('configTabRaw').style.background = '#667eea';
+                document.getElementById('configTabRaw').style.color = 'white';
+            }
+        };
+        
+        function renderConfigItems(items) {
+            const listDiv = document.getElementById('configItemsList');
+            if (!items || Object.keys(items).length === 0) {
+                listDiv.innerHTML = '<p style="color: #718096; font-size: 12px; margin: 0;">項目がありません</p>';
+                return;
+            }
+            
+            listDiv.innerHTML = Object.entries(items).map(([itemId, itemAttrs]) => `
+                <div style="padding: 12px; margin-bottom: 10px; background: white; border: 1px solid #e2e8f0; border-radius: 5px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div style="font-weight: 600; font-size: 13px;">${itemId}</div>
+                        <button class="btn" onclick="editConfigItem('${itemId}')" style="font-size: 11px; padding: 4px 8px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer;">編集</button>
+                    </div>
+                    <div style="font-size: 11px; color: #718096;">
+                        ${itemAttrs.visible === false ? '❌ 非表示' : '✅ 表示'} | 
+                        ${itemAttrs.order !== undefined ? `順序: ${itemAttrs.order}` : ''} |
+                        ${itemAttrs.id ? `ID: ${itemAttrs.id}` : ''} |
+                        ${itemAttrs.class ? `Class: ${itemAttrs.class}` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        window.addConfigItem = function addConfigItem() {
+            const itemId = document.getElementById('newItemId').value.trim();
+            if (!itemId) {
+                showStatus('項目IDを入力してください', 'error');
+                return;
+            }
+            
+            editConfigItem(itemId, true);
+        };
+        
+        window.editConfigItem = function editConfigItem(itemId, isNew = false) {
+            // 現在の設定を取得
+            let config = {};
+            try {
+                const configText = document.getElementById('universityConfigEditor').value;
+                if (configText) {
+                    config = JSON.parse(configText);
+                }
+            } catch (e) {
+                config = {items: {}};
+            }
+            
+            if (!config.items) {
+                config.items = {};
+            }
+            
+            const itemAttrs = config.items[itemId] || {};
+            
+            // 編集用のモーダルを表示（簡易版）
+            const newAttrs = {
+                id: prompt('要素ID（空欄可）:', itemAttrs.id || ''),
+                class: prompt('要素クラス（空欄可）:', itemAttrs.class || ''),
+                visible: confirm('表示しますか？') ? true : false,
+                order: parseInt(prompt('表示順序（数値）:', itemAttrs.order || '0') || '0'),
+                styles: itemAttrs.styles || {}
+            };
+            
+            // スタイルの編集
+            const stylesText = prompt('CSSスタイル（JSON形式、例: {"margin-top": "20px"}）:', JSON.stringify(itemAttrs.styles || {}, null, 2));
+            if (stylesText) {
+                try {
+                    newAttrs.styles = JSON.parse(stylesText);
+                } catch (e) {
+                    showStatus('スタイルのJSON形式が正しくありません', 'error');
+                    return;
+                }
+            }
+            
+            config.items[itemId] = newAttrs;
+            
+            // 設定を更新
+            document.getElementById('universityConfigEditor').value = JSON.stringify(config, null, 2);
+            renderConfigItems(config.items);
+            
+            if (isNew) {
+                document.getElementById('newItemId').value = '';
+            }
+            
+            showStatus('項目を追加しました', 'success');
+        };
+        
+        window.saveUniversityConfig = async function saveUniversityConfig() {
+            if (!currentUniversityId) {
+                showStatus('大学を選択してください', 'error');
+                return;
+            }
+            
+            let config = {};
+            
+            // 現在表示中のタブから設定を取得
+            const activeTab = document.getElementById('configTabItemsContent').style.display !== 'none' ? 'items' :
+                             document.getElementById('configTabLayoutContent').style.display !== 'none' ? 'layout' : 'raw';
+            
+            if (activeTab === 'raw') {
+                // JSON編集タブから直接取得
+                try {
+                    config = JSON.parse(document.getElementById('universityConfigEditor').value);
+                } catch (e) {
+                    showStatus('JSON形式が正しくありません', 'error');
+                    return;
+                }
+            } else {
+                // 項目属性タブまたはレイアウトタブから取得
+                try {
+                    // 既存の設定を読み込む
+                    const configText = document.getElementById('universityConfigEditor').value;
+                    if (configText) {
+                        config = JSON.parse(configText);
+                    }
+                } catch (e) {
+                    config = {layout: {}, display_order: [], items: {}};
+                }
+                
+                // 表示順序を更新
+                if (activeTab === 'layout') {
+                    try {
+                        config.display_order = JSON.parse(document.getElementById('displayOrderEditor').value);
+                    } catch (e) {
+                        showStatus('表示順序のJSON形式が正しくありません', 'error');
+                        return;
+                    }
+                }
+            }
+            
+            try {
+                const response = await fetch(`/api/university/${currentUniversityId}/config`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({config})
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    closeUniversityConfigModal();
+                    showStatus('設定を保存しました', 'success');
+                } else {
+                    showStatus(data.error || '保存に失敗しました', 'error');
+                }
+            } catch (error) {
+                showStatus('保存に失敗しました', 'error');
+                console.error(error);
+            }
+        };
+        
+        window.closeUniversityConfigModal = function closeUniversityConfigModal() {
+            document.getElementById('universityConfigModal').style.display = 'none';
+        };
+        
+        window.generateUniversityPage = async function generateUniversityPage() {
+            if (!currentUniversityId || !currentPageTitleId) {
+                showStatus('大学とページを選択してください', 'error');
+                return;
+            }
+            
+            // 共通テンプレートを取得（統合済みテンプレートがあれば使用）
+            const template = window.mergedTemplate || '<html><head><title>Generated Page</title></head><body><div id="content"></div></body></html>';
+            
+            try {
+                const response = await fetch('/api/generate-university-page', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        university_id: currentUniversityId,
+                        page_title_id: currentPageTitleId,
+                        template: template
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    // 生成されたHTMLをエディタに表示
+                    const editor = getEditor();
+                    if (editor) {
+                        editor.value = data.html;
+                        updatePreview();
+                        showStatus('ページを生成しました', 'success');
+                    } else {
+                        // エディタが開いていない場合はダウンロード
+                        const blob = new Blob([data.html], { type: 'text/html' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `university_${currentUniversityId}_page_${currentPageTitleId}.html`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        showStatus('ページを生成してダウンロードしました', 'success');
+                    }
+                } else {
+                    showStatus(data.error || 'ページ生成に失敗しました', 'error');
+                }
+            } catch (error) {
+                showStatus('ページ生成に失敗しました', 'error');
+                console.error(error);
+            }
+        };
+        
         window.toggleComparisonMode = function toggleComparisonMode() {
             comparisonMode = !comparisonMode;
             const btn = document.getElementById('comparisonModeBtn');
@@ -9688,6 +10310,330 @@ def main():
         traceback.print_exc()
         sys.exit(1)
 
+
+# ==================== 大学データ管理API ====================
+
+@app.route('/api/universities', methods=['GET'])
+def get_universities():
+    """大学一覧を取得"""
+    try:
+        conn = sqlite3.connect(str(DB_PATH))
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT * FROM universities ORDER BY code')
+        universities = [dict(row) for row in cursor.fetchall()]
+        
+        conn.close()
+        return jsonify({'success': True, 'universities': universities})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/universities', methods=['POST'])
+def create_university():
+    """大学を登録"""
+    try:
+        data = request.json
+        code = data.get('code', '').strip()
+        name = data.get('name', '').strip()
+        
+        if not code or not name:
+            return jsonify({'success': False, 'error': '大学コードと名前は必須です'}), 400
+        
+        conn = sqlite3.connect(str(DB_PATH))
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO universities (code, name) 
+            VALUES (?, ?)
+        ''', (code, name))
+        
+        university_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'id': university_id})
+    except sqlite3.IntegrityError:
+        return jsonify({'success': False, 'error': 'この大学コードは既に登録されています'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/page-titles', methods=['GET'])
+def get_page_titles():
+    """ページタイトル一覧を取得"""
+    try:
+        conn = sqlite3.connect(str(DB_PATH))
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT * FROM page_titles ORDER BY display_order, title')
+        titles = [dict(row) for row in cursor.fetchall()]
+        
+        conn.close()
+        return jsonify({'success': True, 'titles': titles})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/university/<int:university_id>/pages', methods=['GET'])
+def get_university_pages(university_id):
+    """大学のページデータ一覧を取得"""
+    try:
+        conn = sqlite3.connect(str(DB_PATH))
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT upd.*, pt.title as page_title
+            FROM university_page_data upd
+            JOIN page_titles pt ON upd.page_title_id = pt.id
+            WHERE upd.university_id = ?
+            ORDER BY pt.display_order, pt.title
+        ''', (university_id,))
+        
+        pages = [dict(row) for row in cursor.fetchall()]
+        
+        conn.close()
+        return jsonify({'success': True, 'pages': pages})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/university/<int:university_id>/page/<int:page_title_id>', methods=['GET', 'POST', 'PUT'])
+def manage_university_page(university_id, page_title_id):
+    """大学のページデータを取得・作成・更新"""
+    try:
+        conn = sqlite3.connect(str(DB_PATH))
+        cursor = conn.cursor()
+        
+        if request.method == 'GET':
+            cursor.execute('''
+                SELECT upd.*, pt.title as page_title
+                FROM university_page_data upd
+                JOIN page_titles pt ON upd.page_title_id = pt.id
+                WHERE upd.university_id = ? AND upd.page_title_id = ?
+            ''', (university_id, page_title_id))
+            
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row:
+                return jsonify({'success': True, 'page': dict(row)})
+            else:
+                return jsonify({'success': False, 'error': 'ページデータが見つかりません'}), 404
+        
+        elif request.method in ['POST', 'PUT']:
+            data = request.json
+            content = data.get('content', '')
+            metadata = json.dumps(data.get('metadata', {}), ensure_ascii=False)
+            
+            cursor.execute('''
+                INSERT OR REPLACE INTO university_page_data 
+                (university_id, page_title_id, content, metadata, updated_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ''', (university_id, page_title_id, content, metadata))
+            
+            conn.commit()
+            conn.close()
+            return jsonify({'success': True})
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/university/<int:university_id>/config', methods=['GET', 'POST', 'PUT'])
+def manage_university_config(university_id):
+    """大学のJSON設定ファイルを管理"""
+    try:
+        config_file = UNIVERSITY_CONFIG_DIR / f'university_{university_id}.json'
+        
+        if request.method == 'GET':
+            if config_file.exists():
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                return jsonify({'success': True, 'config': config})
+            else:
+                # デフォルト設定を返す
+                return jsonify({'success': True, 'config': {
+                    'layout': {},
+                    'display_order': [],
+                    'items': {}  # 各項目の属性を管理
+                }})
+        
+        elif request.method in ['POST', 'PUT']:
+            data = request.json
+            config = data.get('config', {})
+            
+            with open(config_file, 'w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+            
+            return jsonify({'success': True})
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/generate-university-page', methods=['POST'])
+def generate_university_page():
+    """共通テンプレートと大学データを統合してページを生成"""
+    try:
+        data = request.json
+        university_id = data.get('university_id')
+        page_title_id = data.get('page_title_id')
+        template_html = data.get('template', '')
+        
+        if not university_id or not page_title_id or not template_html:
+            return jsonify({'success': False, 'error': '必要なパラメータが不足しています'}), 400
+        
+        # 大学データを取得
+        conn = sqlite3.connect(str(DB_PATH))
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT upd.content, upd.metadata, pt.title as page_title
+            FROM university_page_data upd
+            JOIN page_titles pt ON upd.page_title_id = pt.id
+            WHERE upd.university_id = ? AND upd.page_title_id = ?
+        ''', (university_id, page_title_id))
+        
+        page_data = cursor.fetchone()
+        
+        # 大学設定を取得
+        config_file = UNIVERSITY_CONFIG_DIR / f'university_{university_id}.json'
+        if config_file.exists():
+            with open(config_file, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+        else:
+            config = {'layout': {}, 'display_order': [], 'items': {}}
+        
+        conn.close()
+        
+        # テンプレートを解析
+        soup = BeautifulSoup(template_html, 'html.parser')
+        
+        # 大学データをテンプレートに埋め込む
+        if page_data:
+            content = page_data['content'] or ''
+            metadata = json.loads(page_data['metadata'] or '{}')
+            
+            # コンテンツエリアを探して置き換え
+            content_area = soup.find(id='content') or soup.find(class_='content') or soup.find('main')
+            if content_area:
+                content_area.clear()
+                content_soup = BeautifulSoup(content, 'html.parser')
+                content_area.append(content_soup)
+        
+        # レイアウト設定を適用
+        layout = config.get('layout', {})
+        display_order = config.get('display_order', [])
+        items_config = config.get('items', {})  # 各項目の属性設定
+        
+        # 各項目の属性を適用
+        if items_config:
+            for item_id, item_attrs in items_config.items():
+                # ID、クラス、data属性などで要素を検索
+                element = None
+                
+                # IDで検索
+                if item_attrs.get('id'):
+                    element = soup.find(id=item_attrs['id'])
+                
+                # クラスで検索
+                if not element and item_attrs.get('class'):
+                    classes = item_attrs['class']
+                    if isinstance(classes, str):
+                        classes = [classes]
+                    element = soup.find(class_=classes[0]) if classes else None
+                
+                # data属性で検索
+                if not element and item_attrs.get('data_attr'):
+                    data_attr = item_attrs['data_attr']
+                    element = soup.find(attrs={data_attr: item_id})
+                
+                if element:
+                    # 表示/非表示
+                    if item_attrs.get('visible') is False:
+                        element['style'] = (element.get('style', '') + '; display: none;').strip('; ')
+                    elif item_attrs.get('visible') is True:
+                        # 表示する場合は既存のdisplay:noneを削除
+                        style = element.get('style', '')
+                        style = style.replace('display: none;', '').replace('display:none;', '')
+                        element['style'] = style.strip('; ')
+                    
+                    # 位置（order）
+                    if 'order' in item_attrs:
+                        element['style'] = (element.get('style', '') + f'; order: {item_attrs["order"]};').strip('; ')
+                    
+                    # CSSスタイル
+                    if item_attrs.get('styles'):
+                        existing_style = element.get('style', '')
+                        for prop, value in item_attrs['styles'].items():
+                            # CSSプロパティ名をケバブケースに変換
+                            css_prop = prop.replace('_', '-')
+                            existing_style = existing_style.replace(f'{css_prop}:', '').strip('; ')
+                            existing_style = (existing_style + f'; {css_prop}: {value};').strip('; ')
+                        element['style'] = existing_style
+                    
+                    # クラスの追加/削除
+                    if item_attrs.get('add_classes'):
+                        add_classes = item_attrs['add_classes']
+                        if isinstance(add_classes, str):
+                            add_classes = [add_classes]
+                        existing_classes = element.get('class', [])
+                        if isinstance(existing_classes, str):
+                            existing_classes = [existing_classes]
+                        element['class'] = list(set(existing_classes + add_classes))
+                    
+                    if item_attrs.get('remove_classes'):
+                        remove_classes = item_attrs['remove_classes']
+                        if isinstance(remove_classes, str):
+                            remove_classes = [remove_classes]
+                        existing_classes = element.get('class', [])
+                        if isinstance(existing_classes, str):
+                            existing_classes = [existing_classes]
+                        element['class'] = [cls for cls in existing_classes if cls not in remove_classes]
+                    
+                    # 属性の追加/変更
+                    if item_attrs.get('attributes'):
+                        for attr_name, attr_value in item_attrs['attributes'].items():
+                            element[attr_name] = attr_value
+                    
+                    # テキストコンテンツの変更
+                    if 'text_content' in item_attrs:
+                        element.string = item_attrs['text_content']
+                    
+                    # HTMLコンテンツの変更
+                    if 'html_content' in item_attrs:
+                        element.clear()
+                        html_soup = BeautifulSoup(item_attrs['html_content'], 'html.parser')
+                        element.append(html_soup)
+        
+        # 表示順序に従って要素を並び替え
+        if display_order:
+            body = soup.find('body')
+            if body:
+                sections = {}
+                for elem in body.find_all(['section', 'div'], class_=True):
+                    classes = elem.get('class', [])
+                    for cls in classes:
+                        if cls in display_order:
+                            sections[cls] = elem
+                            break
+                
+                # 順序に従って再配置
+                for cls in display_order:
+                    if cls in sections:
+                        body.append(sections[cls])
+        
+        generated_html = str(soup)
+        
+        return jsonify({
+            'success': True,
+            'html': generated_html,
+            'page_title': page_data['title'] if page_data else None
+        })
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == "__main__":
     main()
