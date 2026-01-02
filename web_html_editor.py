@@ -4399,34 +4399,33 @@ EDITOR_TEMPLATE = r"""
                         const configResponse = await fetch('/api/config');
                         const configData = await configResponse.json();
                         // アップロードフォルダを読み込み
-                            const uploadFolder = configData.success ? configData.upload_folder : 'uploads';
-                            updateTemplateMergeCurrentDir(uploadFolder, 'upload');
-                            
-                            const filesResponse = await fetch('/files');
-                            const data = await filesResponse.json();
-                            
-                            if (data.success && data.files && data.files.length > 0) {
-                                let html = '';
-                                data.files.forEach(file => {
-                                    // HTMLファイルのみ表示
-                                    if (file.name.match(/\.html?$/i)) {
-                                        html += `<label style="display: flex; align-items: center; gap: 8px; padding: 6px; cursor: pointer; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='#f0f4f8'" onmouseout="this.style.background='transparent'">`;
-                                        html += `<input type="checkbox" class="template-file-checkbox" value="${file.name}" data-filename="${file.name}">`;
-                                        html += `<span style="font-size: 12px;">${file.name}</span>`;
-                                        html += `<span style="font-size: 11px; color: #718096;">(${file.size} bytes)</span>`;
-                                        html += `</label>`;
-                                    }
-                                });
-                                if (html) {
-                                    fileListDiv.innerHTML = html;
-                                } else {
-                                    fileListDiv.innerHTML = '<p style="color: #f56565; font-size: 12px; margin: 0;">HTMLファイルが見つかりませんでした</p>';
+                        const uploadFolder = configData.success ? configData.upload_folder : 'uploads';
+                        updateTemplateMergeCurrentDir(uploadFolder, 'upload');
+                        
+                        const filesResponse = await fetch('/files');
+                        const data = await filesResponse.json();
+                        
+                        if (data.success && data.files && data.files.length > 0) {
+                            let html = '';
+                            data.files.forEach(file => {
+                                // HTMLファイルのみ表示
+                                if (file.name.match(/\.html?$/i)) {
+                                    html += `<label style="display: flex; align-items: center; gap: 8px; padding: 6px; cursor: pointer; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='#f0f4f8'" onmouseout="this.style.background='transparent'">`;
+                                    html += `<input type="checkbox" class="template-file-checkbox" value="${file.name}" data-filename="${file.name}">`;
+                                    html += `<span style="font-size: 12px;">${file.name}</span>`;
+                                    html += `<span style="font-size: 11px; color: #718096;">(${file.size} bytes)</span>`;
+                                    html += `</label>`;
                                 }
+                            });
+                            if (html) {
+                                fileListDiv.innerHTML = html;
                             } else {
-                                fileListDiv.innerHTML = '<p style="color: #f56565; font-size: 12px; margin: 0;">ファイルが見つかりませんでした</p>';
+                                fileListDiv.innerHTML = '<p style="color: #f56565; font-size: 12px; margin: 0;">HTMLファイルが見つかりませんでした</p>';
                             }
-                            return;
+                        } else {
+                            fileListDiv.innerHTML = '<p style="color: #f56565; font-size: 12px; margin: 0;">ファイルが見つかりませんでした</p>';
                         }
+                        return;
                     } catch (error) {
                         console.error('設定の読み込みエラー:', error);
                         fileListDiv.innerHTML = `<p style="color: #f56565; font-size: 12px; margin: 0;">エラー: ${error.message}</p>`;
@@ -5576,9 +5575,9 @@ EDITOR_TEMPLATE = r"""
         };
         
         // アップロードモーダルを表示
-        function showUploadModal() {
+        window.showUploadModal = function showUploadModal() {
             document.getElementById('uploadModal').style.display = 'block';
-        }
+        };
         
         // 設定を読み込んでプレースホルダーを更新
         async function loadConfigAndUpdatePlaceholders() {
