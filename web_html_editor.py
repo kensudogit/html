@@ -2264,6 +2264,12 @@ EDITOR_TEMPLATE = r"""
             // トグルボタンのイベントリスナーを設定
             setupToggleButtons();
             
+            // テンプレート統合の状態保存イベントリスナーを設定
+            setupTemplateMergeStateSaving();
+            
+            // 画面比較の状態保存イベントリスナーを設定
+            setupScreenComparisonStateSaving();
+            
             // リサイザーの実装
             const resizer = document.getElementById('resizer');
             const editorPanel = document.getElementById('editorPanel');
@@ -3706,6 +3712,121 @@ EDITOR_TEMPLATE = r"""
             }
         }
         
+        // テンプレート統合の状態保存イベントリスナーを設定
+        function setupTemplateMergeStateSaving() {
+            // ファイル選択チェックボックスの変更を監視
+            document.addEventListener('change', function(e) {
+                if (e.target.classList.contains('template-file-checkbox')) {
+                    saveTemplateMergeState();
+                }
+            });
+            
+            // オプションの変更を監視
+            const optionIds = ['mergeOptionStructure', 'mergeOptionStyles', 'mergeOptionContent', 'mergeOptionAttributes', 'mergeDiffHandling'];
+            optionIds.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.addEventListener('change', saveTemplateMergeState);
+                }
+            });
+            
+            // ディレクトリパスの変更を監視
+            const dirInput = document.getElementById('templateMergeDir');
+            const dirSelect = document.getElementById('templateMergeDirSelect');
+            if (dirInput) {
+                dirInput.addEventListener('change', saveTemplateMergeState);
+                dirInput.addEventListener('blur', saveTemplateMergeState);
+            }
+            if (dirSelect) {
+                dirSelect.addEventListener('change', saveTemplateMergeState);
+            }
+        }
+        
+        // 画面比較の状態を保存
+        function saveScreenComparisonState() {
+            const state = {
+                dirPath: document.getElementById('comparisonDir')?.value || '',
+                quickDirPath: document.getElementById('quickComparisonDir')?.value || '',
+                files: comparisonFiles.map(file => ({
+                    name: file.name,
+                    path: file.path,
+                    type: file.type,
+                    size: file.size
+                })),
+                selectedFiles: Array.from(document.querySelectorAll('.comparison-file-checkbox:checked')).map(cb => cb.value),
+                gridMode: document.getElementById('comparisonGridMode')?.value || 'auto',
+                layout: document.getElementById('comparisonLayout')?.value || 'grid',
+                comparisonMode: comparisonMode
+            };
+            localStorage.setItem('screenComparisonState', JSON.stringify(state));
+        }
+        
+        // 画面比較の状態を復元
+        function restoreScreenComparisonState() {
+            try {
+                const saved = localStorage.getItem('screenComparisonState');
+                if (!saved) return false;
+                
+                const state = JSON.parse(saved);
+                
+                // ディレクトリパスを復元
+                const comparisonDir = document.getElementById('comparisonDir');
+                const quickComparisonDir = document.getElementById('quickComparisonDir');
+                if (comparisonDir && state.dirPath) {
+                    comparisonDir.value = state.dirPath;
+                }
+                if (quickComparisonDir && state.quickDirPath) {
+                    quickComparisonDir.value = state.quickDirPath;
+                }
+                
+                // ファイルリストを復元
+                if (state.files && state.files.length > 0) {
+                    comparisonFiles = state.files;
+                    displayComparisonFiles();
+                    updateQuickFileCount();
+                    
+                    // 選択状態を復元
+                    if (state.selectedFiles && state.selectedFiles.length > 0) {
+                        setTimeout(() => {
+                            state.selectedFiles.forEach(filePath => {
+                                const checkbox = document.querySelector(`.comparison-file-checkbox[value="${filePath}"]`);
+                                if (checkbox) {
+                                    checkbox.checked = true;
+                                }
+                            });
+                        }, 300);
+                    }
+                }
+                
+                // グリッドモードを復元
+                if (state.gridMode) {
+                    const gridModeSelect = document.getElementById('comparisonGridMode');
+                    if (gridModeSelect) {
+                        gridModeSelect.value = state.gridMode;
+                    }
+                }
+                
+                // レイアウトを復元
+                if (state.layout) {
+                    const layoutSelect = document.getElementById('comparisonLayout');
+                    if (layoutSelect) {
+                        layoutSelect.value = state.layout;
+                        updateComparisonLayout();
+                    }
+                }
+                
+                // 比較モードを復元
+                if (state.comparisonMode !== undefined) {
+                    comparisonMode = state.comparisonMode;
+                }
+                
+                return true;
+            } catch (error) {
+                console.error('画面比較の状態復元エラー:', error);
+                return false;
+            }
+        }
+        
         // ボタンの表示を確認・強制表示（リモコン盤内のボタン用）
         function ensureButtonsVisible() {
             const uploadBtn = document.getElementById('uploadBtnMain');
@@ -4336,6 +4457,71 @@ EDITOR_TEMPLATE = r"""
             }
         }
         
+        // テンプレート統合の状態を保存
+        function saveTemplateMergeState() {
+            const state = {
+                dirPath: document.getElementById('templateMergeDir')?.value || '',
+                dirSelect: document.getElementById('templateMergeDirSelect')?.value || '__upload__',
+                selectedFiles: Array.from(document.querySelectorAll('.template-file-checkbox:checked')).map(cb => {
+                    return {
+                        value: cb.value,
+                        path: cb.getAttribute('data-path') || cb.value,
+                        filename: cb.getAttribute('data-filename') || cb.value
+                    };
+                }),
+                options: {
+                    structure: document.getElementById('mergeOptionStructure')?.checked ?? true,
+                    styles: document.getElementById('mergeOptionStyles')?.checked ?? true,
+                    content: document.getElementById('mergeOptionContent')?.checked ?? true,
+                    attributes: document.getElementById('mergeOptionAttributes')?.checked ?? true,
+                    diffHandling: document.getElementById('mergeDiffHandling')?.value || 'common'
+                }
+            };
+            localStorage.setItem('templateMergeState', JSON.stringify(state));
+        }
+        
+        // テンプレート統合の状態を復元
+        function restoreTemplateMergeState() {
+            try {
+                const saved = localStorage.getItem('templateMergeState');
+                if (!saved) return false;
+                
+                const state = JSON.parse(saved);
+                
+                // ディレクトリパスと選択を復元
+                const dirInput = document.getElementById('templateMergeDir');
+                const dirSelect = document.getElementById('templateMergeDirSelect');
+                if (dirInput && state.dirPath) {
+                    dirInput.value = state.dirPath;
+                }
+                if (dirSelect && state.dirSelect) {
+                    dirSelect.value = state.dirSelect;
+                }
+                
+                // オプションを復元
+                if (state.options) {
+                    const structureCheck = document.getElementById('mergeOptionStructure');
+                    const stylesCheck = document.getElementById('mergeOptionStyles');
+                    const contentCheck = document.getElementById('mergeOptionContent');
+                    const attributesCheck = document.getElementById('mergeOptionAttributes');
+                    const diffHandlingSelect = document.getElementById('mergeDiffHandling');
+                    
+                    if (structureCheck) structureCheck.checked = state.options.structure;
+                    if (stylesCheck) stylesCheck.checked = state.options.styles;
+                    if (contentCheck) contentCheck.checked = state.options.content;
+                    if (attributesCheck) attributesCheck.checked = state.options.attributes;
+                    if (diffHandlingSelect && state.options.diffHandling) {
+                        diffHandlingSelect.value = state.options.diffHandling;
+                    }
+                }
+                
+                return true;
+            } catch (error) {
+                console.error('テンプレート統合の状態復元エラー:', error);
+                return false;
+            }
+        }
+        
         // テンプレート統合モーダルを表示
         window.showTemplateMerge = function showTemplateMerge() {
             const modal = document.getElementById('templateMergeModal');
@@ -4345,18 +4531,53 @@ EDITOR_TEMPLATE = r"""
                 updateTemplateMergeDirHistory();
                 // 環境変数オプションを更新
                 updateTemplateMergeDirSelect();
-                // 入力フィールドとドロップダウンをリセット
+                
+                // 保存された状態を復元
+                const restored = restoreTemplateMergeState();
+                
                 const dirInput = document.getElementById('templateMergeDir');
                 const dirSelect = document.getElementById('templateMergeDirSelect');
-                if (dirInput) {
-                    dirInput.value = '';
+                
+                if (!restored) {
+                    // 状態が保存されていない場合はデフォルト値を使用
+                    if (dirInput) {
+                        dirInput.value = '';
+                    }
+                    if (dirSelect) {
+                        dirSelect.value = '__upload__'; // デフォルトでアップロードフォルダを選択
+                    }
                 }
-                if (dirSelect) {
-                    dirSelect.value = '__upload__'; // デフォルトでアップロードフォルダを選択
+                
+                // 現在の検索フォルダ表示を更新
+                if (dirInput && dirInput.value) {
+                    updateTemplateMergeCurrentDir(dirInput.value, dirSelect?.value === '__upload__' ? 'upload' : 'user');
+                } else {
+                    updateTemplateMergeCurrentDir(null);
                 }
-                // 現在の検索フォルダ表示をリセット
-                updateTemplateMergeCurrentDir(null);
-                loadTemplateFileList();
+                
+                // ファイル一覧を読み込み
+                loadTemplateFileList().then(() => {
+                    // ファイル一覧読み込み後に選択状態を復元
+                    try {
+                        const saved = localStorage.getItem('templateMergeState');
+                        if (saved) {
+                            const state = JSON.parse(saved);
+                            if (state.selectedFiles && state.selectedFiles.length > 0) {
+                                // 少し遅延させてから復元（DOM更新を待つ）
+                                setTimeout(() => {
+                                    state.selectedFiles.forEach(fileInfo => {
+                                        const checkbox = document.querySelector(`.template-file-checkbox[value="${fileInfo.value}"], .template-file-checkbox[data-path="${fileInfo.path}"]`);
+                                        if (checkbox) {
+                                            checkbox.checked = true;
+                                        }
+                                    });
+                                }, 300);
+                            }
+                        }
+                    } catch (error) {
+                        console.error('ファイル選択状態の復元エラー:', error);
+                    }
+                });
             } else {
                 showStatus('テンプレート統合モーダルが見つかりません', 'error');
             }
@@ -4545,6 +4766,9 @@ EDITOR_TEMPLATE = r"""
                 attributes: document.getElementById('mergeOptionAttributes').checked,
                 diffHandling: document.getElementById('mergeDiffHandling').value
             };
+            
+            // 状態を保存
+            saveTemplateMergeState();
             
             const progressDiv = document.getElementById('templateMergeProgress');
             const progressBar = document.getElementById('templateMergeProgressBar');
@@ -6199,16 +6423,23 @@ EDITOR_TEMPLATE = r"""
                 if (quickSection) {
                     quickSection.style.display = 'block';
                 }
+                
+                // 保存された状態を復元
+                const restored = restoreScreenComparisonState();
+                
+                // リモコン盤のディレクトリパスをモーダルに同期
+                const quickDir = document.getElementById('quickComparisonDir');
+                const modalDir = document.getElementById('comparisonDir');
+                if (quickDir && modalDir) {
+                    if (quickDir.value && !restored) {
+                        modalDir.value = quickDir.value;
+                    }
+                }
+                
                 // 既存のファイルリストがあれば表示
                 if (comparisonFiles.length > 0) {
                     displayComparisonFiles();
                     updateQuickFileCount();
-                }
-                // リモコン盤のディレクトリパスをモーダルに同期
-                const quickDir = document.getElementById('quickComparisonDir');
-                const modalDir = document.getElementById('comparisonDir');
-                if (quickDir && modalDir && quickDir.value) {
-                    modalDir.value = quickDir.value;
                 }
             } else {
                 showStatus('画面比較モーダルが見つかりません', 'error');
@@ -6353,6 +6584,8 @@ EDITOR_TEMPLATE = r"""
                     displayComparisonFiles();
                     renderComparisonScreens();
                     updateQuickFileCount();
+                    // 状態を保存
+                    saveScreenComparisonState();
                     const cssCount = comparisonFiles.filter(f => f.type === 'css').length;
                     showStatus(`${comparisonFiles.length}個のファイルを読み込みました（HTML: ${htmlFiles.length}, CSS: ${cssCount}）`, 'success');
                 } else {
@@ -6687,6 +6920,8 @@ EDITOR_TEMPLATE = r"""
         window.toggleComparisonFile = function toggleComparisonFile(index) {
             renderComparisonScreens();
             updateQuickFileCount();
+            // 状態を保存
+            saveScreenComparisonState();
         };
         
         window.removeComparisonFile = function removeComparisonFile(index) {
@@ -6704,6 +6939,8 @@ EDITOR_TEMPLATE = r"""
             });
             renderComparisonScreens();
             updateQuickFileCount();
+            // 状態を保存
+            saveScreenComparisonState();
         };
         
         window.selectComparisonScreen = function selectComparisonScreen(index) {
@@ -6761,7 +6998,30 @@ EDITOR_TEMPLATE = r"""
             // ここで分析機能を呼び出す
         };
         
+        // 画面比較の状態保存イベントリスナーを設定
+        function setupScreenComparisonStateSaving() {
+            // ディレクトリパスの変更を監視
+            const comparisonDir = document.getElementById('comparisonDir');
+            const quickComparisonDir = document.getElementById('quickComparisonDir');
+            if (comparisonDir) {
+                comparisonDir.addEventListener('change', saveScreenComparisonState);
+                comparisonDir.addEventListener('blur', saveScreenComparisonState);
+            }
+            if (quickComparisonDir) {
+                quickComparisonDir.addEventListener('change', saveScreenComparisonState);
+                quickComparisonDir.addEventListener('blur', saveScreenComparisonState);
+            }
+            
+            // レイアウト変更を監視
+            const layoutSelect = document.getElementById('comparisonLayout');
+            if (layoutSelect) {
+                layoutSelect.addEventListener('change', saveScreenComparisonState);
+            }
+        }
+        
         window.updateComparisonLayout = function updateComparisonLayout() {
+            // 状態を保存
+            saveScreenComparisonState();
             const grid = document.getElementById('comparisonGrid');
             const layout = document.getElementById('comparisonLayout').value;
             
