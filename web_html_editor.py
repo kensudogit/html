@@ -4373,22 +4373,16 @@ EDITOR_TEMPLATE = r"""
             
             try {
                 let response;
-                // ドロップダウンで「アップロードフォルダ」が選択されている場合、入力フィールドの値に関係なくアップロードフォルダから読み込む
-                if (selectedOption === '__upload__' || (!dirPath && selectedOption !== '__env__')) {
-                    // ディレクトリが空の場合は、まず環境変数を確認
-                    const configResponse = await fetch('/api/config');
-                    const configData = await configResponse.json();
-                    if (configData.success && configData.default_html_directory) {
-                        // 環境変数が設定されている場合はそれを使用
-                        dirPath = configData.default_html_directory;
-                        updateTemplateMergeCurrentDir(dirPath, 'env');
-                    } else {
-                        // 環境変数もない場合はアップロードフォルダを読み込み
+                // ドロップダウンで「アップロードフォルダ」が明示的に選択されている場合、環境変数に関係なくアップロードフォルダから読み込む
+                if (selectedOption === '__upload__') {
+                    try {
+                        const configResponse = await fetch('/api/config');
+                        const configData = await configResponse.json();
                         const uploadFolder = configData.success ? configData.upload_folder : 'uploads';
                         updateTemplateMergeCurrentDir(uploadFolder, 'upload');
                         
-                        response = await fetch('/files');
-                        const data = await response.json();
+                        const filesResponse = await fetch('/files');
+                        const data = await filesResponse.json();
                         
                         if (data.success && data.files && data.files.length > 0) {
                             let html = '';
@@ -4410,6 +4404,74 @@ EDITOR_TEMPLATE = r"""
                         } else {
                             fileListDiv.innerHTML = '<p style="color: #f56565; font-size: 12px; margin: 0;">ファイルが見つかりませんでした</p>';
                         }
+                    } catch (error) {
+                        console.error('アップロードフォルダの読み込みエラー:', error);
+                        fileListDiv.innerHTML = `<p style="color: #f56565; font-size: 12px; margin: 0;">エラー: ${error.message}</p>`;
+                    }
+                    return;
+                }
+                
+                // 環境変数フォルダが選択されている場合
+                if (selectedOption === '__env__') {
+                    try {
+                        const configResponse = await fetch('/api/config');
+                        const configData = await configResponse.json();
+                        if (configData.success && configData.default_html_directory) {
+                            dirPath = configData.default_html_directory;
+                            updateTemplateMergeCurrentDir(dirPath, 'env');
+                        } else {
+                            fileListDiv.innerHTML = '<p style="color: #f56565; font-size: 12px; margin: 0;">環境変数 HTML_DIRECTORY が設定されていません</p>';
+                            return;
+                        }
+                    } catch (error) {
+                        console.error('環境変数の読み込みエラー:', error);
+                        fileListDiv.innerHTML = `<p style="color: #f56565; font-size: 12px; margin: 0;">エラー: ${error.message}</p>`;
+                        return;
+                    }
+                }
+                
+                // ディレクトリパスが空で、選択もない場合は環境変数またはアップロードフォルダを確認
+                if (!dirPath && !selectedOption) {
+                    try {
+                        const configResponse = await fetch('/api/config');
+                        const configData = await configResponse.json();
+                        if (configData.success && configData.default_html_directory) {
+                            // 環境変数が設定されている場合はそれを使用
+                            dirPath = configData.default_html_directory;
+                            updateTemplateMergeCurrentDir(dirPath, 'env');
+                        } else {
+                            // 環境変数もない場合はアップロードフォルダを読み込み
+                            const uploadFolder = configData.success ? configData.upload_folder : 'uploads';
+                            updateTemplateMergeCurrentDir(uploadFolder, 'upload');
+                            
+                            const filesResponse = await fetch('/files');
+                            const data = await filesResponse.json();
+                            
+                            if (data.success && data.files && data.files.length > 0) {
+                                let html = '';
+                                data.files.forEach(file => {
+                                    // HTMLファイルのみ表示
+                                    if (file.name.match(/\.html?$/i)) {
+                                        html += `<label style="display: flex; align-items: center; gap: 8px; padding: 6px; cursor: pointer; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='#f0f4f8'" onmouseout="this.style.background='transparent'">`;
+                                        html += `<input type="checkbox" class="template-file-checkbox" value="${file.name}" data-filename="${file.name}">`;
+                                        html += `<span style="font-size: 12px;">${file.name}</span>`;
+                                        html += `<span style="font-size: 11px; color: #718096;">(${file.size} bytes)</span>`;
+                                        html += `</label>`;
+                                    }
+                                });
+                                if (html) {
+                                    fileListDiv.innerHTML = html;
+                                } else {
+                                    fileListDiv.innerHTML = '<p style="color: #f56565; font-size: 12px; margin: 0;">HTMLファイルが見つかりませんでした</p>';
+                                }
+                            } else {
+                                fileListDiv.innerHTML = '<p style="color: #f56565; font-size: 12px; margin: 0;">ファイルが見つかりませんでした</p>';
+                            }
+                            return;
+                        }
+                    } catch (error) {
+                        console.error('設定の読み込みエラー:', error);
+                        fileListDiv.innerHTML = `<p style="color: #f56565; font-size: 12px; margin: 0;">エラー: ${error.message}</p>`;
                         return;
                     }
                 }
