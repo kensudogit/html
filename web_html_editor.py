@@ -4742,7 +4742,6 @@ EDITOR_TEMPLATE = r"""
                         }
                     }
                     dirInfoDiv.style.display = 'block';
-                }
                 } else {
                     // 入力フィールドに値が入力されている場合、ディレクトリ情報を確認
                     if (data.success && data.directory_info) {
