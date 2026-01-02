@@ -4407,6 +4407,30 @@ EDITOR_TEMPLATE = r"""
                     // 表示用のパスを更新（正規化前のパスを表示）
                     updateTemplateMergeCurrentDir(dirPath, 'user');
                     
+                    // まずディレクトリの存在確認
+                    const checkResponse = await fetch('/api/check-directory', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ directory: normalizedPath })
+                    });
+                    
+                    const checkData = await checkResponse.json();
+                    
+                    if (!checkData.success || !checkData.exists) {
+                        let errorMsg = checkData.error || 'ディレクトリが見つかりません';
+                        if (checkData.suggestion) {
+                            errorMsg += '\n' + checkData.suggestion;
+                        }
+                        if (checkData.parent_exists && checkData.parent_path) {
+                            errorMsg += `\n親ディレクトリ（${checkData.parent_path}）は存在します。`;
+                        }
+                        fileListDiv.innerHTML = `<p style="color: #f56565; font-size: 12px; margin: 0; white-space: pre-line;">${errorMsg}</p>`;
+                        return;
+                    }
+                    
+                    // ディレクトリが存在する場合、ファイル一覧を取得
                     response = await fetch('/api/list-directory-files', {
                         method: 'POST',
                         headers: {
@@ -8386,6 +8410,84 @@ def get_config():
             'directory_info': dir_info
         })
     except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/check-directory', methods=['POST', 'OPTIONS'])
+def check_directory():
+    """指定されたディレクトリの存在確認とファイル一覧を取得"""
+    if request.method == 'OPTIONS':
+        return '', 200
+    try:
+        data = request.json
+        directory = data.get('directory', '').strip()
+        
+        if not directory:
+            return jsonify({'success': False, 'error': 'ディレクトリパスを指定してください'}), 400
+        
+        # Railway/Heroku環境ではWindowsパスは使用不可
+        is_cloud = os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('DYNO') or os.environ.get('VERCEL')
+        if is_cloud and directory and len(directory) >= 2 and directory[0].isalpha() and directory[1] == ':':
+            return jsonify({
+                'success': False, 
+                'error': f'Windowsパス（{directory}）はクラウド環境では使用できません。\nLinux形式の絶対パス（例: /tmp/html）を指定してください。'
+            }), 400
+        
+        # パスの正規化
+        try:
+            if directory and len(directory) >= 2 and directory[0].isalpha() and directory[1] == ':':
+                # Windows絶対パス
+                directory = directory[0].upper() + directory[1:].replace('/', '\\')
+                dir_path = Path(directory)
+            else:
+                # Linux形式のパス
+                dir_path = Path(directory)
+        except Exception as e:
+            return jsonify({
+                'success': False, 
+                'error': f'無効なパス形式です: {directory}。エラー: {str(e)}'
+            }), 400
+        
+        # ディレクトリの存在確認
+        exists = dir_path.exists() and dir_path.is_dir()
+        
+        result = {
+            'success': True,
+            'directory': directory,
+            'exists': exists,
+            'is_absolute': dir_path.is_absolute(),
+            'parent_exists': dir_path.parent.exists() if dir_path.parent != dir_path else False,
+            'parent_path': str(dir_path.parent) if dir_path.parent != dir_path else None
+        }
+        
+        if exists:
+            # ファイル一覧を取得
+            files = []
+            try:
+                for file_path in dir_path.iterdir():
+                    if file_path.is_file():
+                        files.append({
+                            'name': file_path.name,
+                            'size': file_path.stat().st_size,
+                            'modified': file_path.stat().st_mtime
+                        })
+                result['file_count'] = len(files)
+                result['files'] = files[:50]  # 最大50件まで
+            except Exception as e:
+                result['error'] = f'ファイル一覧の取得に失敗: {str(e)}'
+        else:
+            result['file_count'] = 0
+            result['files'] = []
+            if dir_path.parent.exists():
+                result['suggestion'] = f'親ディレクトリ（{dir_path.parent}）は存在します。ディレクトリが作成されていない可能性があります。'
+            else:
+                result['suggestion'] = '指定されたパスとその親ディレクトリが存在しません。'
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
