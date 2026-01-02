@@ -4672,14 +4672,20 @@ EDITOR_TEMPLATE = r"""
             if (modal) {
                 modal.style.display = 'block';
                 
-                // 入力フィールドをクリア（アップロードフォルダを使用）
+                // 入力フィールドを確実にクリア（アップロードフォルダを使用）
                 const dirInput = document.getElementById('diffAnalysisDir');
                 if (dirInput) {
                     dirInput.value = '';
                 }
                 
+                // エラーメッセージをクリア
+                const resultDiv = document.getElementById('diffAnalysisResult');
+                if (resultDiv) {
+                    resultDiv.style.display = 'none';
+                }
+                
                 // 環境変数を確認してディレクトリ情報を表示
-                updateDiffAnalysisDirInfo();
+                await updateDiffAnalysisDirInfo();
             } else {
                 showStatus('差分検出モーダルが見つかりません', 'error');
             }
@@ -4810,7 +4816,7 @@ EDITOR_TEMPLATE = r"""
                             dirInfoDiv.style.display = 'block';
                         } else {
                             dirPathDiv.textContent = dirInfo.path || inputValue;
-                            dirFilesDiv.textContent = '❌ ディレクトリが存在しません';
+                            dirFilesDiv.textContent = '❌ ディレクトリが存在しません\n\n💡 ヒント: パスを空欄にすると、アップロードフォルダが使用されます。';
                             dirFilesDiv.style.color = '#ef4444';
                             if (fileListDiv) {
                                 fileListDiv.style.display = 'none';
@@ -4826,10 +4832,41 @@ EDITOR_TEMPLATE = r"""
                         }
                         dirInfoDiv.style.display = 'block';
                     } else {
-                        // 入力されたパスを表示（存在確認は実行時に）
+                        // 入力されたパスを表示（存在確認を試みる）
                         dirPathDiv.textContent = inputValue + ' (ユーザー指定)';
-                        dirFilesDiv.textContent = 'ℹ️ 実行時にディレクトリの存在を確認します';
-                        dirFilesDiv.style.color = '#718096';
+                        
+                        // ディレクトリの存在確認を試みる
+                        try {
+                            const checkResponse = await fetch('/api/check-directory', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({ directory: inputValue })
+                            });
+                            
+                            const checkData = await checkResponse.json();
+                            
+                            if (checkData.success && checkData.exists) {
+                                if (checkData.file_count > 0) {
+                                    dirFilesDiv.textContent = `✅ ${checkData.file_count}件のファイルが見つかりました`;
+                                    dirFilesDiv.style.color = '#48bb78';
+                                } else {
+                                    dirFilesDiv.textContent = '⚠️ ディレクトリは存在しますが、ファイルが見つかりませんでした';
+                                    dirFilesDiv.style.color = '#f59e0b';
+                                }
+                            } else {
+                                dirFilesDiv.textContent = '❌ ディレクトリが存在しません';
+                                dirFilesDiv.style.color = '#ef4444';
+                                if (checkData.suggestion) {
+                                    dirFilesDiv.textContent += '\n' + checkData.suggestion;
+                                }
+                                dirFilesDiv.textContent += '\n\n💡 ヒント: パスを空欄にすると、アップロードフォルダが使用されます。';
+                            }
+                        } catch (error) {
+                            dirFilesDiv.textContent = 'ℹ️ 実行時にディレクトリの存在を確認します';
+                            dirFilesDiv.style.color = '#718096';
+                        }
                         if (fileListDiv) {
                             fileListDiv.style.display = 'none';
                         }
