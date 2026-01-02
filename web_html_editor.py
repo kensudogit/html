@@ -1876,9 +1876,19 @@ EDITOR_TEMPLATE = r"""
             
             <div class="form-group" style="margin-top: 20px;">
                 <label class="form-label">分析対象ディレクトリ</label>
-                <input type="text" id="diffAnalysisDir" class="form-input" placeholder="例: C:\\html または C:/html (絶対パスを指定)" value="" title="Windows: C:\\html または C:/html&#10;Linux/Mac: /path/to/html">
+                <input type="text" id="diffAnalysisDir" class="form-input" placeholder="例: /tmp/html または空欄で環境変数 HTML_DIRECTORY を使用" value="" title="空欄の場合は環境変数 HTML_DIRECTORY の値が使用されます">
+                <div id="diffAnalysisDirInfo" style="margin-top: 8px; padding: 8px; background: #f0f4f8; border-radius: 5px; border-left: 3px solid #667eea; display: none;">
+                    <div style="font-size: 11px; color: #4a5568; font-weight: 600; margin-bottom: 4px;">📂 使用されるディレクトリ:</div>
+                    <div id="diffAnalysisDirPath" style="font-size: 12px; color: #2d3748; font-family: monospace; font-weight: 500;"></div>
+                    <div id="diffAnalysisDirFiles" style="font-size: 11px; color: #718096; margin-top: 4px;"></div>
+                    <div id="diffAnalysisFileList" style="margin-top: 8px; max-height: 200px; overflow-y: auto; display: none;">
+                        <div style="font-size: 11px; color: #4a5568; font-weight: 600; margin-bottom: 4px;">📄 分析対象のHTMLファイル:</div>
+                        <div id="diffAnalysisFileListContent" style="font-size: 11px; color: #2d3748; font-family: monospace; line-height: 1.6;"></div>
+                    </div>
+                </div>
                 <small style="color: #718096; font-size: 12px; display: block; margin-top: 8px;">
-                    ※ ディレクトリ内のすべてのHTMLファイル（.html, .htm）を分析対象とします
+                    ※ ディレクトリ内のすべてのHTMLファイル（.html, .htm）を分析対象とします<br>
+                    ※ 環境変数 HTML_DIRECTORY が設定されている場合、空欄のままで実行できます
                 </small>
             </div>
             
@@ -4550,14 +4560,99 @@ EDITOR_TEMPLATE = r"""
         };
         
         // 差分検出モーダルを表示
-        window.showDiffAnalysis = function showDiffAnalysis() {
+        window.showDiffAnalysis = async function showDiffAnalysis() {
             const modal = document.getElementById('diffAnalysisModal');
             if (modal) {
                 modal.style.display = 'block';
+                
+                // 環境変数を確認してディレクトリ情報を表示
+                updateDiffAnalysisDirInfo();
             } else {
                 showStatus('差分検出モーダルが見つかりません', 'error');
             }
         };
+        
+        // 差分検出のディレクトリ情報を更新
+        async function updateDiffAnalysisDirInfo() {
+            const dirInfoDiv = document.getElementById('diffAnalysisDirInfo');
+            const dirPathDiv = document.getElementById('diffAnalysisDirPath');
+            const dirFilesDiv = document.getElementById('diffAnalysisDirFiles');
+            const fileListDiv = document.getElementById('diffAnalysisFileList');
+            const fileListContent = document.getElementById('diffAnalysisFileListContent');
+            
+            if (!dirInfoDiv || !dirPathDiv || !dirFilesDiv) return;
+            
+            try {
+                const response = await fetch('/api/config');
+                const data = await response.json();
+                
+                if (data.success && data.directory_info) {
+                    const dirInfo = data.directory_info;
+                    if (dirInfo.exists) {
+                        dirPathDiv.textContent = dirInfo.path;
+                        
+                        // HTMLファイルのみをフィルタリング
+                        const htmlFiles = dirInfo.files.filter(f => 
+                            f.name.toLowerCase().endsWith('.html') || 
+                            f.name.toLowerCase().endsWith('.htm')
+                        );
+                        
+                        if (htmlFiles.length > 0) {
+                            dirFilesDiv.textContent = `✅ ${htmlFiles.length}件のHTMLファイルが見つかりました`;
+                            dirFilesDiv.style.color = '#48bb78';
+                            
+                            // HTMLファイル一覧を表示
+                            if (fileListDiv && fileListContent) {
+                                fileListContent.innerHTML = '';
+                                htmlFiles.forEach((file, index) => {
+                                    const sizeKB = (file.size / 1024).toFixed(1);
+                                    const fileItem = document.createElement('div');
+                                    fileItem.style.padding = '4px 0';
+                                    fileItem.style.borderBottom = index < htmlFiles.length - 1 ? '1px solid #e2e8f0' : 'none';
+                                    fileItem.innerHTML = `<span style="color: #667eea;">📄</span> ${file.name} <span style="color: #718096;">(${sizeKB} KB)</span>`;
+                                    fileListContent.appendChild(fileItem);
+                                });
+                                fileListDiv.style.display = 'block';
+                            }
+                        } else {
+                            dirFilesDiv.textContent = '⚠️ ディレクトリは存在しますが、HTMLファイルが見つかりませんでした';
+                            dirFilesDiv.style.color = '#f59e0b';
+                            if (fileListDiv) {
+                                fileListDiv.style.display = 'none';
+                            }
+                        }
+                        dirInfoDiv.style.display = 'block';
+                    } else {
+                        dirPathDiv.textContent = dirInfo.path || '未設定';
+                        dirFilesDiv.textContent = '❌ ディレクトリが存在しません';
+                        dirFilesDiv.style.color = '#ef4444';
+                        if (fileListDiv) {
+                            fileListDiv.style.display = 'none';
+                        }
+                        dirInfoDiv.style.display = 'block';
+                    }
+                } else if (data.success && data.default_html_directory) {
+                    dirPathDiv.textContent = data.default_html_directory + ' (環境変数)';
+                    dirFilesDiv.textContent = 'ℹ️ ディレクトリ情報を確認中...';
+                    dirFilesDiv.style.color = '#718096';
+                    if (fileListDiv) {
+                        fileListDiv.style.display = 'none';
+                    }
+                    dirInfoDiv.style.display = 'block';
+                    
+                    // 環境変数の値を入力フィールドに設定
+                    const dirInput = document.getElementById('diffAnalysisDir');
+                    if (dirInput && !dirInput.value.trim()) {
+                        dirInput.value = data.default_html_directory;
+                    }
+                } else {
+                    dirInfoDiv.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('ディレクトリ情報の取得エラー:', error);
+                dirInfoDiv.style.display = 'none';
+            }
+        }
         
         // 差分検出を実行
         window.performDiffAnalysis = async function performDiffAnalysis() {
@@ -5333,6 +5428,37 @@ EDITOR_TEMPLATE = r"""
                 if (data.success) {
                     const defaultDir = data.default_html_directory;
                     const isCloud = data.is_cloud;
+                    const dirInfo = data.directory_info;
+                    
+                    // ディレクトリ情報をコンソールに表示（デバッグ用）
+                    if (dirInfo) {
+                        console.log('📂 HTML_DIRECTORY 情報:', {
+                            path: dirInfo.path,
+                            exists: dirInfo.exists,
+                            file_count: dirInfo.file_count,
+                            files: dirInfo.files
+                        });
+                        
+                        if (dirInfo.exists) {
+                            console.log(`✅ ディレクトリが存在します: ${dirInfo.path}`);
+                            console.log(`📁 ファイル数: ${dirInfo.file_count}件`);
+                            if (dirInfo.files && dirInfo.files.length > 0) {
+                                console.log('📄 ファイル一覧:');
+                                dirInfo.files.forEach(file => {
+                                    const sizeKB = (file.size / 1024).toFixed(2);
+                                    const modified = new Date(file.modified * 1000).toLocaleString('ja-JP');
+                                    console.log(`  - ${file.name} (${sizeKB} KB, 更新: ${modified})`);
+                                });
+                            } else {
+                                console.log('⚠️ ディレクトリは存在しますが、ファイルが見つかりませんでした');
+                            }
+                        } else {
+                            console.warn(`❌ ディレクトリが存在しません: ${dirInfo.path}`);
+                            if (dirInfo.error) {
+                                console.error('エラー:', dirInfo.error);
+                            }
+                        }
+                    }
                     
                     // プレースホルダーを更新
                     const placeholders = {
@@ -5350,7 +5476,26 @@ EDITOR_TEMPLATE = r"""
                             element.placeholder = placeholders[id];
                             // 環境変数が設定されている場合は、空欄の場合はその値を使用することを示す
                             if (defaultDir && (id === 'fileListDir' || id === 'comparisonDir' || id === 'diffAnalysisDir' || id === 'templateMergeDir')) {
-                                element.title = `環境変数 HTML_DIRECTORY=${defaultDir} が設定されています。\n空欄の場合はこのディレクトリが使用されます。`;
+                                let tooltip = `環境変数 HTML_DIRECTORY=${defaultDir} が設定されています。\n空欄の場合はこのディレクトリが使用されます。`;
+                                if (dirInfo) {
+                                    if (dirInfo.exists) {
+                                        tooltip += `\n\n✅ ディレクトリは存在します`;
+                                        tooltip += `\n📁 ファイル数: ${dirInfo.file_count}件`;
+                                        if (dirInfo.files && dirInfo.files.length > 0) {
+                                            tooltip += `\n\n📄 ファイル一覧:`;
+                                            dirInfo.files.slice(0, 5).forEach(file => {
+                                                const sizeKB = (file.size / 1024).toFixed(1);
+                                                tooltip += `\n  - ${file.name} (${sizeKB} KB)`;
+                                            });
+                                            if (dirInfo.files.length > 5) {
+                                                tooltip += `\n  ... 他 ${dirInfo.files.length - 5}件`;
+                                            }
+                                        }
+                                    } else {
+                                        tooltip += `\n\n❌ ディレクトリが存在しません`;
+                                    }
+                                }
+                                element.title = tooltip;
                             }
                         }
                     });
@@ -8197,11 +8342,48 @@ def get_config():
         is_cloud = os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('DYNO') or os.environ.get('VERCEL')
         default_dir = app.config.get('DEFAULT_HTML_DIRECTORY')
         
+        # HTML_DIRECTORYの存在確認とファイル一覧
+        dir_info = None
+        if default_dir:
+            try:
+                dir_path = Path(default_dir)
+                if dir_path.exists() and dir_path.is_dir():
+                    files = []
+                    for file_path in dir_path.iterdir():
+                        if file_path.is_file():
+                            files.append({
+                                'name': file_path.name,
+                                'size': file_path.stat().st_size,
+                                'modified': file_path.stat().st_mtime
+                            })
+                    dir_info = {
+                        'path': str(dir_path),
+                        'exists': True,
+                        'file_count': len(files),
+                        'files': files[:20]  # 最大20件まで
+                    }
+                else:
+                    dir_info = {
+                        'path': str(dir_path),
+                        'exists': False,
+                        'file_count': 0,
+                        'files': []
+                    }
+            except Exception as e:
+                dir_info = {
+                    'path': default_dir,
+                    'exists': False,
+                    'error': str(e),
+                    'file_count': 0,
+                    'files': []
+                }
+        
         return jsonify({
             'success': True,
             'is_cloud': bool(is_cloud),
             'default_html_directory': default_dir,
-            'upload_folder': app.config.get('UPLOAD_FOLDER', 'uploads')
+            'upload_folder': app.config.get('UPLOAD_FOLDER', 'uploads'),
+            'directory_info': dir_info
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
