@@ -1474,7 +1474,7 @@ EDITOR_TEMPLATE = r"""
     <div id="usageGuide">
         <div class="usage-guide-header" id="usageGuideHeader">
             <div class="usage-guide-title">📖 利用手順</div>
-            <button class="usage-guide-toggle" id="usageGuideToggle" onclick="toggleUsageGuide()" title="開閉">▼</button>
+            <button class="usage-guide-toggle" id="usageGuideToggle" title="開閉">▼</button>
         </div>
         <div class="usage-guide-content" id="usageGuideContent">
             <div class="usage-guide-step">
@@ -1674,7 +1674,7 @@ EDITOR_TEMPLATE = r"""
     <div id="remoteControl">
         <div class="remote-control-header" id="remoteControlHeader">
             <div class="remote-control-title">🎮 リモコン盤</div>
-            <button class="remote-control-toggle" id="remoteControlToggle" onclick="toggleRemoteControl()" title="開閉">▼</button>
+            <button class="remote-control-toggle" id="remoteControlToggle" title="開閉">▼</button>
         </div>
         <div class="remote-control-content" id="remoteControlContent">
             <!-- ファイル操作セクション -->
@@ -2260,6 +2260,9 @@ EDITOR_TEMPLATE = r"""
             
             // 利用手順パネルの初期化
             initUsageGuide();
+            
+            // トグルボタンのイベントリスナーを設定
+            setupToggleButtons();
             
             // リサイザーの実装
             const resizer = document.getElementById('resizer');
@@ -3684,6 +3687,19 @@ EDITOR_TEMPLATE = r"""
             // 状態を保存
             localStorage.setItem('usageGuideState', isCollapsed ? 'collapsed' : 'expanded');
         };
+        
+        // イベントリスナーを設定
+        function setupToggleButtons() {
+            const usageGuideToggle = document.getElementById('usageGuideToggle');
+            if (usageGuideToggle) {
+                usageGuideToggle.addEventListener('click', toggleUsageGuide);
+            }
+            
+            const remoteControlToggle = document.getElementById('remoteControlToggle');
+            if (remoteControlToggle) {
+                remoteControlToggle.addEventListener('click', toggleRemoteControl);
+            }
+        }
         
         // ボタンの表示を確認・強制表示（リモコン盤内のボタン用）
         function ensureButtonsVisible() {
