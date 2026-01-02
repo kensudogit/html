@@ -1888,7 +1888,8 @@ EDITOR_TEMPLATE = r"""
                 </div>
                 <small style="color: #718096; font-size: 12px; display: block; margin-top: 8px;">
                     ※ ディレクトリ内のすべてのHTMLファイル（.html, .htm）を分析対象とします<br>
-                    ※ 環境変数 HTML_DIRECTORY が設定されている場合、空欄のままで実行できます
+                    ※ 環境変数 HTML_DIRECTORY が設定されている場合、空欄のままで実行できます<br>
+                    ※ 空欄の場合は、環境変数が設定されていなければアップロードフォルダが使用されます
                 </small>
             </div>
             
@@ -4771,12 +4772,12 @@ EDITOR_TEMPLATE = r"""
                     if (configData.success && configData.default_html_directory) {
                         dirPath = configData.default_html_directory;
                     } else {
-                        showStatus('ディレクトリパスを入力してください。環境変数 HTML_DIRECTORY を設定することでデフォルトディレクトリを指定できます。', 'error');
-                        return;
+                        // 環境変数もない場合はアップロードフォルダを使用
+                        dirPath = '__upload__';
                     }
                 } catch (error) {
-                    showStatus('ディレクトリパスを入力してください', 'error');
-                    return;
+                    // エラーが発生した場合もアップロードフォルダを使用
+                    dirPath = '__upload__';
                 }
             }
             
@@ -7273,48 +7274,56 @@ def diff_analysis():
         directory = data.get('directory', '').strip()
         options = data.get('options', {})
         
-        # 空欄の場合は環境変数からデフォルトディレクトリを取得
-        if not directory:
+        # 空欄またはアップロードフォルダ指定の場合は環境変数またはアップロードフォルダから取得
+        use_upload_dir = False
+        if not directory or directory == '__upload__':
             default_dir = app.config.get('DEFAULT_HTML_DIRECTORY')
-            if default_dir:
+            if default_dir and directory != '__upload__':
                 directory = default_dir
             else:
-                return jsonify({'success': False, 'error': 'ディレクトリパスが指定されていません。\n環境変数 HTML_DIRECTORY を設定することでデフォルトディレクトリを指定できます。'}), 400
+                # アップロードフォルダを使用
+                directory = str(UPLOAD_DIR)
+                use_upload_dir = True
         
         # Railway/Heroku環境ではWindowsパスは使用不可
         is_cloud = os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('DYNO') or os.environ.get('VERCEL')
-        if is_cloud and directory and len(directory) >= 2 and directory[0].isalpha() and directory[1] == ':':
+        if not use_upload_dir and is_cloud and directory and len(directory) >= 2 and directory[0].isalpha() and directory[1] == ':':
             return jsonify({
                 'success': False, 
                 'error': f'Windowsパス（{directory}）はクラウド環境では使用できません。\n'
                         f'環境変数 HTML_DIRECTORY でLinux形式の絶対パス（例: /data/html）を設定してください。\n'
-                        f'または、Linux形式の絶対パス（例: /tmp/html）を直接指定してください。'
+                        f'または、Linux形式の絶対パス（例: /tmp/html）を直接指定してください。\n'
+                        f'アップロードフォルダを使用する場合は、パスを空欄にしてください。'
             }), 400
         
-        # Windowsパスの処理: バックスラッシュとスラッシュを正規化
-        # c:\\html, c:\html, c:/html を正しく処理
-        directory = directory.strip()
-        # スラッシュをバックスラッシュに変換（Windowsパスの場合）
-        if directory and (directory[0].isalpha() and len(directory) > 1 and directory[1] == ':'):
-            # Windows絶対パス（例: C:\html, C:/html）
-            # ドライブレターを大文字に正規化
-            directory = directory[0].upper() + directory[1:].replace('/', '\\')
+        # アップロードフォルダの場合はそのまま使用
+        if use_upload_dir:
+            dir_path = UPLOAD_DIR
         else:
-            # 相対パスやその他の形式
-            directory = directory.replace('\\\\', '\\').replace('/', '\\')
-        
-        # パスを正規化
-        try:
-            # Windows絶対パスの場合、Path()で直接処理
-            if directory and len(directory) >= 2 and directory[0].isalpha() and directory[1] == ':':
-                dir_path = Path(directory)
+            # Windowsパスの処理: バックスラッシュとスラッシュを正規化
+            # c:\\html, c:\html, c:/html を正しく処理
+            directory = directory.strip()
+            # スラッシュをバックスラッシュに変換（Windowsパスの場合）
+            if directory and (directory[0].isalpha() and len(directory) > 1 and directory[1] == ':'):
+                # Windows絶対パス（例: C:\html, C:/html）
+                # ドライブレターを大文字に正規化
+                directory = directory[0].upper() + directory[1:].replace('/', '\\')
             else:
-                dir_path = Path(directory).resolve()
-        except Exception as e:
-            return jsonify({
-                'success': False, 
-                'error': f'無効なパス形式です: {directory}。エラー: {str(e)}'
-            }), 400
+                # 相対パスやその他の形式
+                directory = directory.replace('\\\\', '\\').replace('/', '\\')
+            
+            # パスを正規化
+            try:
+                # Windows絶対パスの場合、Path()で直接処理
+                if directory and len(directory) >= 2 and directory[0].isalpha() and directory[1] == ':':
+                    dir_path = Path(directory)
+                else:
+                    dir_path = Path(directory).resolve()
+            except Exception as e:
+                return jsonify({
+                    'success': False, 
+                    'error': f'無効なパス形式です: {directory}。エラー: {str(e)}'
+                }), 400
         
         # ディレクトリの存在確認
         if not dir_path.exists():
@@ -7333,6 +7342,7 @@ def diff_analysis():
                 error_msg += f'\nパスの例: C:\\html または C:/html\n絶対パスを指定してください'
             else:
                 error_msg += f'\nパスの例: /tmp/html または /app/html\nLinux形式の絶対パスを指定してください'
+            error_msg += '\n\n💡 ヒント: アップロードフォルダを使用する場合は、パスを空欄にしてください。'
             return jsonify({'success': False, 'error': error_msg}), 404
         
         if not dir_path.is_dir():
