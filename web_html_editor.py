@@ -1876,7 +1876,7 @@ EDITOR_TEMPLATE = r"""
             
             <div class="form-group" style="margin-top: 20px;">
                 <label class="form-label">分析対象ディレクトリ</label>
-                <input type="text" id="diffAnalysisDir" class="form-input" placeholder="例: /tmp/html または空欄で環境変数 HTML_DIRECTORY を使用" value="" title="空欄の場合は環境変数 HTML_DIRECTORY の値が使用されます">
+                <input type="text" id="diffAnalysisDir" class="form-input" placeholder="例: /tmp/html または空欄でアップロードフォルダを使用" value="" title="空欄の場合は環境変数 HTML_DIRECTORY が設定されていればそれを使用、なければアップロードフォルダを使用" oninput="updateDiffAnalysisDirInfo()">
                 <div id="diffAnalysisDirInfo" style="margin-top: 8px; padding: 8px; background: #f0f4f8; border-radius: 5px; border-left: 3px solid #667eea; display: none;">
                     <div style="font-size: 11px; color: #4a5568; font-weight: 600; margin-bottom: 4px;">📂 使用されるディレクトリ:</div>
                     <div id="diffAnalysisDirPath" style="font-size: 12px; color: #2d3748; font-family: monospace; font-weight: 500;"></div>
@@ -4672,6 +4672,12 @@ EDITOR_TEMPLATE = r"""
             if (modal) {
                 modal.style.display = 'block';
                 
+                // 入力フィールドをクリア（アップロードフォルダを使用）
+                const dirInput = document.getElementById('diffAnalysisDir');
+                if (dirInput) {
+                    dirInput.value = '';
+                }
+                
                 // 環境変数を確認してディレクトリ情報を表示
                 updateDiffAnalysisDirInfo();
             } else {
@@ -4680,80 +4686,155 @@ EDITOR_TEMPLATE = r"""
         };
         
         // 差分検出のディレクトリ情報を更新
-        async function updateDiffAnalysisDirInfo() {
+        window.updateDiffAnalysisDirInfo = async function updateDiffAnalysisDirInfo() {
             const dirInfoDiv = document.getElementById('diffAnalysisDirInfo');
             const dirPathDiv = document.getElementById('diffAnalysisDirPath');
             const dirFilesDiv = document.getElementById('diffAnalysisDirFiles');
             const fileListDiv = document.getElementById('diffAnalysisFileList');
             const fileListContent = document.getElementById('diffAnalysisFileListContent');
+            const dirInput = document.getElementById('diffAnalysisDir');
             
             if (!dirInfoDiv || !dirPathDiv || !dirFilesDiv) return;
+            
+            // 入力フィールドの値を確認
+            const inputValue = dirInput ? dirInput.value.trim() : '';
             
             try {
                 const response = await fetch('/api/config');
                 const data = await response.json();
                 
-                if (data.success && data.directory_info) {
-                    const dirInfo = data.directory_info;
-                    if (dirInfo.exists) {
-                        dirPathDiv.textContent = dirInfo.path;
+                // 入力フィールドが空欄の場合、環境変数またはアップロードフォルダを使用
+                if (!inputValue) {
+                    if (data.success && data.default_html_directory) {
+                        // 環境変数が設定されている場合
+                        dirPathDiv.textContent = data.default_html_directory + ' (環境変数)';
+                        dirFilesDiv.textContent = 'ℹ️ ディレクトリ情報を確認中...';
+                        dirFilesDiv.style.color = '#718096';
+                        if (fileListDiv) {
+                            fileListDiv.style.display = 'none';
+                        }
+                        dirInfoDiv.style.display = 'block';
+                    } else {
+                        // アップロードフォルダを使用
+                        const uploadFolder = data.success ? data.upload_folder : 'uploads';
+                        dirPathDiv.textContent = uploadFolder + ' (アップロードフォルダ)';
                         
-                        // HTMLファイルのみをフィルタリング
-                        const htmlFiles = dirInfo.files.filter(f => 
-                            f.name.toLowerCase().endsWith('.html') || 
-                            f.name.toLowerCase().endsWith('.htm')
-                        );
-                        
-                        if (htmlFiles.length > 0) {
-                            dirFilesDiv.textContent = `✅ ${htmlFiles.length}件のHTMLファイルが見つかりました`;
-                            dirFilesDiv.style.color = '#48bb78';
+                        // アップロードフォルダのファイル一覧を取得
+                        try {
+                            const filesResponse = await fetch('/files');
+                            const filesData = await filesResponse.json();
                             
-                            // HTMLファイル一覧を表示
-                            if (fileListDiv && fileListContent) {
-                                fileListContent.innerHTML = '';
-                                htmlFiles.forEach((file, index) => {
-                                    const sizeKB = (file.size / 1024).toFixed(1);
-                                    const fileItem = document.createElement('div');
-                                    fileItem.style.padding = '4px 0';
-                                    fileItem.style.borderBottom = index < htmlFiles.length - 1 ? '1px solid #e2e8f0' : 'none';
-                                    fileItem.innerHTML = `<span style="color: #667eea;">📄</span> ${file.name} <span style="color: #718096;">(${sizeKB} KB)</span>`;
-                                    fileListContent.appendChild(fileItem);
-                                });
-                                fileListDiv.style.display = 'block';
+                            if (filesData.success && filesData.files && filesData.files.length > 0) {
+                                const htmlFiles = filesData.files.filter(f => 
+                                    f.name.toLowerCase().endsWith('.html') || 
+                                    f.name.toLowerCase().endsWith('.htm')
+                                );
+                                
+                                if (htmlFiles.length > 0) {
+                                    dirFilesDiv.textContent = `✅ ${htmlFiles.length}件のHTMLファイルが見つかりました`;
+                                    dirFilesDiv.style.color = '#48bb78';
+                                    
+                                    // HTMLファイル一覧を表示
+                                    if (fileListDiv && fileListContent) {
+                                        fileListContent.innerHTML = '';
+                                        htmlFiles.forEach((file, index) => {
+                                            const sizeKB = (file.size / 1024).toFixed(1);
+                                            const fileItem = document.createElement('div');
+                                            fileItem.style.padding = '4px 0';
+                                            fileItem.style.borderBottom = index < htmlFiles.length - 1 ? '1px solid #e2e8f0' : 'none';
+                                            fileItem.innerHTML = `<span style="color: #667eea;">📄</span> ${file.name} <span style="color: #718096;">(${sizeKB} KB)</span>`;
+                                            fileListContent.appendChild(fileItem);
+                                        });
+                                        fileListDiv.style.display = 'block';
+                                    }
+                                } else {
+                                    dirFilesDiv.textContent = '⚠️ アップロードフォルダにHTMLファイルが見つかりませんでした';
+                                    dirFilesDiv.style.color = '#f59e0b';
+                                    if (fileListDiv) {
+                                        fileListDiv.style.display = 'none';
+                                    }
+                                }
+                            } else {
+                                dirFilesDiv.textContent = '⚠️ アップロードフォルダにファイルが見つかりませんでした';
+                                dirFilesDiv.style.color = '#f59e0b';
+                                if (fileListDiv) {
+                                    fileListDiv.style.display = 'none';
+                                }
                             }
-                        } else {
-                            dirFilesDiv.textContent = '⚠️ ディレクトリは存在しますが、HTMLファイルが見つかりませんでした';
-                            dirFilesDiv.style.color = '#f59e0b';
+                        } catch (error) {
+                            dirFilesDiv.textContent = 'ℹ️ アップロードフォルダの情報を確認中...';
+                            dirFilesDiv.style.color = '#718096';
                             if (fileListDiv) {
                                 fileListDiv.style.display = 'none';
                             }
                         }
                         dirInfoDiv.style.display = 'block';
+                    }
+                } else {
+                    // 入力フィールドに値が入力されている場合、環境変数のディレクトリ情報を確認
+                    if (data.success && data.directory_info) {
+                        const dirInfo = data.directory_info;
+                        if (dirInfo.exists) {
+                            dirPathDiv.textContent = dirInfo.path;
+                            
+                            // HTMLファイルのみをフィルタリング
+                            const htmlFiles = dirInfo.files.filter(f => 
+                                f.name.toLowerCase().endsWith('.html') || 
+                                f.name.toLowerCase().endsWith('.htm')
+                            );
+                            
+                            if (htmlFiles.length > 0) {
+                                dirFilesDiv.textContent = `✅ ${htmlFiles.length}件のHTMLファイルが見つかりました`;
+                                dirFilesDiv.style.color = '#48bb78';
+                                
+                                // HTMLファイル一覧を表示
+                                if (fileListDiv && fileListContent) {
+                                    fileListContent.innerHTML = '';
+                                    htmlFiles.forEach((file, index) => {
+                                        const sizeKB = (file.size / 1024).toFixed(1);
+                                        const fileItem = document.createElement('div');
+                                        fileItem.style.padding = '4px 0';
+                                        fileItem.style.borderBottom = index < htmlFiles.length - 1 ? '1px solid #e2e8f0' : 'none';
+                                        fileItem.innerHTML = `<span style="color: #667eea;">📄</span> ${file.name} <span style="color: #718096;">(${sizeKB} KB)</span>`;
+                                        fileListContent.appendChild(fileItem);
+                                    });
+                                    fileListDiv.style.display = 'block';
+                                }
+                            } else {
+                                dirFilesDiv.textContent = '⚠️ ディレクトリは存在しますが、HTMLファイルが見つかりませんでした';
+                                dirFilesDiv.style.color = '#f59e0b';
+                                if (fileListDiv) {
+                                    fileListDiv.style.display = 'none';
+                                }
+                            }
+                            dirInfoDiv.style.display = 'block';
+                        } else {
+                            dirPathDiv.textContent = dirInfo.path || inputValue;
+                            dirFilesDiv.textContent = '❌ ディレクトリが存在しません';
+                            dirFilesDiv.style.color = '#ef4444';
+                            if (fileListDiv) {
+                                fileListDiv.style.display = 'none';
+                            }
+                            dirInfoDiv.style.display = 'block';
+                        }
+                    } else if (data.success && data.default_html_directory && inputValue === data.default_html_directory) {
+                        dirPathDiv.textContent = data.default_html_directory + ' (環境変数)';
+                        dirFilesDiv.textContent = 'ℹ️ ディレクトリ情報を確認中...';
+                        dirFilesDiv.style.color = '#718096';
+                        if (fileListDiv) {
+                            fileListDiv.style.display = 'none';
+                        }
+                        dirInfoDiv.style.display = 'block';
                     } else {
-                        dirPathDiv.textContent = dirInfo.path || '未設定';
-                        dirFilesDiv.textContent = '❌ ディレクトリが存在しません';
-                        dirFilesDiv.style.color = '#ef4444';
+                        // 入力されたパスを表示（存在確認は実行時に）
+                        dirPathDiv.textContent = inputValue + ' (ユーザー指定)';
+                        dirFilesDiv.textContent = 'ℹ️ 実行時にディレクトリの存在を確認します';
+                        dirFilesDiv.style.color = '#718096';
                         if (fileListDiv) {
                             fileListDiv.style.display = 'none';
                         }
                         dirInfoDiv.style.display = 'block';
                     }
-                } else if (data.success && data.default_html_directory) {
-                    dirPathDiv.textContent = data.default_html_directory + ' (環境変数)';
-                    dirFilesDiv.textContent = 'ℹ️ ディレクトリ情報を確認中...';
-                    dirFilesDiv.style.color = '#718096';
-                    if (fileListDiv) {
-                        fileListDiv.style.display = 'none';
-                    }
-                    dirInfoDiv.style.display = 'block';
-                    
-                    // 環境変数の値を入力フィールドに設定
-                    const dirInput = document.getElementById('diffAnalysisDir');
-                    if (dirInput && !dirInput.value.trim()) {
-                        dirInput.value = data.default_html_directory;
-                    }
-                } else {
-                    dirInfoDiv.style.display = 'none';
                 }
             } catch (error) {
                 console.error('ディレクトリ情報の取得エラー:', error);
