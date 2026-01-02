@@ -45,10 +45,8 @@ if os.environ.get('VERCEL'):
 else:
     app.config['UPLOAD_FOLDER'] = 'uploads'
 
-# デフォルトHTMLディレクトリ（環境変数で設定可能）
-# Railway環境では環境変数 HTML_DIRECTORY または DEFAULT_HTML_DIRECTORY で設定
-# 例: HTML_DIRECTORY=/data/html または HTML_DIRECTORY=/app/html
-app.config['DEFAULT_HTML_DIRECTORY'] = os.environ.get('HTML_DIRECTORY') or os.environ.get('DEFAULT_HTML_DIRECTORY') or None
+# デフォルトHTMLディレクトリ（アップロードフォルダを使用）
+app.config['DEFAULT_HTML_DIRECTORY'] = None
 
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB制限
 
@@ -1876,7 +1874,7 @@ EDITOR_TEMPLATE = r"""
             
             <div class="form-group" style="margin-top: 20px;">
                 <label class="form-label">分析対象ディレクトリ</label>
-                <input type="text" id="diffAnalysisDir" class="form-input" placeholder="例: /tmp/html または空欄でアップロードフォルダを使用" value="" title="空欄の場合は環境変数 HTML_DIRECTORY が設定されていればそれを使用、なければアップロードフォルダを使用" oninput="updateDiffAnalysisDirInfo()">
+                <input type="text" id="diffAnalysisDir" class="form-input" placeholder="例: /tmp/html または空欄でアップロードフォルダを使用" value="" title="空欄の場合はアップロードフォルダを使用" oninput="updateDiffAnalysisDirInfo()">
                 <div id="diffAnalysisDirInfo" style="margin-top: 8px; padding: 8px; background: #f0f4f8; border-radius: 5px; border-left: 3px solid #667eea; display: none;">
                     <div style="font-size: 11px; color: #4a5568; font-weight: 600; margin-bottom: 4px;">📂 使用されるディレクトリ:</div>
                     <div id="diffAnalysisDirPath" style="font-size: 12px; color: #2d3748; font-family: monospace; font-weight: 500;"></div>
@@ -1888,8 +1886,7 @@ EDITOR_TEMPLATE = r"""
                 </div>
                 <small style="color: #718096; font-size: 12px; display: block; margin-top: 8px;">
                     ※ ディレクトリ内のすべてのHTMLファイル（.html, .htm）を分析対象とします<br>
-                    ※ 環境変数 HTML_DIRECTORY が設定されている場合、空欄のままで実行できます<br>
-                    ※ 空欄の場合は、環境変数が設定されていなければアップロードフォルダが使用されます
+                    ※ 空欄の場合は、アップロードフォルダが使用されます
                 </small>
             </div>
             
@@ -1975,7 +1972,6 @@ EDITOR_TEMPLATE = r"""
                     <select id="templateMergeDirSelect" class="form-input" style="flex: 1; min-width: 200px; max-width: 300px;" onchange="onTemplateMergeDirSelect()" title="フォルダを選択">
                         <option value="">-- フォルダを選択 --</option>
                         <option value="__upload__">📁 アップロードフォルダ</option>
-                        <option value="__env__" id="templateMergeEnvOption" style="display: none;">📁 環境変数フォルダ</option>
                     </select>
                     <input type="text" id="templateMergeDir" class="form-input" placeholder="または直接パスを入力: C:\html" style="flex: 1; min-width: 200px;" title="Windows: C:\\html または C:/html&#10;空欄の場合はアップロードフォルダを表示" list="templateMergeDirHistory">
                     <datalist id="templateMergeDirHistory"></datalist>
@@ -1991,7 +1987,7 @@ EDITOR_TEMPLATE = r"""
                     </div>
                 </div>
                 <small style="color: #718096; font-size: 12px; display: block; margin-bottom: 10px;">
-                    ドロップダウンから選択するか、直接パスを入力してください。環境変数 HTML_DIRECTORY が設定されている場合、空欄でそのディレクトリが使用されます。
+                    ドロップダウンから選択するか、直接パスを入力してください。空欄の場合はアップロードフォルダが使用されます。
                 </small>
             </div>
             
@@ -4225,10 +4221,6 @@ EDITOR_TEMPLATE = r"""
                     // アップロードフォルダを選択した場合、入力フィールドをクリア
                     dirInput.value = '';
                     loadTemplateFileList();
-                } else if (selectedValue === '__env__') {
-                    // 環境変数フォルダを選択した場合、入力フィールドをクリア
-                    dirInput.value = '';
-                    loadTemplateFileList();
                 } else if (selectedValue && selectedValue !== '') {
                     // その他のパスが選択された場合
                     dirInput.value = selectedValue;
@@ -4290,19 +4282,10 @@ EDITOR_TEMPLATE = r"""
                 }
                 
                 // 環境変数を確認
-                fetch('/api/config')
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success && data.default_html_directory && envOption) {
-                            envOption.textContent = `📁 ${data.default_html_directory} (環境変数)`;
-                            envOption.style.display = 'block';
-                        } else if (envOption) {
-                            envOption.style.display = 'none';
-                        }
-                    })
-                    .catch(error => {
-                        console.error('設定の読み込みに失敗しました:', error);
-                    });
+                // 環境変数オプションは常に非表示
+                if (envOption) {
+                    envOption.style.display = 'none';
+                }
             }
         }
         
@@ -4314,9 +4297,7 @@ EDITOR_TEMPLATE = r"""
                 if (displayPath) {
                     let displayText = displayPath;
                     let sourceText = '';
-                    if (source === 'env') {
-                        sourceText = ' (環境変数 HTML_DIRECTORY)';
-                    } else if (source === 'upload') {
+                    if (source === 'upload') {
                         sourceText = ' (アップロードフォルダ)';
                     } else if (source === 'user') {
                         sourceText = ' (ユーザー指定)';
@@ -4329,7 +4310,7 @@ EDITOR_TEMPLATE = r"""
                     currentDirDiv.style.display = 'block';
                 } else {
                     currentDirDiv.style.display = 'block';
-                    currentDirPath.textContent = '未設定 - アップロードフォルダまたは環境変数フォルダが使用されます';
+                    currentDirPath.textContent = '未設定 - アップロードフォルダが使用されます';
                 }
             }
         }
@@ -4412,36 +4393,12 @@ EDITOR_TEMPLATE = r"""
                     return;
                 }
                 
-                // 環境変数フォルダが選択されている場合
-                if (selectedOption === '__env__') {
-                    try {
-                        const configResponse = await fetch('/api/config');
-                        const configData = await configResponse.json();
-                        if (configData.success && configData.default_html_directory) {
-                            dirPath = configData.default_html_directory;
-                            updateTemplateMergeCurrentDir(dirPath, 'env');
-                        } else {
-                            fileListDiv.innerHTML = '<p style="color: #f56565; font-size: 12px; margin: 0;">環境変数 HTML_DIRECTORY が設定されていません</p>';
-                            return;
-                        }
-                    } catch (error) {
-                        console.error('環境変数の読み込みエラー:', error);
-                        fileListDiv.innerHTML = `<p style="color: #f56565; font-size: 12px; margin: 0;">エラー: ${error.message}</p>`;
-                        return;
-                    }
-                }
-                
-                // ディレクトリパスが空で、選択もない場合は環境変数またはアップロードフォルダを確認
+                // ディレクトリパスが空で、選択もない場合はアップロードフォルダを確認
                 if (!dirPath && !selectedOption) {
                     try {
                         const configResponse = await fetch('/api/config');
                         const configData = await configResponse.json();
-                        if (configData.success && configData.default_html_directory) {
-                            // 環境変数が設定されている場合はそれを使用
-                            dirPath = configData.default_html_directory;
-                            updateTemplateMergeCurrentDir(dirPath, 'env');
-                        } else {
-                            // 環境変数もない場合はアップロードフォルダを読み込み
+                        // アップロードフォルダを読み込み
                             const uploadFolder = configData.success ? configData.upload_folder : 'uploads';
                             updateTemplateMergeCurrentDir(uploadFolder, 'upload');
                             
@@ -4709,19 +4666,9 @@ EDITOR_TEMPLATE = r"""
                 const response = await fetch('/api/config');
                 const data = await response.json();
                 
-                // 入力フィールドが空欄の場合、環境変数またはアップロードフォルダを使用
+                // 入力フィールドが空欄の場合、アップロードフォルダを使用
                 if (!inputValue) {
-                    if (data.success && data.default_html_directory) {
-                        // 環境変数が設定されている場合
-                        dirPathDiv.textContent = data.default_html_directory + ' (環境変数)';
-                        dirFilesDiv.textContent = 'ℹ️ ディレクトリ情報を確認中...';
-                        dirFilesDiv.style.color = '#718096';
-                        if (fileListDiv) {
-                            fileListDiv.style.display = 'none';
-                        }
-                        dirInfoDiv.style.display = 'block';
-                    } else {
-                        // アップロードフォルダを使用
+                    // アップロードフォルダを使用
                         const uploadFolder = data.success ? data.upload_folder : 'uploads';
                         dirPathDiv.textContent = uploadFolder + ' (アップロードフォルダ)';
                         
@@ -4777,7 +4724,7 @@ EDITOR_TEMPLATE = r"""
                         dirInfoDiv.style.display = 'block';
                     }
                 } else {
-                    // 入力フィールドに値が入力されている場合、環境変数のディレクトリ情報を確認
+                    // 入力フィールドに値が入力されている場合、ディレクトリ情報を確認
                     if (data.success && data.directory_info) {
                         const dirInfo = data.directory_info;
                         if (dirInfo.exists) {
@@ -4883,20 +4830,8 @@ EDITOR_TEMPLATE = r"""
         window.performDiffAnalysis = async function performDiffAnalysis() {
             let dirPath = document.getElementById('diffAnalysisDir').value.trim();
             if (!dirPath) {
-                // 環境変数を確認
-                try {
-                    const configResponse = await fetch('/api/config');
-                    const configData = await configResponse.json();
-                    if (configData.success && configData.default_html_directory) {
-                        dirPath = configData.default_html_directory;
-                    } else {
-                        // 環境変数もない場合はアップロードフォルダを使用
-                        dirPath = '__upload__';
-                    }
-                } catch (error) {
-                    // エラーが発生した場合もアップロードフォルダを使用
-                    dirPath = '__upload__';
-                }
+                // 空欄の場合はアップロードフォルダを使用
+                dirPath = '__upload__';
             }
             
             // Windowsパスの正規化
@@ -5688,8 +5623,8 @@ EDITOR_TEMPLATE = r"""
                     // プレースホルダーを更新
                     const placeholders = {
                         'fileListDir': defaultDir ? `例: ${defaultDir} または空欄でアップロードフォルダ` : '例: C:\\html または空欄でアップロードフォルダ',
-                        'comparisonDir': defaultDir ? `例: ${defaultDir} (環境変数 HTML_DIRECTORY で設定済み)` : (isCloud ? '例: /data/html または /tmp/html (Linux形式の絶対パス)' : '例: C:\\html または C:/html (絶対パスを指定)'),
-                        'diffAnalysisDir': defaultDir ? `例: ${defaultDir} (環境変数 HTML_DIRECTORY で設定済み)` : (isCloud ? '例: /data/html または /tmp/html (Linux形式の絶対パス)' : '例: C:\\html または C:/html (絶対パスを指定)'),
+                        'comparisonDir': isCloud ? '例: /data/html または /tmp/html (Linux形式の絶対パス)' : '例: C:\\html または C:/html (絶対パスを指定)',
+                        'diffAnalysisDir': isCloud ? '例: /data/html または /tmp/html (Linux形式の絶対パス)' : '例: C:\\html または C:/html (絶対パスを指定)',
                         'templateMergeDir': defaultDir ? `例: ${defaultDir} または空欄でアップロードフォルダ` : '例: C:\\html または空欄でアップロードフォルダ',
                         'quickComparisonDir': defaultDir || (isCloud ? '/data/html' : 'C:\\html')
                     };
@@ -5699,29 +5634,6 @@ EDITOR_TEMPLATE = r"""
                         const element = document.getElementById(id);
                         if (element) {
                             element.placeholder = placeholders[id];
-                            // 環境変数が設定されている場合は、空欄の場合はその値を使用することを示す
-                            if (defaultDir && (id === 'fileListDir' || id === 'comparisonDir' || id === 'diffAnalysisDir' || id === 'templateMergeDir')) {
-                                let tooltip = `環境変数 HTML_DIRECTORY=${defaultDir} が設定されています。\n空欄の場合はこのディレクトリが使用されます。`;
-                                if (dirInfo) {
-                                    if (dirInfo.exists) {
-                                        tooltip += `\n\n✅ ディレクトリは存在します`;
-                                        tooltip += `\n📁 ファイル数: ${dirInfo.file_count}件`;
-                                        if (dirInfo.files && dirInfo.files.length > 0) {
-                                            tooltip += `\n\n📄 ファイル一覧:`;
-                                            dirInfo.files.slice(0, 5).forEach(file => {
-                                                const sizeKB = (file.size / 1024).toFixed(1);
-                                                tooltip += `\n  - ${file.name} (${sizeKB} KB)`;
-                                            });
-                                            if (dirInfo.files.length > 5) {
-                                                tooltip += `\n  ... 他 ${dirInfo.files.length - 5}件`;
-                                            }
-                                        }
-                                    } else {
-                                        tooltip += `\n\n❌ ディレクトリが存在しません`;
-                                    }
-                                }
-                                element.title = tooltip;
-                            }
                         }
                     });
                 }
@@ -6365,20 +6277,8 @@ EDITOR_TEMPLATE = r"""
         window.loadComparisonFiles = async function loadComparisonFiles() {
             let dirPath = document.getElementById('comparisonDir').value.trim();
             if (!dirPath) {
-                // 環境変数を確認
-                try {
-                    const configResponse = await fetch('/api/config');
-                    const configData = await configResponse.json();
-                    if (configData.success && configData.default_html_directory) {
-                        dirPath = configData.default_html_directory;
-                    } else {
-                        showStatus('ディレクトリパスを入力してください。環境変数 HTML_DIRECTORY を設定することでデフォルトディレクトリを指定できます。', 'error');
-                        return;
-                    }
-                } catch (error) {
-                    showStatus('ディレクトリパスを入力してください', 'error');
-                    return;
-                }
+                // 空欄の場合はアップロードフォルダを使用
+                dirPath = '';
             }
             
             // Windowsパスの正規化
@@ -7392,16 +7292,12 @@ def diff_analysis():
         directory = data.get('directory', '').strip()
         options = data.get('options', {})
         
-        # 空欄またはアップロードフォルダ指定の場合は環境変数またはアップロードフォルダから取得
+        # 空欄またはアップロードフォルダ指定の場合はアップロードフォルダを使用
         use_upload_dir = False
         if not directory or directory == '__upload__':
-            default_dir = app.config.get('DEFAULT_HTML_DIRECTORY')
-            if default_dir and directory != '__upload__':
-                directory = default_dir
-            else:
-                # アップロードフォルダを使用
-                directory = str(UPLOAD_DIR)
-                use_upload_dir = True
+            # アップロードフォルダを使用
+            directory = str(UPLOAD_DIR)
+            use_upload_dir = True
         
         # Railway/Heroku環境ではWindowsパスは使用不可
         is_cloud = os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('DYNO') or os.environ.get('VERCEL')
@@ -7409,8 +7305,7 @@ def diff_analysis():
             return jsonify({
                 'success': False, 
                 'error': f'Windowsパス（{directory}）はクラウド環境では使用できません。\n'
-                        f'環境変数 HTML_DIRECTORY でLinux形式の絶対パス（例: /data/html）を設定してください。\n'
-                        f'または、Linux形式の絶対パス（例: /tmp/html）を直接指定してください。\n'
+                        f'Linux形式の絶対パス（例: /tmp/html）を直接指定してください。\n'
                         f'アップロードフォルダを使用する場合は、パスを空欄にしてください。'
             }), 400
         
@@ -8406,14 +8301,9 @@ def list_directory_files():
         data = request.json
         directory = data.get('directory', '').strip()
         
-        # 空欄の場合は環境変数からデフォルトディレクトリを取得
+        # 空欄の場合はアップロードフォルダを使用
         if not directory:
-            default_dir = app.config.get('DEFAULT_HTML_DIRECTORY')
-            if default_dir:
-                directory = default_dir
-            else:
-                # 環境変数も設定されていない場合はアップロードフォルダを使用
-                return jsonify({'success': False, 'error': 'ディレクトリパスを指定してください。\n環境変数 HTML_DIRECTORY を設定することでデフォルトディレクトリを指定できます。'}), 400
+            directory = str(UPLOAD_DIR)
         
         # Railway/Heroku環境ではWindowsパスは使用不可
         is_cloud = os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('DYNO') or os.environ.get('VERCEL')
@@ -8571,53 +8461,16 @@ def list_directory_files():
 
 @app.route('/api/config', methods=['GET'])
 def get_config():
-    """アプリケーション設定を取得（環境変数など）"""
+    """アプリケーション設定を取得"""
     try:
         is_cloud = os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('DYNO') or os.environ.get('VERCEL')
-        default_dir = app.config.get('DEFAULT_HTML_DIRECTORY')
-        
-        # HTML_DIRECTORYの存在確認とファイル一覧
-        dir_info = None
-        if default_dir:
-            try:
-                dir_path = Path(default_dir)
-                if dir_path.exists() and dir_path.is_dir():
-                    files = []
-                    for file_path in dir_path.iterdir():
-                        if file_path.is_file():
-                            files.append({
-                                'name': file_path.name,
-                                'size': file_path.stat().st_size,
-                                'modified': file_path.stat().st_mtime
-                            })
-                    dir_info = {
-                        'path': str(dir_path),
-                        'exists': True,
-                        'file_count': len(files),
-                        'files': files[:20]  # 最大20件まで
-                    }
-                else:
-                    dir_info = {
-                        'path': str(dir_path),
-                        'exists': False,
-                        'file_count': 0,
-                        'files': []
-                    }
-            except Exception as e:
-                dir_info = {
-                    'path': default_dir,
-                    'exists': False,
-                    'error': str(e),
-                    'file_count': 0,
-                    'files': []
-                }
         
         return jsonify({
             'success': True,
             'is_cloud': bool(is_cloud),
-            'default_html_directory': default_dir,
+            'default_html_directory': None,
             'upload_folder': app.config.get('UPLOAD_FOLDER', 'uploads'),
-            'directory_info': dir_info
+            'directory_info': None
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -8710,13 +8563,9 @@ def load_comparison_files():
         data = request.json
         directory = data.get('directory', '').strip()
         
-        # 空欄の場合は環境変数からデフォルトディレクトリを取得
+        # 空欄の場合はアップロードフォルダを使用
         if not directory:
-            default_dir = app.config.get('DEFAULT_HTML_DIRECTORY')
-            if default_dir:
-                directory = default_dir
-            else:
-                return jsonify({'success': False, 'error': 'ディレクトリパスを指定してください。\n環境変数 HTML_DIRECTORY を設定することでデフォルトディレクトリを指定できます。'}), 400
+            directory = str(UPLOAD_DIR)
         
         # Railway/Heroku環境ではWindowsパスは使用不可
         is_cloud = os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('DYNO') or os.environ.get('VERCEL')
@@ -8724,8 +8573,8 @@ def load_comparison_files():
             return jsonify({
                 'success': False, 
                 'error': f'Windowsパス（{directory}）はクラウド環境では使用できません。\n'
-                        f'環境変数 HTML_DIRECTORY でLinux形式の絶対パス（例: /data/html）を設定してください。\n'
-                        f'または、Linux形式の絶対パス（例: /tmp/html）を直接指定してください。'
+                        f'Linux形式の絶対パス（例: /tmp/html）を直接指定してください。\n'
+                        f'アップロードフォルダを使用する場合は、パスを空欄にしてください。'
             }), 400
         
         # Windowsパスの処理: バックスラッシュとスラッシュを正規化
