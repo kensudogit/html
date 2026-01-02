@@ -4221,13 +4221,19 @@ EDITOR_TEMPLATE = r"""
             if (select && dirInput) {
                 const selectedValue = select.value;
                 if (selectedValue === '__upload__') {
+                    // アップロードフォルダを選択した場合、入力フィールドをクリア
                     dirInput.value = '';
                     loadTemplateFileList();
                 } else if (selectedValue === '__env__') {
+                    // 環境変数フォルダを選択した場合、入力フィールドをクリア
                     dirInput.value = '';
                     loadTemplateFileList();
                 } else if (selectedValue && selectedValue !== '') {
+                    // その他のパスが選択された場合
                     dirInput.value = selectedValue;
+                    loadTemplateFileList();
+                } else {
+                    // 選択が解除された場合、入力フィールドはそのまま
                     loadTemplateFileList();
                 }
             }
@@ -4336,6 +4342,15 @@ EDITOR_TEMPLATE = r"""
                 updateTemplateMergeDirHistory();
                 // 環境変数オプションを更新
                 updateTemplateMergeDirSelect();
+                // 入力フィールドとドロップダウンをリセット
+                const dirInput = document.getElementById('templateMergeDir');
+                const dirSelect = document.getElementById('templateMergeDirSelect');
+                if (dirInput) {
+                    dirInput.value = '';
+                }
+                if (dirSelect) {
+                    dirSelect.value = '__upload__'; // デフォルトでアップロードフォルダを選択
+                }
                 // 現在の検索フォルダ表示をリセット
                 updateTemplateMergeCurrentDir(null);
                 loadTemplateFileList();
@@ -4350,13 +4365,16 @@ EDITOR_TEMPLATE = r"""
             if (!fileListDiv) return;
             
             const dirInput = document.getElementById('templateMergeDir');
+            const dirSelect = document.getElementById('templateMergeDirSelect');
             let dirPath = dirInput ? dirInput.value.trim() : '';
+            const selectedOption = dirSelect ? dirSelect.value : '';
             
             fileListDiv.innerHTML = '<p style="color: #718096; font-size: 12px; margin: 0;">読み込み中...</p>';
             
             try {
                 let response;
-                if (!dirPath) {
+                // ドロップダウンで「アップロードフォルダ」が選択されている場合、入力フィールドの値に関係なくアップロードフォルダから読み込む
+                if (selectedOption === '__upload__' || (!dirPath && selectedOption !== '__env__')) {
                     // ディレクトリが空の場合は、まず環境変数を確認
                     const configResponse = await fetch('/api/config');
                     const configData = await configResponse.json();
@@ -4426,6 +4444,8 @@ EDITOR_TEMPLATE = r"""
                         if (checkData.parent_exists && checkData.parent_path) {
                             errorMsg += `\n親ディレクトリ（${checkData.parent_path}）は存在します。`;
                         }
+                        // アップロードフォルダを使用する方法を案内
+                        errorMsg += '\n\n💡 ヒント: ドロップダウンから「📁 アップロードフォルダ」を選択すると、アップロードしたファイルを表示できます。';
                         fileListDiv.innerHTML = `<p style="color: #f56565; font-size: 12px; margin: 0; white-space: pre-line;">${errorMsg}</p>`;
                         return;
                     }
