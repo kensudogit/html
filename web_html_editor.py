@@ -3811,7 +3811,7 @@ EDITOR_TEMPLATE = r"""
         };
         
         // 構造情報を表示
-        async function showStructure() {
+        window.showStructure = async function showStructure() {
             try {
                 const response = await fetch('/structure');
                 const data = await response.json();
@@ -5492,7 +5492,7 @@ EDITOR_TEMPLATE = r"""
         };
         
         // モーダルを閉じる
-        function closeModal(modalId) {
+        window.closeModal = function closeModal(modalId) {
             document.getElementById(modalId).style.display = 'none';
         }
         
@@ -6055,7 +6055,7 @@ EDITOR_TEMPLATE = r"""
         }
         
         // HTML構文チェック
-        async function validateHTML() {
+        window.validateHTML = async function validateHTML() {
             await validateHTMLContent(true);
         }
         
