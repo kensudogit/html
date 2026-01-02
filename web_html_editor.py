@@ -1681,7 +1681,7 @@ EDITOR_TEMPLATE = r"""
             <div class="remote-control-section">
                 <div class="remote-control-section-title">ファイル操作</div>
                 <div class="remote-control-buttons">
-                    <button class="btn btn-primary" onclick="showUploadModal()" id="uploadBtnMain" style="font-weight: 600; background: #667eea; border: 2px solid #5568d3; color: white;">
+                    <button class="btn btn-primary" id="uploadBtnMain" style="font-weight: 600; background: #667eea; border: 2px solid #5568d3; color: white;">
                         📤 アップロード
                     </button>
                     <button class="btn btn-success" onclick="downloadFile()" id="downloadBtn" {% if not filename %}disabled{% endif %} style="font-weight: 600; background: #48bb78; border-color: #38a169; color: white;">
@@ -3699,6 +3699,11 @@ EDITOR_TEMPLATE = r"""
             if (remoteControlToggle) {
                 remoteControlToggle.addEventListener('click', toggleRemoteControl);
             }
+            
+            const uploadBtnMain = document.getElementById('uploadBtnMain');
+            if (uploadBtnMain) {
+                uploadBtnMain.addEventListener('click', showUploadModal);
+            }
         }
         
         // ボタンの表示を確認・強制表示（リモコン盤内のボタン用）
@@ -4684,60 +4689,60 @@ EDITOR_TEMPLATE = r"""
                 // 入力フィールドが空欄の場合、アップロードフォルダを使用
                 if (!inputValue) {
                     // アップロードフォルダを使用
-                        const uploadFolder = data.success ? data.upload_folder : 'uploads';
-                        dirPathDiv.textContent = uploadFolder + ' (アップロードフォルダ)';
+                    const uploadFolder = data.success ? data.upload_folder : 'uploads';
+                    dirPathDiv.textContent = uploadFolder + ' (アップロードフォルダ)';
+                    
+                    // アップロードフォルダのファイル一覧を取得
+                    try {
+                        const filesResponse = await fetch('/files');
+                        const filesData = await filesResponse.json();
                         
-                        // アップロードフォルダのファイル一覧を取得
-                        try {
-                            const filesResponse = await fetch('/files');
-                            const filesData = await filesResponse.json();
+                        if (filesData.success && filesData.files && filesData.files.length > 0) {
+                            const htmlFiles = filesData.files.filter(f => 
+                                f.name.toLowerCase().endsWith('.html') || 
+                                f.name.toLowerCase().endsWith('.htm')
+                            );
                             
-                            if (filesData.success && filesData.files && filesData.files.length > 0) {
-                                const htmlFiles = filesData.files.filter(f => 
-                                    f.name.toLowerCase().endsWith('.html') || 
-                                    f.name.toLowerCase().endsWith('.htm')
-                                );
+                            if (htmlFiles.length > 0) {
+                                dirFilesDiv.textContent = `✅ ${htmlFiles.length}件のHTMLファイルが見つかりました`;
+                                dirFilesDiv.style.color = '#48bb78';
                                 
-                                if (htmlFiles.length > 0) {
-                                    dirFilesDiv.textContent = `✅ ${htmlFiles.length}件のHTMLファイルが見つかりました`;
-                                    dirFilesDiv.style.color = '#48bb78';
-                                    
-                                    // HTMLファイル一覧を表示
-                                    if (fileListDiv && fileListContent) {
-                                        fileListContent.innerHTML = '';
-                                        htmlFiles.forEach((file, index) => {
-                                            const sizeKB = (file.size / 1024).toFixed(1);
-                                            const fileItem = document.createElement('div');
-                                            fileItem.style.padding = '4px 0';
-                                            fileItem.style.borderBottom = index < htmlFiles.length - 1 ? '1px solid #e2e8f0' : 'none';
-                                            fileItem.innerHTML = `<span style="color: #667eea;">📄</span> ${file.name} <span style="color: #718096;">(${sizeKB} KB)</span>`;
-                                            fileListContent.appendChild(fileItem);
-                                        });
-                                        fileListDiv.style.display = 'block';
-                                    }
-                                } else {
-                                    dirFilesDiv.textContent = '⚠️ アップロードフォルダにHTMLファイルが見つかりませんでした';
-                                    dirFilesDiv.style.color = '#f59e0b';
-                                    if (fileListDiv) {
-                                        fileListDiv.style.display = 'none';
-                                    }
+                                // HTMLファイル一覧を表示
+                                if (fileListDiv && fileListContent) {
+                                    fileListContent.innerHTML = '';
+                                    htmlFiles.forEach((file, index) => {
+                                        const sizeKB = (file.size / 1024).toFixed(1);
+                                        const fileItem = document.createElement('div');
+                                        fileItem.style.padding = '4px 0';
+                                        fileItem.style.borderBottom = index < htmlFiles.length - 1 ? '1px solid #e2e8f0' : 'none';
+                                        fileItem.innerHTML = `<span style="color: #667eea;">📄</span> ${file.name} <span style="color: #718096;">(${sizeKB} KB)</span>`;
+                                        fileListContent.appendChild(fileItem);
+                                    });
+                                    fileListDiv.style.display = 'block';
                                 }
                             } else {
-                                dirFilesDiv.textContent = '⚠️ アップロードフォルダにファイルが見つかりませんでした';
+                                dirFilesDiv.textContent = '⚠️ アップロードフォルダにHTMLファイルが見つかりませんでした';
                                 dirFilesDiv.style.color = '#f59e0b';
                                 if (fileListDiv) {
                                     fileListDiv.style.display = 'none';
                                 }
                             }
-                        } catch (error) {
-                            dirFilesDiv.textContent = 'ℹ️ アップロードフォルダの情報を確認中...';
-                            dirFilesDiv.style.color = '#718096';
+                        } else {
+                            dirFilesDiv.textContent = '⚠️ アップロードフォルダにファイルが見つかりませんでした';
+                            dirFilesDiv.style.color = '#f59e0b';
                             if (fileListDiv) {
                                 fileListDiv.style.display = 'none';
                             }
                         }
-                        dirInfoDiv.style.display = 'block';
+                    } catch (error) {
+                        dirFilesDiv.textContent = 'ℹ️ アップロードフォルダの情報を確認中...';
+                        dirFilesDiv.style.color = '#718096';
+                        if (fileListDiv) {
+                            fileListDiv.style.display = 'none';
+                        }
                     }
+                    dirInfoDiv.style.display = 'block';
+                }
                 } else {
                     // 入力フィールドに値が入力されている場合、ディレクトリ情報を確認
                     if (data.success && data.directory_info) {
@@ -4785,14 +4790,6 @@ EDITOR_TEMPLATE = r"""
                             }
                             dirInfoDiv.style.display = 'block';
                         }
-                    } else if (data.success && data.default_html_directory && inputValue === data.default_html_directory) {
-                        dirPathDiv.textContent = data.default_html_directory + ' (環境変数)';
-                        dirFilesDiv.textContent = 'ℹ️ ディレクトリ情報を確認中...';
-                        dirFilesDiv.style.color = '#718096';
-                        if (fileListDiv) {
-                            fileListDiv.style.display = 'none';
-                        }
-                        dirInfoDiv.style.display = 'block';
                     } else {
                         // 入力されたパスを表示（存在確認を試みる）
                         dirPathDiv.textContent = inputValue + ' (ユーザー指定)';
