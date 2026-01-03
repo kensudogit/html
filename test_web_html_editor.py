@@ -60,7 +60,8 @@ class TestWebHTMLEditor(unittest.TestCase):
         """メインページのルートテスト"""
         response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'HTMLエディタ', response.data)
+        # 日本語はエンコードして検索
+        self.assertIn('HTMLエディタ'.encode('utf-8'), response.data)
     
     def test_index_with_session_file(self):
         """セッションにファイルがある場合のメインページテスト"""
@@ -281,6 +282,321 @@ class TestWebHTMLEditor(unittest.TestCase):
         response = self.client.delete('/delete/nonexistent.html')
         # ファイルが存在しない場合は404または400
         self.assertIn(response.status_code, [200, 400, 404])
+
+
+class TestWebHTMLEditorAdvanced(unittest.TestCase):
+    """web_html_editor.pyの高度な機能のテストクラス"""
+    
+    def setUp(self):
+        """各テストの前に実行されるセットアップ"""
+        self.app = app
+        self.app.config['TESTING'] = True
+        self.app.config['SECRET_KEY'] = 'test-secret-key'
+        
+        # 一時ディレクトリを作成
+        self.temp_dir = tempfile.mkdtemp()
+        self.app.config['UPLOAD_FOLDER'] = self.temp_dir
+        
+        # テスト用のHTMLファイルを作成
+        self.html_file1 = os.path.join(self.temp_dir, 'test1.html')
+        self.html_file2 = os.path.join(self.temp_dir, 'test2.html')
+        
+        html_content1 = """<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Test 1</title>
+    <style>
+        .header { color: blue; }
+    </style>
+</head>
+<body>
+    <div id="header" class="header">
+        <h1>Header 1</h1>
+    </div>
+</body>
+</html>"""
+        
+        html_content2 = """<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Test 2</title>
+    <style>
+        .header { color: red; }
+    </style>
+</head>
+<body>
+    <div id="header" class="header">
+        <h1>Header 2</h1>
+    </div>
+</body>
+</html>"""
+        
+        with open(self.html_file1, 'w', encoding='utf-8') as f:
+            f.write(html_content1)
+        
+        with open(self.html_file2, 'w', encoding='utf-8') as f:
+            f.write(html_content2)
+        
+        self.client = self.app.test_client()
+    
+    def tearDown(self):
+        """各テストの後に実行されるクリーンアップ"""
+        import shutil
+        if os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
+    
+    def test_diff_analysis_route_empty_directory(self):
+        """空のディレクトリでの差分検出テスト"""
+        response = self.client.post('/diff-analysis',
+                                   data=json.dumps({
+                                       'directory': '',
+                                       'options': {
+                                           'structure': True,
+                                           'styles': True,
+                                           'content': True,
+                                           'attributes': True
+                                       }
+                                   }),
+                                   content_type='application/json')
+        # 空のディレクトリでもエラーにならないことを確認
+        self.assertIn(response.status_code, [200, 400])
+    
+    def test_diff_analysis_route_with_files(self):
+        """ファイルがある場合の差分検出テスト"""
+        response = self.client.post('/diff-analysis',
+                                   data=json.dumps({
+                                       'directory': self.temp_dir,
+                                       'options': {
+                                           'structure': True,
+                                           'styles': True,
+                                           'content': True,
+                                           'attributes': True
+                                       }
+                                   }),
+                                   content_type='application/json')
+        # ファイルがある場合は200を期待
+        self.assertIn(response.status_code, [200, 400])
+        if response.status_code == 200:
+            data = json.loads(response.data)
+            self.assertIn('success', data)
+    
+    def test_template_merge_route_no_files(self):
+        """ファイルが選択されていない場合のテンプレート統合テスト"""
+        response = self.client.post('/template-merge',
+                                   data=json.dumps({
+                                       'files': [],
+                                       'options': {
+                                           'merge_html': True,
+                                           'merge_css': True,
+                                           'merge_content': True,
+                                           'merge_attributes': True
+                                       }
+                                   }),
+                                   content_type='application/json')
+        self.assertIn(response.status_code, [200, 400])
+    
+    def test_template_merge_route_with_files(self):
+        """ファイルが選択されている場合のテンプレート統合テスト"""
+        # ファイルをアップロードフォルダにコピー
+        import shutil
+        shutil.copy(self.html_file1, os.path.join(self.temp_dir, 'test1.html'))
+        shutil.copy(self.html_file2, os.path.join(self.temp_dir, 'test2.html'))
+        
+        response = self.client.post('/template-merge',
+                                   data=json.dumps({
+                                       'files': ['test1.html', 'test2.html'],
+                                       'options': {
+                                           'merge_html': True,
+                                           'merge_css': True,
+                                           'merge_content': True,
+                                           'merge_attributes': True
+                                       },
+                                       'directory': self.temp_dir
+                                   }),
+                                   content_type='application/json')
+        self.assertIn(response.status_code, [200, 400])
+    
+    def test_api_list_directory_files_route(self):
+        """ディレクトリファイル一覧取得APIテスト"""
+        response = self.client.post('/api/list-directory-files',
+                                   data=json.dumps({
+                                       'directory': self.temp_dir
+                                   }),
+                                   content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertIn('success', data)
+    
+    def test_api_config_route(self):
+        """設定取得APIテスト"""
+        response = self.client.get('/api/config')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertIn('success', data)
+    
+    def test_api_check_directory_route(self):
+        """ディレクトリチェックAPIテスト"""
+        response = self.client.post('/api/check-directory',
+                                   data=json.dumps({
+                                       'directory': self.temp_dir
+                                   }),
+                                   content_type='application/json')
+        self.assertIn(response.status_code, [200, 400])
+    
+    def test_api_load_comparison_files_route(self):
+        """比較ファイル読み込みAPIテスト"""
+        response = self.client.post('/api/load-comparison-files',
+                                   data=json.dumps({
+                                       'directory': self.temp_dir
+                                   }),
+                                   content_type='application/json')
+        self.assertIn(response.status_code, [200, 400])
+    
+    def test_api_load_file_content_route(self):
+        """ファイル内容読み込みAPIテスト"""
+        response = self.client.get('/api/load-file-content?file=test1.html&directory=' + self.temp_dir)
+        self.assertIn(response.status_code, [200, 400, 404])
+    
+    def test_api_compare_screens_route(self):
+        """画面比較APIテスト"""
+        response = self.client.post('/api/compare-screens',
+                                   data=json.dumps({
+                                       'files': ['test1.html', 'test2.html'],
+                                       'directory': self.temp_dir
+                                   }),
+                                   content_type='application/json')
+        self.assertIn(response.status_code, [200, 400])
+    
+    def test_api_export_comparison_report_route(self):
+        """比較レポートエクスポートAPIテスト"""
+        response = self.client.post('/api/export-comparison-report',
+                                   data=json.dumps({
+                                       'files': ['test1.html', 'test2.html'],
+                                       'directory': self.temp_dir
+                                   }),
+                                   content_type='application/json')
+        self.assertIn(response.status_code, [200, 400])
+
+
+class TestWebHTMLEditorUniversityAPI(unittest.TestCase):
+    """web_html_editor.pyの大学データ管理APIのテストクラス"""
+    
+    def setUp(self):
+        """各テストの前に実行されるセットアップ"""
+        self.app = app
+        self.app.config['TESTING'] = True
+        self.app.config['SECRET_KEY'] = 'test-secret-key'
+        
+        # 一時ディレクトリを作成
+        self.temp_dir = tempfile.mkdtemp()
+        self.app.config['UPLOAD_FOLDER'] = self.temp_dir
+        
+        # データベースを初期化
+        from web_html_editor import init_database, DB_PATH
+        import shutil
+        if os.path.exists(DB_PATH):
+            os.remove(DB_PATH)
+        init_database()
+        
+        self.client = self.app.test_client()
+    
+    def tearDown(self):
+        """各テストの後に実行されるクリーンアップ"""
+        import shutil
+        from web_html_editor import DB_PATH
+        if os.path.exists(self.temp_dir):
+            if os.path.exists(DB_PATH):
+                os.remove(DB_PATH)
+            shutil.rmtree(self.temp_dir)
+    
+    def test_get_universities_route(self):
+        """大学一覧取得APIテスト"""
+        response = self.client.get('/api/universities')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertTrue(data['success'])
+        self.assertIn('universities', data)
+        self.assertIsInstance(data['universities'], list)
+    
+    def test_create_university_route(self):
+        """大学作成APIテスト"""
+        response = self.client.post('/api/universities',
+                                   data=json.dumps({
+                                       'code': 'TEST001',
+                                       'name': 'Test University'
+                                   }),
+                                   content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertTrue(data['success'])
+        self.assertIn('id', data)
+    
+    def test_create_university_route_duplicate(self):
+        """重複した大学コードでの大学作成APIテスト"""
+        # 最初の大学を作成
+        self.client.post('/api/universities',
+                        data=json.dumps({
+                            'code': 'TEST001',
+                            'name': 'Test University 1'
+                        }),
+                        content_type='application/json')
+        
+        # 同じコードで再度作成を試みる
+        response = self.client.post('/api/universities',
+                                   data=json.dumps({
+                                       'code': 'TEST001',
+                                       'name': 'Test University 2'
+                                   }),
+                                   content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.data)
+        self.assertFalse(data['success'])
+    
+    def test_create_university_route_missing_fields(self):
+        """必須フィールドが欠けている場合の大学作成APIテスト"""
+        response = self.client.post('/api/universities',
+                                   data=json.dumps({
+                                       'code': 'TEST001'
+                                       # nameが欠けている
+                                   }),
+                                   content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.data)
+        self.assertFalse(data['success'])
+    
+    def test_get_page_titles_route(self):
+        """ページタイトル一覧取得APIテスト"""
+        response = self.client.get('/api/page-titles')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertTrue(data['success'])
+        self.assertIn('page_titles', data)
+        self.assertIsInstance(data['page_titles'], list)
+    
+    def test_get_university_pages_route(self):
+        """大学ページ一覧取得APIテスト"""
+        # まず大学を作成
+        create_response = self.client.post('/api/universities',
+                                          data=json.dumps({
+                                              'code': 'TEST001',
+                                              'name': 'Test University'
+                                          }),
+                                          content_type='application/json')
+        university_id = json.loads(create_response.data)['id']
+        
+        # 大学のページ一覧を取得
+        response = self.client.get(f'/api/university/{university_id}/pages')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertTrue(data['success'])
+        self.assertIn('pages', data)
+    
+    def test_get_university_pages_route_not_found(self):
+        """存在しない大学のページ一覧取得APIテスト"""
+        response = self.client.get('/api/university/99999/pages')
+        self.assertIn(response.status_code, [200, 404])
 
 
 if __name__ == '__main__':
