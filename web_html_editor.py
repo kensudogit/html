@@ -8174,10 +8174,13 @@ def validate():
     """HTMLの構文を検証"""
     try:
         data = request.json
+        if not data:
+            return jsonify({'success': False, 'error': 'リクエストデータがありません'}), 400
+        
         content = data.get('content', '')
         
         if not content:
-            return jsonify({'success': False, 'error': 'コンテンツが空です'})
+            return jsonify({'success': False, 'error': 'コンテンツが空です'}), 400
         
         # 一時ファイルに保存して検証
         with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as f:
