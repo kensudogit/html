@@ -1267,8 +1267,8 @@ EDITOR_TEMPLATE = r"""
             background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
             border-radius: var(--radius-lg);
             box-shadow: var(--shadow-2xl);
-            min-width: 180px;
-            max-width: 250px;
+            min-width: 200px;
+            max-width: 280px;
             max-height: 90vh;
             height: auto;
             transition: all var(--transition-slow);
@@ -1290,7 +1290,7 @@ EDITOR_TEMPLATE = r"""
         }
         .remote-control-header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 6px 10px;
+            padding: 8px 12px;
             border-radius: 8px 8px 0 0;
             cursor: move;
             display: flex;
@@ -1307,7 +1307,8 @@ EDITOR_TEMPLATE = r"""
             display: flex;
             align-items: center;
             gap: 6px;
-            font-size: 12px;
+            font-size: 13px;
+            font-weight: 700;
         }
         .remote-control-toggle {
             background: rgba(255,255,255,0.2);
@@ -1330,11 +1331,11 @@ EDITOR_TEMPLATE = r"""
         }
         .remote-control-content {
             background: var(--bg-primary);
-            padding: 12px;
+            padding: 14px;
             border-radius: 0 0 var(--radius-lg) var(--radius-lg);
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 12px;
             max-height: calc(90vh - 60px);
             overflow-y: auto;
             overflow-x: hidden;
@@ -1343,54 +1344,79 @@ EDITOR_TEMPLATE = r"""
         .remote-control-section {
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 6px;
         }
         .remote-control-section-title {
-            font-size: 10px;
-            font-weight: 600;
-            color: #4a5568;
+            font-size: 11px;
+            font-weight: 700;
+            color: #2d3748;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 2px;
+            letter-spacing: 0.8px;
+            margin-bottom: 4px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #e2e8f0;
         }
         .remote-control-buttons {
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 6px;
         }
         .remote-control-buttons .btn {
             width: 100%;
-            font-size: 11px;
-            padding: 6px 8px;
+            font-size: 12px;
+            padding: 8px 12px;
             text-align: center;
+            font-weight: 600;
+            border: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+        .remote-control-buttons .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
         }
         .remote-control-search {
             display: flex;
-            gap: 4px;
+            gap: 6px;
             align-items: center;
         }
         .remote-control-search input {
             flex: 1;
-            padding: 5px 8px;
-            border: 1px solid #e2e8f0;
-            border-radius: 4px;
-            font-size: 11px;
+            padding: 8px 10px;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+        .remote-control-search input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
         .remote-control-search .btn {
             flex: 0 0 auto;
             min-width: auto;
-            padding: 5px 12px;
-            font-size: 11px;
+            padding: 8px 14px;
+            font-size: 12px;
+            font-weight: 600;
         }
         .remote-control-nav-buttons {
             display: flex;
-            gap: 4px;
+            gap: 6px;
         }
         .remote-control-nav-buttons .btn {
             flex: 1;
             min-width: auto;
-            padding: 5px 8px;
-            font-size: 11px;
+            padding: 8px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            background: #3b82f6;
+            border: 2px solid #2563eb;
+            color: white;
+        }
+        .remote-control-nav-buttons .btn:hover {
+            background: #2563eb;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
         }
         #remoteControl.dragging {
             opacity: 0.8;
@@ -1771,7 +1797,7 @@ EDITOR_TEMPLATE = r"""
                     <button class="btn btn-success" onclick="downloadFile()" id="downloadBtn" {% if not filename %}disabled{% endif %} style="font-weight: 600; background: #48bb78; border-color: #38a169; color: white;">
                         ⬇️ ダウンロード
                     </button>
-                    <button class="btn btn-info" onclick="showFileList()" id="fileListBtn">📁 ファイル一覧</button>
+                    <button class="btn btn-info" onclick="showFileList()" id="fileListBtn" style="font-weight: 600; background: #3b82f6; border: 2px solid #2563eb; color: white;">📁 ファイル一覧</button>
                 </div>
             </div>
             
@@ -1779,14 +1805,14 @@ EDITOR_TEMPLATE = r"""
             <div class="remote-control-section">
                 <div class="remote-control-section-title">編集操作</div>
                 <div class="remote-control-buttons">
-                    <button class="btn btn-primary" onclick="saveFile()" id="saveBtn" {% if not filename %}disabled{% endif %}>💾 保存</button>
-                    <button class="btn btn-success" onclick="reloadFile()" id="reloadBtn" {% if not filename %}disabled{% endif %}>🔄 再読み込み</button>
-                    <button class="btn btn-danger" onclick="clearEditor()" id="clearBtn">🗑️ クリア</button>
-                    <button class="btn btn-info" onclick="showStructure()" id="structureBtn" {% if not filename %}disabled{% endif %}>📊 構造情報</button>
-                    <button class="btn btn-warning" onclick="validateHTML()" id="validateBtn" {% if not filename %}disabled{% endif %}>⚠️ 構文チェック</button>
-                    <button class="btn btn-info" onclick="showSearch()" id="searchBtn" {% if not filename %}disabled{% endif %}>🔍 検索・置換</button>
-                    <button class="btn btn-info" onclick="showDesignExport()" id="exportDesignBtn" {% if not filename %}disabled{% endif %} title="プレビューのDOMと主要CSS(Computed Style)をJSON/CSVで出力して比較に使います">📤 デザイン出力</button>
-                    <button class="btn btn-warning" onclick="toggleFreeMode()" id="freeModeBtn" title="ウィンドウを自由に移動・リサイズできるモードに切り替えます">🪟 自由配置モード</button>
+                    <button class="btn btn-primary" onclick="saveFile()" id="saveBtn" {% if not filename %}disabled{% endif %} style="font-weight: 600; background: #667eea; border: 2px solid #5568d3; color: white;">💾 保存</button>
+                    <button class="btn btn-success" onclick="reloadFile()" id="reloadBtn" {% if not filename %}disabled{% endif %} style="font-weight: 600; background: #48bb78; border: 2px solid #38a169; color: white;">🔄 再読み込み</button>
+                    <button class="btn btn-danger" onclick="clearEditor()" id="clearBtn" style="font-weight: 600; background: #ef4444; border: 2px solid #dc2626; color: white;">🗑️ クリア</button>
+                    <button class="btn btn-warning" onclick="showStructure()" id="structureBtn" {% if not filename %}disabled{% endif %} style="font-weight: 600; background: #f59e0b; border: 2px solid #d97706; color: white;">📊 構造情報</button>
+                    <button class="btn btn-danger" onclick="validateHTML()" id="validateBtn" {% if not filename %}disabled{% endif %} style="font-weight: 600; background: #ef4444; border: 2px solid #dc2626; color: white;">⚠️ 構文チェック</button>
+                    <button class="btn btn-info" onclick="showSearch()" id="searchBtn" {% if not filename %}disabled{% endif %} style="font-weight: 600; background: #3b82f6; border: 2px solid #2563eb; color: white;">🔍 検索・置換</button>
+                    <button class="btn btn-warning" onclick="showDesignExport()" id="exportDesignBtn" {% if not filename %}disabled{% endif %} style="font-weight: 600; background: #f59e0b; border: 2px solid #d97706; color: white;" title="プレビューのDOMと主要CSS(Computed Style)をJSON/CSVで出力して比較に使います">📤 デザイン出力</button>
+                    <button class="btn btn-warning" onclick="toggleFreeMode()" id="freeModeBtn" style="font-weight: 600; background: #fbbf24; border: 2px solid #f59e0b; color: white;" title="ウィンドウを自由に移動・リサイズできるモードに切り替えます">🪟 自由配置モード</button>
                 </div>
             </div>
             
@@ -1794,10 +1820,10 @@ EDITOR_TEMPLATE = r"""
             <div class="remote-control-section">
                 <div class="remote-control-section-title">テンプレート統合</div>
                 <div class="remote-control-buttons">
-                    <button class="btn btn-warning" onclick="showTemplateMerge()" id="templateMergeBtn" title="複数のHTMLファイルを比較して共通テンプレートを生成">🔀 テンプレート統合</button>
-                    <button class="btn btn-info" onclick="showDiffAnalysis()" id="diffAnalysisBtn" title="27校の大学ホームページの差分を検出">🔍 差分検出</button>
-                    <button class="btn btn-primary" onclick="showScreenComparison()" id="screenComparisonBtn" title="最大27大学の画面を並べて比較・編集">🖼️ 画面比較</button>
-                    <button class="btn btn-success" onclick="showUniversityDataManagement()" id="universityDataBtn" title="27大学の入学手続きページデータを管理">🏫 大学データ管理</button>
+                    <button class="btn btn-warning" onclick="showTemplateMerge()" id="templateMergeBtn" style="font-weight: 600; background: #f59e0b; border: 2px solid #d97706; color: white;" title="複数のHTMLファイルを比較して共通テンプレートを生成">🔀 テンプレート統合</button>
+                    <button class="btn btn-info" onclick="showDiffAnalysis()" id="diffAnalysisBtn" style="font-weight: 600; background: #3b82f6; border: 2px solid #2563eb; color: white;" title="27校の大学ホームページの差分を検出">🔍 差分検出</button>
+                    <button class="btn btn-primary" onclick="showScreenComparison()" id="screenComparisonBtn" style="font-weight: 600; background: #9333ea; border: 2px solid #7e22ce; color: white;" title="最大27大学の画面を並べて比較・編集">🖼️ 画面比較</button>
+                    <button class="btn btn-success" onclick="showUniversityDataManagement()" id="universityDataBtn" style="font-weight: 600; background: #48bb78; border: 2px solid #38a169; color: white;" title="27大学の入学手続きページデータを管理">🏫 大学データ管理</button>
                 </div>
             </div>
             
@@ -1830,11 +1856,11 @@ EDITOR_TEMPLATE = r"""
                 <div class="remote-control-section-title">要素検索</div>
                 <div class="remote-control-search">
                     <input type="text" id="searchBox" placeholder="ID、クラス、タグ、テキストで検索..." onkeypress="if(event.key==='Enter') searchElement()" {% if not filename %}disabled{% endif %}>
-                    <button class="btn btn-info" onclick="searchElement()" id="searchElementBtn" {% if not filename %}disabled{% endif %}>検索</button>
+                    <button class="btn btn-info" onclick="searchElement()" id="searchElementBtn" {% if not filename %}disabled{% endif %} style="font-weight: 600; background: #3b82f6; border: 2px solid #2563eb; color: white;">検索</button>
                 </div>
                 <div class="remote-control-nav-buttons">
-                    <button class="btn btn-info" onclick="highlightPrevious()" id="prevMatchBtn" style="display: none;" title="前の検索結果へ">▲ 前へ</button>
-                    <button class="btn btn-info" onclick="highlightNext()" id="nextMatchBtn" style="display: none;" title="次の検索結果へ">次へ ▼</button>
+                    <button class="btn btn-info" onclick="highlightPrevious()" id="prevMatchBtn" style="display: none; font-weight: 600; background: #3b82f6; border: 2px solid #2563eb; color: white;" title="前の検索結果へ">▲ 前へ</button>
+                    <button class="btn btn-info" onclick="highlightNext()" id="nextMatchBtn" style="display: none; font-weight: 600; background: #3b82f6; border: 2px solid #2563eb; color: white;" title="次の検索結果へ">次へ ▼</button>
                 </div>
                 <span id="matchCounter" style="display: none; font-size: 10px; color: #666; text-align: center;"></span>
             </div>
