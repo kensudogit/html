@@ -1,0 +1,519 @@
+# 各大学の入学手続き画面生成設定ファイル
+# このファイルは、各大学での入学手続き処理に関係する画面生成のための設定を定義します
+
+# デフォルトのページタイトル定義
+default_page_titles:
+  - id: 1
+    title: 入学手続TOP
+    display_order: 1
+    required: true
+    description: 入学手続きのトップページ
+    form_fields:
+      - type: section
+        label: 入学手続きについて
+      - type: navigation
+        label: 各手続きページへのリンク
+    
+  - id: 2
+    title: 個人情報取り扱いに関する同意条項宣誓書
+    display_order: 2
+    required: true
+    description: 個人情報の取り扱いに関する同意条項
+    form_fields:
+      - type: checkbox
+        name: privacy_consent
+        label: 個人情報の取り扱いに同意します
+        required: true
+      - type: textarea
+        name: consent_details
+        label: 同意内容の詳細
+        required: false
+    
+  - id: 3
+    title: 本人情報
+    display_order: 3
+    required: true
+    description: 本人の基本情報を入力
+    form_fields:
+      - type: text
+        name: last_name
+        label: 姓
+        required: true
+      - type: text
+        name: first_name
+        label: 名
+        required: true
+      - type: text
+        name: last_name_kana
+        label: 姓（カナ）
+        required: true
+      - type: text
+        name: first_name_kana
+        label: 名（カナ）
+        required: true
+      - type: date
+        name: birth_date
+        label: 生年月日
+        required: true
+      - type: select
+        name: gender
+        label: 性別
+        options: [男性, 女性, その他]
+        required: true
+    
+  - id: 4
+    title: 健康状況
+    display_order: 4
+    required: true
+    description: 健康状況に関する情報
+    form_fields:
+      - type: select
+        name: health_status
+        label: 健康状態
+        options: [良好, 要観察, 要治療]
+        required: true
+      - type: textarea
+        name: health_details
+        label: 健康状況の詳細
+        required: false
+    
+  - id: 5
+    title: 保護者情報
+    display_order: 5
+    required: false
+    description: 保護者の情報を入力
+    form_fields:
+      - type: text
+        name: guardian_name
+        label: 保護者氏名
+        required: false
+      - type: text
+        name: guardian_relationship
+        label: 続柄
+        required: false
+      - type: tel
+        name: guardian_phone
+        label: 電話番号
+        required: false
+    
+  - id: 6
+    title: 身元保証人情報
+    display_order: 6
+    required: false
+    description: 身元保証人の情報
+    form_fields:
+      - type: text
+        name: guarantor_name
+        label: 保証人氏名
+        required: false
+      - type: text
+        name: guarantor_address
+        label: 住所
+        required: false
+      - type: tel
+        name: guarantor_phone
+        label: 電話番号
+        required: false
+    
+  - id: 7
+    title: 緊急連絡先情報
+    display_order: 7
+    required: true
+    description: 緊急時の連絡先
+    form_fields:
+      - type: text
+        name: emergency_contact_name
+        label: 緊急連絡先氏名
+        required: true
+      - type: tel
+        name: emergency_contact_phone
+        label: 緊急連絡先電話番号
+        required: true
+      - type: text
+        name: emergency_relationship
+        label: 続柄
+        required: true
+    
+  - id: 8
+    title: 入学前セミナー受講調査
+    display_order: 8
+    required: false
+    description: 入学前セミナーの受講希望調査
+    form_fields:
+      - type: radio
+        name: seminar_attendance
+        label: 受講希望
+        options: [希望する, 希望しない]
+        required: false
+      - type: date
+        name: preferred_date
+        label: 希望日
+        required: false
+    
+  - id: 9
+    title: 写真アップロード
+    display_order: 9
+    required: true
+    description: 証明写真のアップロード
+    form_fields:
+      - type: file
+        name: photo
+        label: 証明写真
+        accept: image/*
+        required: true
+      - type: text
+        name: photo_notes
+        label: 備考
+        required: false
+    
+  - id: 10
+    title: 書類アップロード
+    display_order: 10
+    required: true
+    description: 必要な書類のアップロード
+    form_fields:
+      - type: file
+        name: documents
+        label: 書類
+        accept: .pdf,.doc,.docx
+        multiple: true
+        required: true
+      - type: textarea
+        name: document_list
+        label: アップロード書類一覧
+        required: false
+    
+  - id: 11
+    title: アンケート
+    display_order: 11
+    required: false
+    description: 入学に関するアンケート
+    form_fields:
+      - type: textarea
+        name: questionnaire_1
+        label: 入学の動機
+        required: false
+      - type: textarea
+        name: questionnaire_2
+        label: 大学への期待
+        required: false
+    
+  - id: 12
+    title: 学費負担者情報
+    display_order: 12
+    required: true
+    description: 学費の負担者情報
+    form_fields:
+      - type: text
+        name: payer_name
+        label: 負担者氏名
+        required: true
+      - type: text
+        name: payer_relationship
+        label: 続柄
+        required: true
+      - type: text
+        name: payer_occupation
+        label: 職業
+        required: false
+    
+  - id: 13
+    title: 外国語の履修に関する調査
+    display_order: 13
+    required: false
+    description: 外国語の履修希望調査
+    form_fields:
+      - type: checkbox
+        name: language_english
+        label: 英語
+        required: false
+      - type: checkbox
+        name: language_chinese
+        label: 中国語
+        required: false
+      - type: checkbox
+        name: language_korean
+        label: 韓国語
+        required: false
+      - type: checkbox
+        name: language_other
+        label: その他
+        required: false
+    
+  - id: 14
+    title: 父母等の連絡
+    display_order: 14
+    required: false
+    description: 父母等への連絡に関する情報
+    form_fields:
+      - type: text
+        name: parent_contact_name
+        label: 連絡先氏名
+        required: false
+      - type: tel
+        name: parent_contact_phone
+        label: 電話番号
+        required: false
+      - type: email
+        name: parent_contact_email
+        label: メールアドレス
+        required: false
+    
+  - id: 15
+    title: 誓約書
+    display_order: 15
+    required: true
+    description: 入学に関する誓約書
+    form_fields:
+      - type: textarea
+        name: pledge_content
+        label: 誓約内容
+        required: true
+      - type: checkbox
+        name: pledge_agreement
+        label: 誓約内容に同意します
+        required: true
+    
+  - id: 16
+    title: アドミッション・ポリシー
+    display_order: 16
+    required: false
+    description: アドミッション・ポリシーの確認
+    form_fields:
+      - type: textarea
+        name: policy_acknowledgment
+        label: ポリシー確認
+        required: false
+      - type: checkbox
+        name: policy_agreement
+        label: ポリシーに同意します
+        required: false
+    
+  - id: 17
+    title: 家族情報
+    display_order: 17
+    required: false
+    description: 家族構成の情報
+    form_fields:
+      - type: number
+        name: family_members
+        label: 家族構成人数
+        required: false
+      - type: textarea
+        name: family_details
+        label: 家族構成の詳細
+        required: false
+    
+  - id: 18
+    title: 通学住所情報
+    display_order: 18
+    required: true
+    description: 通学先の住所情報
+    form_fields:
+      - type: text
+        name: postal_code
+        label: 郵便番号
+        required: true
+      - type: text
+        name: address_prefecture
+        label: 都道府県
+        required: true
+      - type: text
+        name: address_city
+        label: 市区町村
+        required: true
+      - type: text
+        name: address_street
+        label: 番地・建物名
+        required: true
+    
+  - id: 19
+    title: 利用規約・個人情報取扱いに関する同意条項
+    display_order: 19
+    required: true
+    description: 利用規約と個人情報取扱いの同意
+    form_fields:
+      - type: textarea
+        name: terms_content
+        label: 利用規約内容
+        required: true
+      - type: checkbox
+        name: terms_agreement
+        label: 利用規約に同意します
+        required: true
+      - type: checkbox
+        name: privacy_agreement
+        label: 個人情報の取り扱いに同意します
+        required: true
+    
+  - id: 20
+    title: 言語選択申請
+    display_order: 20
+    required: false
+    description: 言語選択の申請
+    form_fields:
+      - type: select
+        name: preferred_language
+        label: 希望言語
+        options: [日本語, 英語, 中国語, 韓国語]
+        required: false
+      - type: textarea
+        name: language_reason
+        label: 選択理由
+        required: false
+
+# 大学別のカスタマイズ設定
+universities:
+  # 大学Aの設定例
+  - code: UNIV001
+    name: 大学A
+    custom_pages:
+      # カスタマイズが必要なページのみ定義
+      - page_title_id: 3
+        custom_fields:
+          - type: text
+            name: student_number
+            label: 学生番号
+            required: true
+            position: before
+            target_field: last_name
+      - page_title_id: 9
+        custom_fields:
+          - type: text
+            name: photo_specifications
+            label: 写真の規格
+            required: true
+    layout:
+      theme: default
+      color_scheme: blue
+    display_order: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+  
+  # 大学Bの設定例
+  - code: UNIV002
+    name: 大学B
+    custom_pages:
+      - page_title_id: 1
+        custom_fields:
+          - type: text
+            name: welcome_message
+            label: 歓迎メッセージ
+            required: false
+    layout:
+      theme: modern
+      color_scheme: green
+    display_order: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+  
+  # 大学Cの設定例（全ページカスタマイズ）
+  - code: UNIV003
+    name: 大学C
+    custom_pages: []  # デフォルト設定を使用
+    layout:
+      theme: classic
+      color_scheme: purple
+    display_order: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+
+# 画面生成の共通設定
+generation_settings:
+  # HTMLテンプレートの設定
+  template:
+    base_template: default
+    css_framework: bootstrap  # bootstrap, tailwind, custom
+    javascript_framework: vanilla  # vanilla, jquery, vue, react
+  
+  # フォームの設定
+  form:
+    validation: client_side  # client_side, server_side, both
+    submit_method: ajax  # ajax, form_post, form_get
+    error_display: inline  # inline, modal, toast
+  
+  # レイアウト設定
+  layout:
+    container_width: 1200px
+    form_width: 800px
+    sidebar: true
+    breadcrumb: true
+    progress_indicator: true
+  
+  # 多言語対応
+  i18n:
+    default_language: ja
+    supported_languages: [ja, en, zh, ko]
+    translation_file: translations.yml
+  
+  # セキュリティ設定
+  security:
+    csrf_protection: true
+    xss_protection: true
+    file_upload_max_size: 10MB
+    allowed_file_types: [jpg, jpeg, png, pdf, doc, docx]
+  
+  # 出力設定
+  output:
+    format: html  # html, json, xml
+    minify: false
+    include_comments: true
+    encoding: utf-8
+
+# 画面生成のマッピング設定
+page_mappings:
+  # ページタイトルIDと実際の画面ファイル名のマッピング
+  - page_title_id: 1
+    file_name: index.html
+    route: /
+  - page_title_id: 2
+    file_name: privacy_consent.html
+    route: /privacy-consent
+  - page_title_id: 3
+    file_name: personal_info.html
+    route: /personal-info
+  - page_title_id: 4
+    file_name: health_status.html
+    route: /health-status
+  - page_title_id: 5
+    file_name: guardian_info.html
+    route: /guardian-info
+  - page_title_id: 6
+    file_name: guarantor_info.html
+    route: /guarantor-info
+  - page_title_id: 7
+    file_name: emergency_contact.html
+    route: /emergency-contact
+  - page_title_id: 8
+    file_name: pre_seminar.html
+    route: /pre-seminar
+  - page_title_id: 9
+    file_name: photo_upload.html
+    route: /photo-upload
+  - page_title_id: 10
+    file_name: document_upload.html
+    route: /document-upload
+  - page_title_id: 11
+    file_name: questionnaire.html
+    route: /questionnaire
+  - page_title_id: 12
+    file_name: tuition_payer.html
+    route: /tuition-payer
+  - page_title_id: 13
+    file_name: language_survey.html
+    route: /language-survey
+  - page_title_id: 14
+    file_name: parent_contact.html
+    route: /parent-contact
+  - page_title_id: 15
+    file_name: pledge.html
+    route: /pledge
+  - page_title_id: 16
+    file_name: admission_policy.html
+    route: /admission-policy
+  - page_title_id: 17
+    file_name: family_info.html
+    route: /family-info
+  - page_title_id: 18
+    file_name: address_info.html
+    route: /address-info
+  - page_title_id: 19
+    file_name: terms_consent.html
+    route: /terms-consent
+  - page_title_id: 20
+    file_name: language_selection.html
+    route: /language-selection
