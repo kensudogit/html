@@ -18,6 +18,9 @@ import base64
 import json
 import zipfile
 import sqlite3
+import yaml
+import io
+from datetime import datetime
 from pathlib import Path
 from werkzeug.utils import secure_filename
 from flask import Flask, render_template_string, request, jsonify, send_from_directory, redirect, url_for, send_file, session
@@ -1705,6 +1708,46 @@ EDITOR_TEMPLATE = r"""
             <div class="usage-guide-step">
                 <div class="usage-guide-step-title">
                     <span class="usage-guide-step-number">7</span>
+                    大学データ管理・YAML設定ファイルからページ一括生成（🏫 大学データ管理）
+                </div>
+                <div class="usage-guide-step-content">
+                    <ul>
+                        <li>リモコン盤の「🏫 大学データ管理」ボタンをクリック</li>
+                        <li><strong>基本機能:</strong>
+                            <ul style="margin-top: 8px; padding-left: 20px;">
+                                <li>大学一覧から大学を選択、または新規大学を追加</li>
+                                <li>ページタイトルを選択して、各大学のページデータを編集・保存</li>
+                                <li>「⚙️ 表示位置設定」で各項目の表示位置・スタイルを設定</li>
+                                <li>「🔀 ページ生成」で個別ページを生成</li>
+                            </ul>
+                        </li>
+                        <li><strong>YAML設定ファイルから一括生成:</strong>
+                            <ul style="margin-top: 8px; padding-left: 20px;">
+                                <li>モーダル下部の「📄 YAML設定ファイルから一括生成」セクションを確認</li>
+                                <li><strong>対象大学:</strong> 大学コードをカンマ区切りで入力（例: UNIV001,UNIV002）<br>
+                                    空欄の場合は全大学が対象となります</li>
+                                <li><strong>出力ディレクトリ:</strong> 生成ファイルの保存先を指定（空欄の場合はデフォルト）</li>
+                                <li>「🚀 ページ一括生成」ボタンをクリック</li>
+                                <li>university_pages_config.ymlの設定に基づいて、各大学の入学手続きWEBページ（全20ページ）が自動生成されます</li>
+                                <li>生成されるページ: 入学手続TOP、個人情報同意、本人情報、健康状況、保護者情報、身元保証人情報、緊急連絡先情報、入学前セミナー受講調査、写真アップロード、書類アップロード、アンケート、学費負担者情報、外国語の履修に関する調査、父母等の連絡、誓約書、アドミッション・ポリシー、家族情報、通学住所情報、利用規約・個人情報取扱いに関する同意条項、言語選択申請</li>
+                                <li>各ページには適切なフォームフィールド（テキスト、テキストエリア、日付、選択、チェックボックス、ラジオボタン、ファイルアップロードなど）が自動的に配置されます</li>
+                                <li>生成完了後、生成結果が表示されます（対象大学数、生成ページ数、成功/失敗数など）</li>
+                                <li>「📦 生成済みページをダウンロード」ボタンで、生成された全ページをZIPファイルとしてダウンロード可能</li>
+                            </ul>
+                        </li>
+                        <li><strong>YAML設定ファイルのカスタマイズ:</strong>
+                            <ul style="margin-top: 8px; padding-left: 20px;">
+                                <li>university_pages_config.ymlファイルを編集することで、ページタイトル、フォームフィールド、大学ごとのカスタマイズ設定を変更できます</li>
+                                <li>各大学のレイアウトテーマ、カラースキーム、表示順序などを個別に設定可能</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="usage-guide-step">
+                <div class="usage-guide-step-title">
+                    <span class="usage-guide-step-number">8</span>
                     その他の主要機能
                 </div>
                 <div class="usage-guide-step-content">
@@ -2210,6 +2253,29 @@ EDITOR_TEMPLATE = r"""
                         <button class="btn btn-primary" onclick="saveUniversityPageData()">💾 保存</button>
                         <button class="btn btn-info" onclick="loadUniversityConfig()">⚙️ 表示位置設定</button>
                         <button class="btn btn-success" onclick="generateUniversityPage()">🔀 ページ生成</button>
+                    </div>
+                    
+                    <div style="margin-top: 30px; padding: 20px; background: #f0f4f8; border-radius: 8px; border: 2px solid #667eea;">
+                        <h3 style="font-size: 16px; margin-bottom: 15px; color: #2d3748;">📄 YAML設定ファイルから一括生成</h3>
+                        <p style="font-size: 12px; color: #4a5568; margin-bottom: 15px;">
+                            university_pages_config.ymlを基に、指定した大学または全大学の入学手続きWEBページを一括生成します。
+                        </p>
+                        <div class="form-group" style="margin-bottom: 15px;">
+                            <label class="form-label">対象大学（空欄の場合は全大学）</label>
+                            <input type="text" id="yamlUniversityCodes" class="form-input" placeholder="例: UNIV001,UNIV002 または空欄で全大学" style="width: 100%;">
+                            <small style="color: #718096; font-size: 11px;">カンマ区切りで大学コードを指定（例: UNIV001,UNIV002）</small>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 15px;">
+                            <label class="form-label">出力ディレクトリ（空欄の場合はデフォルト）</label>
+                            <input type="text" id="yamlOutputDirectory" class="form-input" placeholder="例: C:\output\pages または空欄" style="width: 100%;">
+                        </div>
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                            <button class="btn btn-warning" onclick="generatePagesFromYAML()" style="font-weight: 600;">🚀 ページ一括生成</button>
+                            <button class="btn btn-success" onclick="downloadGeneratedPagesFromYAML()" style="font-weight: 600;">📦 生成済みページをダウンロード</button>
+                        </div>
+                        <div id="yamlGenerationResult" style="display: none; margin-top: 15px; padding: 15px; background: white; border-radius: 5px; border: 1px solid #e2e8f0;">
+                            <div id="yamlGenerationResultContent" style="font-size: 12px; line-height: 1.6;"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -7638,6 +7704,117 @@ EDITOR_TEMPLATE = r"""
             document.getElementById('universityConfigModal').style.display = 'none';
         };
         
+        // YAML設定ファイルからページを一括生成
+        window.generatePagesFromYAML = async function generatePagesFromYAML() {
+            const universityCodesInput = document.getElementById('yamlUniversityCodes');
+            const outputDirectoryInput = document.getElementById('yamlOutputDirectory');
+            const resultDiv = document.getElementById('yamlGenerationResult');
+            const resultContent = document.getElementById('yamlGenerationResultContent');
+            
+            // 大学コードを取得（カンマ区切り）
+            let university_codes = [];
+            if (universityCodesInput && universityCodesInput.value.trim()) {
+                university_codes = universityCodesInput.value.split(',').map(code => code.trim()).filter(code => code);
+            }
+            
+            const output_directory = outputDirectoryInput && outputDirectoryInput.value.trim() ? outputDirectoryInput.value.trim() : '';
+            
+            try {
+                showStatus('ページ生成中...', 'success');
+                resultDiv.style.display = 'block';
+                resultContent.innerHTML = '<p>生成中...</p>';
+                
+                const response = await fetch('/api/generate-pages-from-yaml', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        university_codes: university_codes,
+                        output_directory: output_directory
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    let html = `<div style="color: #10b981; font-weight: 600; margin-bottom: 10px;">✅ 生成完了</div>`;
+                    html += `<div style="margin-bottom: 10px;">`;
+                    html += `<p><strong>対象大学数:</strong> ${data.universities_count}大学</p>`;
+                    html += `<p><strong>生成ページ数:</strong> ${data.total_pages}ページ</p>`;
+                    html += `<p><strong>成功:</strong> ${data.success_count}ページ</p>`;
+                    if (data.failed_count > 0) {
+                        html += `<p style="color: #ef4444;"><strong>失敗:</strong> ${data.failed_count}ページ</p>`;
+                    }
+                    html += `<p><strong>出力ディレクトリ:</strong> ${data.output_directory}</p>`;
+                    html += `</div>`;
+                    
+                    if (data.generated_files && data.generated_files.length > 0) {
+                        html += `<div style="max-height: 300px; overflow-y: auto; margin-top: 15px; padding: 10px; background: #f8fafc; border-radius: 5px;">`;
+                        html += `<strong>生成されたファイル:</strong><ul style="margin-top: 10px; padding-left: 20px;">`;
+                        data.generated_files.slice(0, 20).forEach(file => {
+                            html += `<li style="margin-bottom: 5px; font-size: 11px;">${file.university_code} - ${file.page_title} (${file.file_name})</li>`;
+                        });
+                        if (data.generated_files.length > 20) {
+                            html += `<li style="color: #718096;">... 他 ${data.generated_files.length - 20} ファイル</li>`;
+                        }
+                        html += `</ul></div>`;
+                    }
+                    
+                    resultContent.innerHTML = html;
+                    showStatus(data.message || 'ページ生成が完了しました', 'success');
+                    
+                    // 出力ディレクトリを保存
+                    window.yamlOutputDirectory = data.output_directory;
+                } else {
+                    resultContent.innerHTML = `<div style="color: #ef4444;">❌ エラー: ${data.error}</div>`;
+                    showStatus('ページ生成に失敗しました: ' + data.error, 'error');
+                }
+            } catch (error) {
+                resultContent.innerHTML = `<div style="color: #ef4444;">❌ エラー: ${error.message}</div>`;
+                showStatus('ページ生成に失敗しました', 'error');
+                console.error(error);
+            }
+        };
+        
+        // 生成済みページをダウンロード
+        window.downloadGeneratedPagesFromYAML = async function downloadGeneratedPagesFromYAML() {
+            const outputDirectoryInput = document.getElementById('yamlOutputDirectory');
+            const output_directory = (outputDirectoryInput && outputDirectoryInput.value.trim()) ? outputDirectoryInput.value.trim() : (window.yamlOutputDirectory || '');
+            
+            if (!output_directory) {
+                showStatus('出力ディレクトリが指定されていません', 'error');
+                return;
+            }
+            
+            try {
+                showStatus('ZIPファイルを作成中...', 'success');
+                
+                const response = await fetch('/api/generate-pages-from-yaml-download', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        output_directory: output_directory
+                    })
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `university_pages_${new Date().toISOString().slice(0, 10)}.zip`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    showStatus('ZIPファイルをダウンロードしました', 'success');
+                } else {
+                    const data = await response.json();
+                    showStatus('ダウンロードに失敗しました: ' + (data.error || '不明なエラー'), 'error');
+                }
+            } catch (error) {
+                showStatus('ダウンロードに失敗しました', 'error');
+                console.error(error);
+            }
+        };
+        
         window.generateUniversityPage = async function generateUniversityPage() {
             if (!currentUniversityId || !currentPageTitleId) {
                 showStatus('大学とページを選択してください', 'error');
@@ -10660,6 +10837,340 @@ def generate_university_page():
             'page_title': page_data['title'] if page_data else None
         })
     
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ==================== YAML設定ファイルベースのページ生成 ====================
+
+def load_yaml_config():
+    """YAML設定ファイルを読み込む"""
+    config_path = Path(__file__).parent / 'university_pages_config.yml'
+    if not config_path.exists():
+        return None
+    
+    with open(config_path, 'r', encoding='utf-8') as f:
+        return yaml.safe_load(f)
+
+
+def generate_form_field_html(field_config):
+    """フォームフィールドの設定からHTMLを生成"""
+    field_type = field_config.get('type', 'text')
+    name = field_config.get('name', '')
+    label = field_config.get('label', '')
+    required = field_config.get('required', False)
+    
+    html_parts = []
+    
+    # ラベル
+    if label and field_type not in ['section', 'navigation']:
+        required_mark = ' <span style="color: red;">*</span>' if required else ''
+        html_parts.append(f'<label for="{name}" style="display: block; margin-bottom: 5px; font-weight: 600;">{label}{required_mark}</label>')
+    
+    # フィールド本体
+    if field_type == 'text':
+        required_attr = 'required' if required else ''
+        html_parts.append(f'<input type="text" id="{name}" name="{name}" class="form-control" {required_attr} style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px;">')
+    
+    elif field_type == 'textarea':
+        required_attr = 'required' if required else ''
+        html_parts.append(f'<textarea id="{name}" name="{name}" class="form-control" {required_attr} rows="4" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px;"></textarea>')
+    
+    elif field_type == 'date':
+        required_attr = 'required' if required else ''
+        html_parts.append(f'<input type="date" id="{name}" name="{name}" class="form-control" {required_attr} style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px;">')
+    
+    elif field_type == 'tel':
+        required_attr = 'required' if required else ''
+        html_parts.append(f'<input type="tel" id="{name}" name="{name}" class="form-control" {required_attr} style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px;">')
+    
+    elif field_type == 'email':
+        required_attr = 'required' if required else ''
+        html_parts.append(f'<input type="email" id="{name}" name="{name}" class="form-control" {required_attr} style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px;">')
+    
+    elif field_type == 'number':
+        required_attr = 'required' if required else ''
+        html_parts.append(f'<input type="number" id="{name}" name="{name}" class="form-control" {required_attr} style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px;">')
+    
+    elif field_type == 'select':
+        options = field_config.get('options', [])
+        required_attr = 'required' if required else ''
+        options_html = ''.join([f'<option value="{opt}">{opt}</option>' for opt in options])
+        html_parts.append(f'<select id="{name}" name="{name}" class="form-control" {required_attr} style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px;">{options_html}</select>')
+    
+    elif field_type == 'checkbox':
+        checked_attr = 'checked' if field_config.get('checked', False) else ''
+        required_attr = 'required' if required else ''
+        html_parts.append(f'<input type="checkbox" id="{name}" name="{name}" {checked_attr} {required_attr} style="margin-right: 5px; margin-bottom: 15px;">')
+    
+    elif field_type == 'radio':
+        options = field_config.get('options', [])
+        required_attr = 'required' if required else ''
+        radio_html = []
+        for opt in options:
+            radio_id = f"{name}_{opt}"
+            radio_html.append(f'<div style="margin-bottom: 10px;"><input type="radio" id="{radio_id}" name="{name}" value="{opt}" {required_attr} style="margin-right: 5px;"><label for="{radio_id}">{opt}</label></div>')
+        html_parts.append(''.join(radio_html))
+    
+    elif field_type == 'file':
+        accept = field_config.get('accept', '')
+        multiple = 'multiple' if field_config.get('multiple', False) else ''
+        required_attr = 'required' if required else ''
+        accept_attr = f'accept="{accept}"' if accept else ''
+        html_parts.append(f'<input type="file" id="{name}" name="{name}" class="form-control" {required_attr} {accept_attr} {multiple} style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px;">')
+    
+    elif field_type == 'section':
+        html_parts.append(f'<h2 style="margin-top: 30px; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #667eea;">{label}</h2>')
+    
+    elif field_type == 'navigation':
+        html_parts.append(f'<nav style="margin-bottom: 20px;"><ul style="list-style: none; padding: 0;">{label}</ul></nav>')
+    
+    return '\n'.join(html_parts)
+
+
+def generate_page_html(page_config, university_config=None, generation_settings=None):
+    """ページ設定からHTMLを生成"""
+    page_title = page_config.get('title', '')
+    page_id = page_config.get('id', '')
+    description = page_config.get('description', '')
+    form_fields = page_config.get('form_fields', [])
+    
+    # 大学のカスタマイズ設定を取得
+    custom_fields = []
+    if university_config:
+        for custom_page in university_config.get('custom_pages', []):
+            if custom_page.get('page_title_id') == page_id:
+                custom_fields = custom_page.get('custom_fields', [])
+                break
+    
+    # HTMLの生成
+    html_parts = []
+    html_parts.append('<!DOCTYPE html>')
+    html_parts.append('<html lang="ja">')
+    html_parts.append('<head>')
+    html_parts.append('    <meta charset="UTF-8">')
+    html_parts.append('    <meta name="viewport" content="width=device-width, initial-scale=1.0">')
+    html_parts.append(f'    <title>{page_title}</title>')
+    
+    # CSSフレームワークの設定
+    css_framework = generation_settings.get('template', {}).get('css_framework', 'bootstrap') if generation_settings else 'bootstrap'
+    if css_framework == 'bootstrap':
+        html_parts.append('    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">')
+    html_parts.append('    <style>')
+    html_parts.append('        body { font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif; padding: 20px; background-color: #f5f5f5; }')
+    html_parts.append('        .container { max-width: 1200px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }')
+    html_parts.append('        .form-control { margin-bottom: 15px; }')
+    html_parts.append('        .btn-submit { background-color: #667eea; color: white; padding: 12px 30px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }')
+    html_parts.append('        .btn-submit:hover { background-color: #5568d3; }')
+    html_parts.append('        .description { color: #666; margin-bottom: 20px; }')
+    html_parts.append('    </style>')
+    html_parts.append('</head>')
+    html_parts.append('<body>')
+    html_parts.append('    <div class="container">')
+    html_parts.append(f'        <h1>{page_title}</h1>')
+    if description:
+        html_parts.append(f'        <p class="description">{description}</p>')
+    
+    html_parts.append('        <form id="admissionForm" method="POST" action="#" enctype="multipart/form-data">')
+    
+    # カスタムフィールド（before位置）を挿入
+    for custom_field in custom_fields:
+        if custom_field.get('position') == 'before':
+            target = custom_field.get('target_field', '')
+            # ターゲットフィールドの前に挿入
+            html_parts.append(generate_form_field_html(custom_field))
+    
+    # 通常のフォームフィールド
+    for field in form_fields:
+        html_parts.append(generate_form_field_html(field))
+    
+    # カスタムフィールド（after位置）を挿入
+    for custom_field in custom_fields:
+        if custom_field.get('position') != 'before':
+            html_parts.append(generate_form_field_html(custom_field))
+    
+    html_parts.append('            <div style="margin-top: 30px; text-align: center;">')
+    html_parts.append('                <button type="submit" class="btn-submit">送信</button>')
+    html_parts.append('                <button type="button" onclick="history.back()" style="margin-left: 10px; padding: 12px 30px; background-color: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">戻る</button>')
+    html_parts.append('            </div>')
+    html_parts.append('        </form>')
+    html_parts.append('    </div>')
+    
+    # JavaScript
+    html_parts.append('    <script>')
+    html_parts.append('        document.getElementById("admissionForm").addEventListener("submit", function(e) {')
+    html_parts.append('            e.preventDefault();')
+    html_parts.append('            // フォーム送信処理をここに実装')
+    html_parts.append('            alert("送信機能は実装されていません");')
+    html_parts.append('        });')
+    html_parts.append('    </script>')
+    html_parts.append('</body>')
+    html_parts.append('</html>')
+    
+    return '\n'.join(html_parts)
+
+
+@app.route('/api/generate-pages-from-yaml', methods=['POST'])
+def generate_pages_from_yaml():
+    """YAML設定ファイルを基に指定した大学または全大学の入学手続きWEBページを生成"""
+    try:
+        data = request.json
+        university_codes = data.get('university_codes', [])  # 空の場合は全大学
+        output_directory = data.get('output_directory', '')
+        
+        # YAML設定ファイルを読み込む
+        yaml_config = load_yaml_config()
+        if not yaml_config:
+            return jsonify({'success': False, 'error': 'YAML設定ファイルが見つかりません'}), 404
+        
+        default_page_titles = yaml_config.get('default_page_titles', [])
+        universities_config = yaml_config.get('universities', [])
+        generation_settings = yaml_config.get('generation_settings', {})
+        page_mappings = yaml_config.get('page_mappings', [])
+        
+        # 出力ディレクトリの設定
+        if output_directory:
+            output_dir = Path(output_directory)
+        else:
+            output_dir = UPLOAD_DIR / 'generated_university_pages'
+        
+        output_dir.mkdir(exist_ok=True, parents=True)
+        
+        # データベースから大学情報を取得
+        conn = sqlite3.connect(str(DB_PATH))
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # 対象大学を決定
+        if university_codes:
+            # 指定された大学コードの大学を取得
+            placeholders = ','.join(['?' for _ in university_codes])
+            cursor.execute(f'SELECT * FROM universities WHERE code IN ({placeholders})', university_codes)
+        else:
+            # 全大学を取得
+            cursor.execute('SELECT * FROM universities ORDER BY code')
+        
+        universities = cursor.fetchall()
+        conn.close()
+        
+        if not universities:
+            return jsonify({'success': False, 'error': '対象となる大学が見つかりませんでした'}), 404
+        
+        generated_files = []
+        total_pages = 0
+        success_count = 0
+        failed_count = 0
+        
+        # 各大学に対してページを生成
+        for university in universities:
+            university_code = university['code']
+            university_name = university['name']
+            university_id = university['id']
+            
+            # 大学の設定を取得
+            university_config = None
+            for univ_config in universities_config:
+                if univ_config.get('code') == university_code:
+                    university_config = univ_config
+                    break
+            
+            # 大学ごとの出力ディレクトリを作成
+            univ_output_dir = output_dir / f"{university_code}_{university_name}"
+            univ_output_dir.mkdir(exist_ok=True, parents=True)
+            
+            # 各ページタイトルに対してページを生成
+            for page_config in default_page_titles:
+                try:
+                    page_id = page_config.get('id')
+                    page_title = page_config.get('title', '')
+                    
+                    # ページマッピングからファイル名を取得
+                    file_name = f"page_{page_id}_{page_title}.html"
+                    route = f"/page-{page_id}"
+                    for mapping in page_mappings:
+                        if mapping.get('page_title_id') == page_id:
+                            file_name = mapping.get('file_name', file_name)
+                            route = mapping.get('route', route)
+                            break
+                    
+                    # HTMLを生成
+                    html_content = generate_page_html(
+                        page_config,
+                        university_config,
+                        generation_settings
+                    )
+                    
+                    # ファイルに保存
+                    output_file = univ_output_dir / file_name
+                    with open(output_file, 'w', encoding='utf-8') as f:
+                        f.write(html_content)
+                    
+                    generated_files.append({
+                        'university_code': university_code,
+                        'university_name': university_name,
+                        'page_id': page_id,
+                        'page_title': page_title,
+                        'file_name': file_name,
+                        'file_path': str(output_file)
+                    })
+                    
+                    total_pages += 1
+                    success_count += 1
+                    
+                except Exception as e:
+                    failed_count += 1
+                    print(f"Error generating page {page_id} for {university_code}: {str(e)}")
+                    continue
+        
+        return jsonify({
+            'success': True,
+            'message': f'{len(universities)}大学、合計{total_pages}ページを生成しました',
+            'universities_count': len(universities),
+            'total_pages': total_pages,
+            'success_count': success_count,
+            'failed_count': failed_count,
+            'output_directory': str(output_dir),
+            'generated_files': generated_files
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/generate-pages-from-yaml-download', methods=['POST'])
+def generate_pages_from_yaml_download():
+    """YAML設定ファイルを基に生成したページをZIPファイルでダウンロード"""
+    try:
+        data = request.json
+        output_directory = data.get('output_directory', '')
+        
+        if not output_directory:
+            output_directory = str(UPLOAD_DIR / 'generated_university_pages')
+        
+        output_dir = Path(output_directory)
+        if not output_dir.exists():
+            return jsonify({'success': False, 'error': '出力ディレクトリが見つかりません'}), 404
+        
+        # ZIPファイルを作成
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for file_path in output_dir.rglob('*.html'):
+                arcname = file_path.relative_to(output_dir)
+                zip_file.write(file_path, arcname)
+        
+        zip_buffer.seek(0)
+        
+        return send_file(
+            zip_buffer,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name=f'university_pages_{datetime.now().strftime("%Y%m%d_%H%M%S")}.zip'
+        )
+        
     except Exception as e:
         import traceback
         traceback.print_exc()
