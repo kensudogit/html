@@ -8021,10 +8021,27 @@ def _serve_index_html():
     try:
         index_path = FRONTEND_DIST_DIR / 'index.html'
         
+        # 詳細なログを出力（Railway環境でのデバッグ用）
+        app.logger.info(f"=== index.html配信開始 ===")
+        app.logger.info(f"現在の作業ディレクトリ: {os.getcwd()}")
+        app.logger.info(f"スクリプトのディレクトリ: {Path(__file__).parent}")
+        app.logger.info(f"FRONTEND_DIST_DIR: {FRONTEND_DIST_DIR}")
+        app.logger.info(f"FRONTEND_DIST_DIR 存在確認: {FRONTEND_DIST_DIR.exists()}")
+        app.logger.info(f"index.html パス: {index_path}")
+        app.logger.info(f"index.html 存在確認: {index_path.exists()}")
+        
+        if FRONTEND_DIST_DIR.exists():
+            try:
+                contents = list(FRONTEND_DIST_DIR.iterdir())
+                app.logger.info(f"FRONTEND_DIST_DIR の内容: {[str(c) for c in contents]}")
+            except Exception as list_error:
+                app.logger.warning(f"FRONTEND_DIST_DIR の内容を取得できませんでした: {list_error}")
+        
         if index_path.exists():
             app.logger.info(f"index.htmlを配信します: {index_path}")
             return send_file(str(index_path))
         else:
+            # ビルドファイルが存在しない場合は、エラーメッセージを返す
             app.logger.error(f"Reactビルドファイルが見つかりません: {index_path}")
             error_html = f"""
             <!DOCTYPE html>
@@ -10505,6 +10522,22 @@ def main():
         print("ファイルが指定されていません。ブラウザからファイルをアップロードしてください。")
     
     try:
+        # フロントエンドビルドディレクトリの確認
+        print(f"\n{'='*60}")
+        print(f"フロントエンドビルドディレクトリの確認:")
+        print(f"  FRONTEND_DIST_DIR: {FRONTEND_DIST_DIR}")
+        print(f"  存在確認: {FRONTEND_DIST_DIR.exists()}")
+        index_path = FRONTEND_DIST_DIR / 'index.html'
+        print(f"  index.html パス: {index_path}")
+        print(f"  index.html 存在確認: {index_path.exists()}")
+        if FRONTEND_DIST_DIR.exists():
+            try:
+                contents = list(FRONTEND_DIST_DIR.iterdir())
+                print(f"  ディレクトリの内容: {[str(c.name) for c in contents]}")
+            except Exception as e:
+                print(f"  ディレクトリの内容を取得できませんでした: {e}")
+        print(f"{'='*60}")
+        
         url = f"http://{args.host}:{args.port}"
         print(f"\n{'='*60}")
         print(f"Webエディタを起動しました！")
@@ -10521,8 +10554,9 @@ def main():
         
         # RailwayやHerokuなどのクラウド環境では0.0.0.0でリッスン
         host = args.host
-        if os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('DYNO'):
+        if os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('DYNO') or os.environ.get('PORT'):
             host = '0.0.0.0'
+            print(f"Railway環境を検出しました。host={host}, port={args.port}")
         
         app.run(host=host, port=args.port, debug=args.debug)
     

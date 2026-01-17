@@ -9,6 +9,8 @@ cmds = [
 [phases.build]
 cmds = [
   'cd frontend && npm run build',
+  'ls -la frontend/dist || echo "frontend/dist directory not found"',
+  'ls -la frontend/dist/index.html || echo "index.html not found"',
   'pip install --break-system-packages -r requirements.txt',
 ]
 
