@@ -8000,26 +8000,46 @@ def set_session_file_info(html_editor_obj, file_path):
     session_files[session_id]['html_file_path'] = file_path
 
 
+def _find_assets_dir():
+    """assetsディレクトリを複数のパスから検索"""
+    for dist_dir in _ALTERNATIVE_PATHS:
+        assets_dir = dist_dir / 'assets'
+        if assets_dir.exists() and assets_dir.is_dir():
+            app.logger.info(f"assetsディレクトリを見つけました: {assets_dir}")
+            return assets_dir
+    return None
+
+
 @app.route('/assets/<path:filename>')
 def serve_assets(filename):
     """静的アセット（JS、CSSなど）を配信"""
     try:
-        return send_from_directory(FRONTEND_DIST_DIR / 'assets', filename)
+        # 複数のパスからassetsディレクトリを検索
+        assets_dir = _find_assets_dir()
+        if assets_dir:
+            return send_from_directory(str(assets_dir), filename)
+        else:
+            # デフォルトのパスを試す
+            app.logger.warning(f"assetsディレクトリが見つかりません。デフォルトパスを試します: {FRONTEND_DIST_DIR / 'assets'}")
+            return send_from_directory(str(FRONTEND_DIST_DIR / 'assets'), filename)
     except Exception as e:
-        app.logger.error(f"静的アセット配信エラー: {e}")
-        return jsonify({'error': 'Asset not found'}), 404
+        app.logger.error(f"静的アセット配信エラー: {e}, filename: {filename}")
+        # 404エラーを返す代わりに、空のレスポンスを返す（ブラウザのエラーを減らすため）
+        return '', 404
 
 
 @app.route('/favicon.ico')
 def favicon():
     """faviconを返す（404エラーを防ぐため）"""
     try:
-        favicon_path = FRONTEND_DIST_DIR / 'favicon.ico'
-        if favicon_path.exists():
-            return send_file(str(favicon_path))
-        else:
-            # 空のICOファイルを返す
-            return send_file(io.BytesIO(b''), mimetype='image/x-icon')
+        # 複数のパスからfaviconを検索
+        for dist_dir in _ALTERNATIVE_PATHS:
+            favicon_path = dist_dir / 'favicon.ico'
+            if favicon_path.exists():
+                return send_file(str(favicon_path))
+        
+        # 見つからない場合は空のICOファイルを返す
+        return send_file(io.BytesIO(b''), mimetype='image/x-icon')
     except Exception:
         return send_file(io.BytesIO(b''), mimetype='image/x-icon')
 
@@ -8117,8 +8137,15 @@ def index():
 @app.errorhandler(404)
 def handle_404(e):
     """404エラーハンドラー - APIルート以外はindex.htmlを返す（SPAルーティング）"""
-    # APIルートの場合は404を返す
     path = request.path
+    app.logger.info(f"404エラー: {path}")
+    
+    # 静的アセットの場合は404を返す（既にserve_assetsで処理されているが、念のため）
+    if path.startswith('/assets/'):
+        app.logger.warning(f"静的アセットが見つかりません: {path}")
+        return '', 404
+    
+    # APIルートの場合は404を返す
     if path.startswith('/api/') or path.startswith('/save') or path.startswith('/upload') or \
        path.startswith('/files') or path.startswith('/search') or path.startswith('/structure') or \
        path.startswith('/validate') or path.startswith('/download') or path.startswith('/content') or \
@@ -8128,7 +8155,7 @@ def handle_404(e):
        path.startswith('/template-merge'):
         return jsonify({'error': 'Not found'}), 404
     
-    # それ以外はReactアプリを返す
+    # それ以外はReactアプリを返す（SPAルーティング）
     app.logger.info(f"404エラーをキャッチ: {path} -> index.htmlを返します")
     return _serve_index_html()
 

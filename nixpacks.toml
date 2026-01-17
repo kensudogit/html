@@ -8,10 +8,18 @@ cmds = [
 
 [phases.build]
 cmds = [
+  'echo "=== Frontend build start ==="',
   'cd frontend && npm run build',
+  'echo "=== Frontend build complete ==="',
+  'echo "=== Checking build output ==="',
+  'pwd',
+  'ls -la frontend/ || echo "frontend directory not found"',
   'ls -la frontend/dist || echo "frontend/dist directory not found"',
   'ls -la frontend/dist/index.html || echo "index.html not found"',
+  'ls -la frontend/dist/assets || echo "assets directory not found"',
+  'echo "=== Installing Python dependencies ==="',
   'pip install --break-system-packages -r requirements.txt',
+  'echo "=== Build phase complete ==="',
 ]
 
 [phases.start]
