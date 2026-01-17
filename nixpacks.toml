@@ -1,0 +1,16 @@
+[phases.setup]
+nixPkgs = ['nodejs-18_x', 'python39', 'python3Packages.pip']
+
+[phases.install]
+cmds = [
+  'cd frontend && npm ci',
+]
+
+[phases.build]
+cmds = [
+  'cd frontend && npm run build',
+  'pip install --break-system-packages -r requirements.txt',
+]
+
+[phases.start]
+cmd = 'python web_html_editor.py'
