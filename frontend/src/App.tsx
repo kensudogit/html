@@ -1,4 +1,3 @@
-import React from 'react'
 import ErrorBoundary from './components/ErrorBoundary'
 import ScreenComparison from './components/ScreenComparison'
 import './App.css'

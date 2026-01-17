@@ -1,12 +1,5 @@
 // 環境変数の型安全な取得
-
-interface ImportMetaEnv {
-  readonly VITE_API_URL?: string
-}
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv
-}
+// ImportMetaEnvとImportMetaの型定義はvite-env.d.tsに定義されています
 
 export const getApiBaseUrl = (): string => {
   const apiUrl = import.meta.env.VITE_API_URL
