@@ -18,9 +18,15 @@ cmds = [
   'ls -la frontend/dist/index.html || echo "index.html not found"',
   'ls -la frontend/dist/assets || echo "assets directory not found"',
   'echo "=== Installing Python dependencies ==="',
-  'pip install --break-system-packages -r requirements.txt',
+  'python --version || python3 --version || echo "Python not found"',
+  'pip --version || pip3 --version || echo "pip not found"',
+  'pip install --break-system-packages -r requirements.txt || pip3 install --break-system-packages -r requirements.txt || python -m pip install --break-system-packages -r requirements.txt || python3 -m pip install --break-system-packages -r requirements.txt || (echo "ERROR: Failed to install Python packages" && exit 1)',
+  'echo "=== Verifying Python packages ==="',
+  'python -c "import yaml; print(\"PyYAML installed successfully\")" || python3 -c "import yaml; print(\"PyYAML installed successfully\")" || (echo "ERROR: PyYAML not installed" && exit 1)',
+  'python -c "import flask; print(\"Flask installed successfully\")" || python3 -c "import flask; print(\"Flask installed successfully\")" || (echo "ERROR: Flask not installed" && exit 1)',
+  'python -c "import bs4; print(\"BeautifulSoup4 installed successfully\")" || python3 -c "import bs4; print(\"BeautifulSoup4 installed successfully\")" || (echo "ERROR: BeautifulSoup4 not installed" && exit 1)',
   'echo "=== Build phase complete ==="',
 ]
 
 [phases.start]
-cmd = 'python web_html_editor.py'
+cmd = 'python web_html_editor.py || python3 web_html_editor.py'
