@@ -73,7 +73,15 @@ except Exception as e:
 
 # フロントエンドのビルドディレクトリ
 BASE_DIR = Path(__file__).parent
+# Railway環境でのパス解決を改善（複数のパスを試す）
 FRONTEND_DIST_DIR = BASE_DIR / 'frontend' / 'dist'
+# 代替パス（Railway環境でのパス解決の問題に対応）
+_ALTERNATIVE_PATHS = [
+    BASE_DIR / 'frontend' / 'dist',
+    Path('frontend') / 'dist',
+    Path('/app') / 'frontend' / 'dist',
+    Path(os.getcwd()) / 'frontend' / 'dist',
+]
 
 # 大学データ管理用のデータベースパス
 DB_PATH = UPLOAD_DIR / 'university_data.db'
@@ -8016,33 +8024,36 @@ def favicon():
         return send_file(io.BytesIO(b''), mimetype='image/x-icon')
 
 
+def _find_index_html():
+    """index.htmlを複数のパスから検索"""
+    # 複数のパスを試す
+    for dist_dir in _ALTERNATIVE_PATHS:
+        index_path = dist_dir / 'index.html'
+        if index_path.exists():
+            app.logger.info(f"index.htmlを見つけました: {index_path}")
+            return index_path
+    return None
+
+
 def _serve_index_html():
     """index.htmlを返す共通関数"""
     try:
-        index_path = FRONTEND_DIST_DIR / 'index.html'
-        
         # 詳細なログを出力（Railway環境でのデバッグ用）
         app.logger.info(f"=== index.html配信開始 ===")
         app.logger.info(f"現在の作業ディレクトリ: {os.getcwd()}")
         app.logger.info(f"スクリプトのディレクトリ: {Path(__file__).parent}")
         app.logger.info(f"FRONTEND_DIST_DIR: {FRONTEND_DIST_DIR}")
         app.logger.info(f"FRONTEND_DIST_DIR 存在確認: {FRONTEND_DIST_DIR.exists()}")
-        app.logger.info(f"index.html パス: {index_path}")
-        app.logger.info(f"index.html 存在確認: {index_path.exists()}")
         
-        if FRONTEND_DIST_DIR.exists():
-            try:
-                contents = list(FRONTEND_DIST_DIR.iterdir())
-                app.logger.info(f"FRONTEND_DIST_DIR の内容: {[str(c) for c in contents]}")
-            except Exception as list_error:
-                app.logger.warning(f"FRONTEND_DIST_DIR の内容を取得できませんでした: {list_error}")
+        # 複数のパスからindex.htmlを検索
+        index_path = _find_index_html()
         
-        if index_path.exists():
+        if index_path:
             app.logger.info(f"index.htmlを配信します: {index_path}")
             return send_file(str(index_path))
         else:
             # ビルドファイルが存在しない場合は、エラーメッセージを返す
-            app.logger.error(f"Reactビルドファイルが見つかりません: {index_path}")
+            app.logger.error(f"Reactビルドファイルが見つかりません。試したパス: {[str(p / 'index.html') for p in _ALTERNATIVE_PATHS]}")
             error_html = f"""
             <!DOCTYPE html>
             <html lang="ja">
@@ -8058,9 +8069,12 @@ def _serve_index_html():
                 <div class="error">
                     <h1>ビルドファイルが見つかりません</h1>
                     <p>frontend/dist/index.html が存在しません。ビルドを実行してください。</p>
-                    <p><strong>パス:</strong> {index_path}</p>
                     <p><strong>作業ディレクトリ:</strong> {os.getcwd()}</p>
                     <p><strong>スクリプトのディレクトリ:</strong> {Path(__file__).parent}</p>
+                    <p><strong>試したパス:</strong></p>
+                    <ul>
+                        {''.join([f'<li>{str(p / "index.html")}</li>' for p in _ALTERNATIVE_PATHS])}
+                    </ul>
                 </div>
             </body>
             </html>
@@ -8097,6 +8111,25 @@ def _serve_index_html():
 @app.route('/')
 def index():
     """メインページ - Reactアプリケーションを配信"""
+    return _serve_index_html()
+
+
+@app.errorhandler(404)
+def handle_404(e):
+    """404エラーハンドラー - APIルート以外はindex.htmlを返す（SPAルーティング）"""
+    # APIルートの場合は404を返す
+    path = request.path
+    if path.startswith('/api/') or path.startswith('/save') or path.startswith('/upload') or \
+       path.startswith('/files') or path.startswith('/search') or path.startswith('/structure') or \
+       path.startswith('/validate') or path.startswith('/download') or path.startswith('/content') or \
+       path.startswith('/reload') or path.startswith('/load/') or path.startswith('/delete/') or \
+       path.startswith('/diff-analysis') or path.startswith('/gcd-template') or \
+       path.startswith('/generate-university-pages') or path.startswith('/download-university-pages') or \
+       path.startswith('/template-merge'):
+        return jsonify({'error': 'Not found'}), 404
+    
+    # それ以外はReactアプリを返す
+    app.logger.info(f"404エラーをキャッチ: {path} -> index.htmlを返します")
     return _serve_index_html()
 
 
