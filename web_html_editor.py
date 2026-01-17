@@ -71,6 +71,10 @@ except Exception as e:
     else:
         print(f"Warning: Could not create upload directory: {e}", file=sys.stderr)
 
+# フロントエンドのビルドディレクトリ
+BASE_DIR = Path(__file__).parent
+FRONTEND_DIST_DIR = BASE_DIR / 'frontend' / 'dist'
+
 # 大学データ管理用のデータベースパス
 DB_PATH = UPLOAD_DIR / 'university_data.db'
 UNIVERSITY_CONFIG_DIR = UPLOAD_DIR / 'university_configs'
@@ -7988,59 +7992,66 @@ def set_session_file_info(html_editor_obj, file_path):
     session_files[session_id]['html_file_path'] = file_path
 
 
-@app.route('/')
-def index():
-    """メインページ"""
+@app.route('/assets/<path:filename>')
+def serve_assets(filename):
+    """静的アセット（JS、CSSなど）を配信"""
     try:
-        filename = None
-        html_content = ""
-        file_size = 0
-        links_count = 0
-        images_count = 0
-        scripts_count = 0
+        return send_from_directory(FRONTEND_DIST_DIR / 'assets', filename)
+    except Exception as e:
+        app.logger.error(f"静的アセット配信エラー: {e}")
+        return jsonify({'error': 'Asset not found'}), 404
+
+
+@app.route('/favicon.ico')
+def favicon():
+    """faviconを返す（404エラーを防ぐため）"""
+    try:
+        favicon_path = FRONTEND_DIST_DIR / 'favicon.ico'
+        if favicon_path.exists():
+            return send_file(str(favicon_path))
+        else:
+            # 空のICOファイルを返す
+            return send_file(io.BytesIO(b''), mimetype='image/x-icon')
+    except Exception:
+        return send_file(io.BytesIO(b''), mimetype='image/x-icon')
+
+
+def _serve_index_html():
+    """index.htmlを返す共通関数"""
+    try:
+        index_path = FRONTEND_DIST_DIR / 'index.html'
         
-        # セッションからファイル情報を取得
-        # 各セッション（ユーザー）ごとに独立したファイル情報を管理
-        file_info = get_session_file_info()
-        html_editor = file_info.get('html_editor')
-        html_file_path = file_info.get('html_file_path')
-        
-        if html_editor is not None and html_file_path is not None:
-            try:
-                # HTMLファイルの内容を取得
-                with open(html_file_path, 'r', encoding='utf-8') as f:
-                    html_content = f.read()
-                
-                # 構造情報を取得
-                info = html_editor.get_structure_info()
-                
-                # ファイルサイズを取得
-                file_size = os.path.getsize(html_file_path)
-                filename = Path(html_file_path).name
-                links_count = info['links_count']
-                images_count = info['images_count']
-                scripts_count = info['scripts_count']
-            except Exception as e:
-                # ファイル読み込みエラーは無視して、空のエディタを表示
-                print(f"警告: ファイル読み込みエラー: {e}")
-        
-        # テンプレート変数を安全に準備
-        # filenameはdata属性として渡すため、エスケープのみ必要
-        safe_filename = filename or ''
-        
-        return render_template_string(
-            EDITOR_TEMPLATE,
-            filename=safe_filename,
-            has_content=bool(html_content and html_content.strip()),
-            file_size=file_size or 0,
-            links_count=links_count or 0,
-            images_count=images_count or 0,
-            scripts_count=scripts_count or 0
-        )
+        if index_path.exists():
+            app.logger.info(f"index.htmlを配信します: {index_path}")
+            return send_file(str(index_path))
+        else:
+            app.logger.error(f"Reactビルドファイルが見つかりません: {index_path}")
+            error_html = f"""
+            <!DOCTYPE html>
+            <html lang="ja">
+            <head>
+                <meta charset="UTF-8">
+                <title>ビルドファイルが見つかりません</title>
+                <style>
+                    body {{ font-family: monospace; padding: 20px; background: #f5f5f5; }}
+                    .error {{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }}
+                </style>
+            </head>
+            <body>
+                <div class="error">
+                    <h1>ビルドファイルが見つかりません</h1>
+                    <p>frontend/dist/index.html が存在しません。ビルドを実行してください。</p>
+                    <p><strong>パス:</strong> {index_path}</p>
+                    <p><strong>作業ディレクトリ:</strong> {os.getcwd()}</p>
+                    <p><strong>スクリプトのディレクトリ:</strong> {Path(__file__).parent}</p>
+                </div>
+            </body>
+            </html>
+            """
+            return error_html, 500
     except Exception as e:
         error_details = traceback.format_exc()
-        print(f"エラー詳細: {error_details}")
-        # デバッグモードで詳細なエラーを返す
+        app.logger.error(f"index.html配信エラー: {error_details}")
         error_html = f"""
         <!DOCTYPE html>
         <html lang="ja">
@@ -8064,6 +8075,12 @@ def index():
         </html>
         """
         return error_html, 500
+
+
+@app.route('/')
+def index():
+    """メインページ - Reactアプリケーションを配信"""
+    return _serve_index_html()
 
 
 @app.route('/save', methods=['POST'])
@@ -11175,6 +11192,21 @@ def generate_pages_from_yaml_download():
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/<path:path>')
+def catch_all(path):
+    """SPAルーティング用のキャッチオールルート - APIルート以外はすべてindex.htmlを返す"""
+    # APIルートの場合は404を返す
+    if path.startswith('api/') or path.startswith('save') or path.startswith('upload') or \
+       path.startswith('files') or path.startswith('search') or path.startswith('structure') or \
+       path.startswith('validate') or path.startswith('download') or path.startswith('favicon.ico') or \
+       path.startswith('assets/'):
+        return jsonify({'error': 'Not found'}), 404
+    
+    # それ以外はReactアプリを返す
+    return _serve_index_html()
+
 
 if __name__ == "__main__":
     main()
