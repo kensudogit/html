@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "cd frontend && npm install && npm run build",
+  "buildCommand": "cd frontend && (npm ci --legacy-peer-deps || npm install --legacy-peer-deps) && npm run build",
   "routes": [
     {
       "src": "/static/(.*)",
