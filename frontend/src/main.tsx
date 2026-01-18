@@ -18,7 +18,13 @@ window.addEventListener('unhandledrejection', (event) => {
     errorSource.includes('content.js') ||
     errorSource.includes('extension') ||
     errorSource.includes('chrome-extension') ||
-    errorSource.includes('moz-extension')
+    errorSource.includes('moz-extension') ||
+    // SVG viewBoxエラーを抑制
+    errorMessage.includes('viewBox') ||
+    errorMessage.includes('Expected number') ||
+    // 外部ライブラリ（osano.jsなど）のエラーを抑制
+    errorSource.includes('osano.js') ||
+    errorSource.includes('framework-')
   ) {
     event.preventDefault();
     event.stopPropagation();
@@ -43,11 +49,16 @@ window.addEventListener('error', (event) => {
     errorSource.includes('chrome-extension') ||
     errorSource.includes('moz-extension') ||
     errorMessage.includes('SVG attribute') ||
+    errorMessage.includes('viewBox') ||
+    errorMessage.includes('Expected number') ||
     errorMessage.includes('Expected length') ||
     // jQuery関連のエラーを抑制（HTMLコンテンツ内でjQueryが使用されている場合）
     errorMessage.includes('$ is not defined') ||
     errorMessage.includes('jQuery is not defined') ||
-    errorSource.includes('about:srcdoc')
+    errorSource.includes('about:srcdoc') ||
+    // 外部ライブラリ（osano.jsなど）のエラーを抑制
+    errorSource.includes('osano.js') ||
+    errorSource.includes('framework-')
   ) {
     event.preventDefault();
     event.stopPropagation();

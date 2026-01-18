@@ -13,4 +13,12 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    // preloadの警告を抑制（必要に応じて）
+    rollupOptions: {
+      output: {
+        manualChunks: undefined,
+      },
+    },
+  },
 })
