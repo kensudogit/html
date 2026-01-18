@@ -93,9 +93,12 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, content, onR
       // HTML要素検索を実行（API経由）
       try {
         const response = await editorApi.searchElement(searchText)
-        if (response.success && response.results) {
+        console.log('HTML要素検索APIレスポンス:', response)
+        if (response.success && response.results && Array.isArray(response.results) && response.results.length > 0) {
+          console.log('検索結果を設定:', response.results.length, '件')
           setHtmlResults(response.results)
         } else {
+          console.log('検索結果なしまたは空:', response)
           setHtmlResults([])
         }
       } catch (err) {
@@ -109,8 +112,6 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, content, onR
         setTimeout(() => {
           highlightMatch(0, allMatches, searchText)
         }, 0)
-      } else if (htmlResults.length === 0) {
-        alert('検索結果が見つかりませんでした')
       }
       
       if (onSearch) {
@@ -287,36 +288,46 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, content, onR
                   </div>
                 </div>
               )}
-              {searchType === 'html' && htmlResults.length > 0 && (
-                <div style={{ marginTop: '1rem' }}>
-                  <div style={{ fontSize: '0.875rem', color: '#666', marginBottom: '0.5rem', fontWeight: 600 }}>
-                    HTML要素検索結果: {htmlResults.length}件見つかりました
-                  </div>
-                  <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '0.5rem', background: '#f8f9fa' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                      <thead>
-                        <tr style={{ background: '#e2e8f0', fontWeight: 600 }}>
-                          <th style={{ padding: '8px', border: '1px solid #cbd5e0', textAlign: 'left' }}>タグ</th>
-                          <th style={{ padding: '8px', border: '1px solid #cbd5e0', textAlign: 'left' }}>ID</th>
-                          <th style={{ padding: '8px', border: '1px solid #cbd5e0', textAlign: 'left' }}>クラス</th>
-                          <th style={{ padding: '8px', border: '1px solid #cbd5e0', textAlign: 'left' }}>タイプ</th>
-                          <th style={{ padding: '8px', border: '1px solid #cbd5e0', textAlign: 'left' }}>テキスト</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {htmlResults.map((result, index) => (
-                          <tr key={index} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                            <td style={{ padding: '8px', border: '1px solid #e2e8f0' }}>{result.tag || '-'}</td>
-                            <td style={{ padding: '8px', border: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: '0.8rem' }}>{result.id || '-'}</td>
-                            <td style={{ padding: '8px', border: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: '0.8rem' }}>{result.class || '-'}</td>
-                            <td style={{ padding: '8px', border: '1px solid #e2e8f0' }}>{result.type || '-'}</td>
-                            <td style={{ padding: '8px', border: '1px solid #e2e8f0', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={result.text}>{result.text || '-'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+              {searchType === 'html' && (
+                <>
+                  {htmlResults.length > 0 ? (
+                    <div style={{ marginTop: '1rem' }}>
+                      <div style={{ fontSize: '0.875rem', color: '#666', marginBottom: '0.5rem', fontWeight: 600 }}>
+                        HTML要素検索結果: {htmlResults.length}件見つかりました
+                      </div>
+                      <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '0.5rem', background: '#f8f9fa' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                          <thead>
+                            <tr style={{ background: '#e2e8f0', fontWeight: 600 }}>
+                              <th style={{ padding: '8px', border: '1px solid #cbd5e0', textAlign: 'left' }}>タグ</th>
+                              <th style={{ padding: '8px', border: '1px solid #cbd5e0', textAlign: 'left' }}>ID</th>
+                              <th style={{ padding: '8px', border: '1px solid #cbd5e0', textAlign: 'left' }}>クラス</th>
+                              <th style={{ padding: '8px', border: '1px solid #cbd5e0', textAlign: 'left' }}>タイプ</th>
+                              <th style={{ padding: '8px', border: '1px solid #cbd5e0', textAlign: 'left' }}>テキスト</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {htmlResults.map((result, index) => (
+                              <tr key={index} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                <td style={{ padding: '8px', border: '1px solid #e2e8f0' }}>{result.tag || '-'}</td>
+                                <td style={{ padding: '8px', border: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: '0.8rem' }}>{result.id || '-'}</td>
+                                <td style={{ padding: '8px', border: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: '0.8rem' }}>{result.class || '-'}</td>
+                                <td style={{ padding: '8px', border: '1px solid #e2e8f0' }}>{result.type || '-'}</td>
+                                <td style={{ padding: '8px', border: '1px solid #e2e8f0', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={result.text}>{result.text || '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    !loading && (
+                      <div style={{ fontSize: '0.875rem', color: '#666', padding: '1rem', textAlign: 'center', background: '#f8f9fa', borderRadius: '4px', marginTop: '1rem' }}>
+                        HTML要素検索結果が見つかりませんでした
+                      </div>
+                    )
+                  )}
+                </>
               )}
               {searchType === 'excel' && excelResults.length > 0 && (
                 <div style={{ marginTop: '1rem' }}>
