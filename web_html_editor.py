@@ -34,12 +34,13 @@ app = Flask(__name__)
 @app.before_request
 def log_request_info():
     """すべてのリクエストをログに記録"""
-    app.logger.info(f"=== リクエスト受信 ===")
-    app.logger.info(f"Method: {request.method}")
-    app.logger.info(f"Path: {request.path}")
-    app.logger.info(f"URL: {request.url}")
-    app.logger.info(f"Remote Address: {request.remote_addr}")
-    app.logger.info(f"User Agent: {request.headers.get('User-Agent', 'N/A')}")
+    try:
+        msg = f"=== リクエスト受信 ===\nMethod: {request.method}\nPath: {request.path}\nURL: {request.url}\nRemote Address: {request.remote_addr}\nUser Agent: {request.headers.get('User-Agent', 'N/A')}"
+        app.logger.info(msg)
+        print(msg, flush=True)  # printも追加して確実にログを出力
+    except Exception as e:
+        app.logger.error(f"リクエストログ記録エラー: {e}")
+        print(f"リクエストログ記録エラー: {e}", flush=True)
 
 # CORS設定（Railway環境でのAPIリクエストを許可）
 @app.after_request
@@ -8102,17 +8103,17 @@ def _serve_index_html():
     """index.htmlを返す共通関数"""
     try:
         # 詳細なログを出力（Railway環境でのデバッグ用）
-        app.logger.info(f"=== index.html配信開始 ===")
-        app.logger.info(f"現在の作業ディレクトリ: {os.getcwd()}")
-        app.logger.info(f"スクリプトのディレクトリ: {Path(__file__).parent}")
-        app.logger.info(f"FRONTEND_DIST_DIR: {FRONTEND_DIST_DIR}")
-        app.logger.info(f"FRONTEND_DIST_DIR 存在確認: {FRONTEND_DIST_DIR.exists()}")
+        msg = f"=== index.html配信開始 ===\n現在の作業ディレクトリ: {os.getcwd()}\nスクリプトのディレクトリ: {Path(__file__).parent}\nFRONTEND_DIST_DIR: {FRONTEND_DIST_DIR}\nFRONTEND_DIST_DIR 存在確認: {FRONTEND_DIST_DIR.exists()}"
+        app.logger.info(msg)
+        print(msg, flush=True)  # printも追加して確実にログを出力
         
         # 複数のパスからindex.htmlを検索
         index_path = _find_index_html()
         
         if index_path:
-            app.logger.info(f"index.htmlを配信します: {index_path}")
+            msg = f"index.htmlを配信します: {index_path}"
+            app.logger.info(msg)
+            print(msg, flush=True)
             return send_file(str(index_path))
         else:
             # ビルドファイルが存在しない場合は、エラーメッセージを返す
@@ -8174,15 +8175,23 @@ def _serve_index_html():
 @app.route('/')
 def index():
     """メインページ - Reactアプリケーションを配信"""
-    app.logger.info("=== ルートパス (/) へのリクエスト ===")
+    msg = "=== ルートパス (/) へのリクエスト ==="
+    app.logger.info(msg)
+    print(msg, flush=True)  # printも追加して確実にログを出力
     try:
         result = _serve_index_html()
-        app.logger.info(f"index() の戻り値の型: {type(result)}")
+        msg = f"index() の戻り値の型: {type(result)}"
+        app.logger.info(msg)
+        print(msg, flush=True)
         return result
     except Exception as e:
-        app.logger.error(f"index() でエラーが発生: {e}")
+        error_msg = f"index() でエラーが発生: {e}"
+        app.logger.error(error_msg)
+        print(error_msg, flush=True)
         import traceback
-        app.logger.error(traceback.format_exc())
+        tb = traceback.format_exc()
+        app.logger.error(tb)
+        print(tb, flush=True)
         raise
 
 
@@ -10602,14 +10611,16 @@ def main():
         default='127.0.0.1',
         help='ホストアドレス (デフォルト: 127.0.0.1)'
     )
-    # RailwayやHerokuなどのクラウド環境では環境変数PORTを使用
-    default_port = int(os.environ.get('PORT', 5000))
-    parser.add_argument(
-        '--port',
-        type=int,
-        default=default_port,
-        help=f'ポート番号 (デフォルト: {default_port}, 環境変数PORTが設定されている場合はそれを使用)'
-    )
+        # RailwayやHerokuなどのクラウド環境では環境変数PORTを使用
+        port_env = os.environ.get('PORT')
+        default_port = int(port_env) if port_env else 5000
+        print(f"環境変数PORT: {port_env}, デフォルトポート: {default_port}", flush=True)
+        parser.add_argument(
+            '--port',
+            type=int,
+            default=default_port,
+            help=f'ポート番号 (デフォルト: {default_port}, 環境変数PORTが設定されている場合はそれを使用)'
+        )
     parser.add_argument(
         '--debug',
         action='store_true',
@@ -10697,9 +10708,13 @@ def main():
         
         # RailwayやHerokuなどのクラウド環境では0.0.0.0でリッスン
         host = args.host
-        if os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('DYNO') or os.environ.get('PORT'):
+        railway_env = os.environ.get('RAILWAY_ENVIRONMENT')
+        dyno = os.environ.get('DYNO')
+        port_env = os.environ.get('PORT')
+        print(f"環境変数確認: RAILWAY_ENVIRONMENT={railway_env}, DYNO={dyno}, PORT={port_env}", flush=True)
+        if railway_env or dyno or port_env:
             host = '0.0.0.0'
-            print(f"Railway環境を検出しました。host={host}, port={args.port}")
+            print(f"Railway環境を検出しました。host={host}, port={args.port}", flush=True)
         
         app.run(host=host, port=args.port, debug=args.debug)
     
