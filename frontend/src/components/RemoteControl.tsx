@@ -15,6 +15,8 @@ interface RemoteControlProps {
   onToggleFreeMode?: () => void
   freeMode?: boolean
   onShowScreenComparison?: () => void
+  onShowDiffAnalysis?: () => void
+  onShowUniversityDataManagement?: () => void
 }
 
 const RemoteControl: React.FC<RemoteControlProps> = ({
@@ -31,6 +33,8 @@ const RemoteControl: React.FC<RemoteControlProps> = ({
   onToggleFreeMode,
   freeMode = false,
   onShowScreenComparison,
+  onShowDiffAnalysis,
+  onShowUniversityDataManagement,
 }) => {
   const [collapsed, setCollapsed] = useState<boolean>(false)
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null)
@@ -305,6 +309,34 @@ const RemoteControl: React.FC<RemoteControlProps> = ({
                   }}
                 >
                   🖼️ 画面比較
+                </button>
+              )}
+              {onShowDiffAnalysis && (
+                <button
+                  className="btn btn-warning"
+                  onClick={onShowDiffAnalysis}
+                  style={{
+                    fontWeight: 600,
+                    background: '#f59e0b',
+                    border: '2px solid #d97706',
+                    color: 'white',
+                  }}
+                >
+                  🔍 差分検出
+                </button>
+              )}
+              {onShowUniversityDataManagement && (
+                <button
+                  className="btn btn-success"
+                  onClick={onShowUniversityDataManagement}
+                  style={{
+                    fontWeight: 600,
+                    background: '#48bb78',
+                    border: '2px solid #38a169',
+                    color: 'white',
+                  }}
+                >
+                  🏫 大学データ管理
                 </button>
               )}
               <span style={{ fontSize: '12px', color: '#666', textAlign: 'center' }}>

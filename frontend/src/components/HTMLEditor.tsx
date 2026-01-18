@@ -7,6 +7,8 @@ import ValidateModal from './ValidateModal'
 import SearchModal from './SearchModal'
 import FileListModal from './FileListModal'
 import ScreenComparisonModal from './ScreenComparisonModal'
+import DiffAnalysisModal from './DiffAnalysisModal'
+import UniversityDataManagementModal from './UniversityDataManagementModal'
 import './HTMLEditor.css'
 
 const HTMLEditor: React.FC = () => {
@@ -21,6 +23,8 @@ const HTMLEditor: React.FC = () => {
   const [showSearchModal, setShowSearchModal] = useState<boolean>(false)
   const [showFileListModal, setShowFileListModal] = useState<boolean>(false)
   const [showScreenComparison, setShowScreenComparison] = useState<boolean>(false)
+  const [showDiffAnalysis, setShowDiffAnalysis] = useState<boolean>(false)
+  const [showUniversityDataManagement, setShowUniversityDataManagement] = useState<boolean>(false)
   const [freeMode, setFreeMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('htmlEditorFreeMode')
     return saved === 'true'
@@ -316,6 +320,8 @@ const HTMLEditor: React.FC = () => {
         onToggleFreeMode={toggleFreeMode}
         freeMode={freeMode}
         onShowScreenComparison={() => setShowScreenComparison(true)}
+        onShowDiffAnalysis={() => setShowDiffAnalysis(true)}
+        onShowUniversityDataManagement={() => setShowUniversityDataManagement(true)}
       />
       <UsageGuide />
       <header className="html-editor-header">
@@ -446,6 +452,14 @@ const HTMLEditor: React.FC = () => {
       <ScreenComparisonModal
         isOpen={showScreenComparison}
         onClose={() => setShowScreenComparison(false)}
+      />
+      <DiffAnalysisModal
+        isOpen={showDiffAnalysis}
+        onClose={() => setShowDiffAnalysis(false)}
+      />
+      <UniversityDataManagementModal
+        isOpen={showUniversityDataManagement}
+        onClose={() => setShowUniversityDataManagement(false)}
       />
     </div>
   )

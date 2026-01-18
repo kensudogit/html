@@ -188,4 +188,174 @@ export const editorApi = {
       throw new Error('ファイル一覧の取得に失敗しました')
     }
   },
+
+  /**
+   * 差分検出
+   */
+  async diffAnalysis(directory: string, options?: any): Promise<{ success: boolean; summary?: any; differences?: any[]; files?: string[]; error?: string }> {
+    try {
+      const response = await apiClient.post<{ success: boolean; summary?: any; differences?: any[]; files?: string[]; error?: string }>('/diff-analysis', {
+        directory,
+        options: options || {},
+      })
+      return response.data
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error
+      }
+      throw new Error('差分検出に失敗しました')
+    }
+  },
+
+  /**
+   * テンプレート統合
+   */
+  async templateMerge(files: string[], options?: any): Promise<{ success: boolean; template?: string; stats?: any; error?: string }> {
+    try {
+      const response = await apiClient.post<{ success: boolean; template?: string; stats?: any; error?: string }>('/template-merge', {
+        files,
+        options: options || {},
+      })
+      return response.data
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error
+      }
+      throw new Error('テンプレート統合に失敗しました')
+    }
+  },
+
+  /**
+   * 27大学のホームページ生成
+   */
+  async generateUniversityPages(directory: string, template: string): Promise<{ success: boolean; generatedFiles?: number; successCount?: number; failedCount?: number; files?: string[]; directory?: string; error?: string }> {
+    try {
+      const response = await apiClient.post<{ success: boolean; generatedFiles?: number; successCount?: number; failedCount?: number; files?: string[]; directory?: string; error?: string }>('/generate-university-pages', {
+        directory,
+        template,
+      })
+      return response.data
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error
+      }
+      throw new Error('大学ページの生成に失敗しました')
+    }
+  },
+
+  /**
+   * 大学一覧を取得
+   */
+  async getUniversities(): Promise<{ success: boolean; universities?: any[]; error?: string }> {
+    try {
+      const response = await apiClient.get<{ success: boolean; universities?: any[]; error?: string }>('/api/universities')
+      return response.data
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error
+      }
+      throw new Error('大学一覧の取得に失敗しました')
+    }
+  },
+
+  /**
+   * ページタイトル一覧を取得
+   */
+  async getPageTitles(): Promise<{ success: boolean; pageTitles?: any[]; error?: string }> {
+    try {
+      const response = await apiClient.get<{ success: boolean; titles?: any[]; error?: string }>('/api/page-titles')
+      return {
+        ...response.data,
+        pageTitles: response.data.titles,
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error
+      }
+      throw new Error('ページタイトル一覧の取得に失敗しました')
+    }
+  },
+
+  /**
+   * 大学ページ詳細を取得
+   */
+  async getUniversityPageDetail(universityId: number, pageTitleId: number): Promise<{ success: boolean; content?: string; error?: string }> {
+    try {
+      const response = await apiClient.get<{ success: boolean; page?: any; error?: string }>(
+        `/api/university/${universityId}/page/${pageTitleId}`
+      )
+      return {
+        ...response.data,
+        content: response.data.page?.content || '',
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error
+      }
+      throw new Error('ページデータの取得に失敗しました')
+    }
+  },
+
+  /**
+   * 大学ページ詳細を保存
+   */
+  async saveUniversityPageDetail(universityId: number, pageTitleId: number, content: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const response = await apiClient.post<{ success: boolean; error?: string }>(
+        `/api/university/${universityId}/page/${pageTitleId}`,
+        { content }
+      )
+      return response.data
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error
+      }
+      throw new Error('ページデータの保存に失敗しました')
+    }
+  },
+
+  /**
+   * YAML設定ファイルからページ一括生成
+   */
+  async generatePagesFromYAML(targetUniversities?: string, outputDir?: string): Promise<{ success: boolean; targetCount?: number; generatedCount?: number; successCount?: number; failedCount?: number; error?: string }> {
+    try {
+      const universityCodes = targetUniversities ? targetUniversities.split(',').map(c => c.trim()).filter(c => c) : []
+      const response = await apiClient.post<{ success: boolean; universities_count?: number; total_pages?: number; success_count?: number; failed_count?: number; error?: string }>(
+        '/api/generate-pages-from-yaml',
+        {
+          university_codes: universityCodes,
+          output_directory: outputDir || '',
+        }
+      )
+      return {
+        ...response.data,
+        targetCount: response.data.universities_count,
+        generatedCount: response.data.total_pages,
+        successCount: response.data.success_count,
+        failedCount: response.data.failed_count,
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error
+      }
+      throw new Error('ページの一括生成に失敗しました')
+    }
+  },
+
+  /**
+   * 生成済みページをダウンロード
+   */
+  async downloadGeneratedPages(): Promise<Blob> {
+    try {
+      const response = await apiClient.post('/api/generate-pages-from-yaml-download', {}, {
+        responseType: 'blob',
+      })
+      return response.data
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error
+      }
+      throw new Error('ダウンロードに失敗しました')
+    }
+  },
 }
