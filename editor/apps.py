@@ -10,7 +10,14 @@ class EditorConfig(AppConfig):
     
     def ready(self):
         """アプリケーション起動時にデータベースを初期化"""
-        init_database()
+        try:
+            init_database()
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"データベース初期化エラー: {e}", exc_info=True)
+            print(f"データベース初期化エラー: {e}", flush=True)
+            # エラーが発生してもアプリケーションは起動を続ける
 
 
 def init_database():

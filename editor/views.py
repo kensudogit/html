@@ -187,11 +187,13 @@ def _serve_index_html():
         
         index_path = _find_index_html()
         
-        if index_path:
+        if index_path and index_path.exists():
             msg = f"index.htmlを配信します: {index_path}"
             logger.info(msg)
             print(msg, flush=True)
-            return FileResponse(open(index_path, 'rb'), content_type='text/html')
+            with open(index_path, 'rb') as f:
+                content = f.read()
+            return HttpResponse(content, content_type='text/html')
         else:
             logger.error(f"Reactビルドファイルが見つかりません。試したパス: {[str(p / 'index.html') for p in _ALTERNATIVE_PATHS]}")
             tried_paths_html = ''.join([f'<li>{str(p / "index.html")}</li>' for p in _ALTERNATIVE_PATHS])
@@ -257,11 +259,13 @@ def _serve_index_html():
 
 def index(request):
     """メインページ - Reactアプリケーションを配信"""
-    msg = "=== ルートパス (/) へのリクエスト ==="
+    msg = f"=== ルートパス (/) へのリクエスト ===\nMethod: {request.method}\nPath: {request.path}\nHost: {request.get_host()}\nCurrent dir: {os.getcwd()}\nBASE_DIR: {BASE_DIR}\nFRONTEND_DIST_DIR: {FRONTEND_DIST_DIR}\nFRONTEND_DIST_DIR exists: {FRONTEND_DIST_DIR.exists()}"
     logger.info(msg)
     print(msg, flush=True)
     try:
-        return _serve_index_html()
+        response = _serve_index_html()
+        logger.info(f"index.html配信成功: {response.status_code}")
+        return response
     except Exception as e:
         error_msg = f"index() でエラーが発生: {e}"
         logger.error(error_msg)
@@ -269,7 +273,27 @@ def index(request):
         tb = traceback.format_exc()
         logger.error(tb)
         print(tb, flush=True)
-        raise
+        # エラー時でもHTMLを返す（404ではなく500エラーページ）
+        return HttpResponse(f"""
+        <!DOCTYPE html>
+        <html lang="ja">
+        <head>
+            <meta charset="UTF-8">
+            <title>エラー</title>
+            <style>
+                body {{ font-family: monospace; padding: 20px; background: #f5f5f5; }}
+                .error {{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }}
+            </style>
+        </head>
+        <body>
+            <div class="error">
+                <h1>エラーが発生しました</h1>
+                <p><strong>エラーメッセージ:</strong> {str(e)}</p>
+                <pre>{tb}</pre>
+            </div>
+        </body>
+        </html>
+        """, status=500, content_type='text/html')
 
 
 def serve_assets(request, filename):
