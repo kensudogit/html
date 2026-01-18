@@ -18,7 +18,15 @@ from django.core.files.base import ContentFile
 from werkzeug.utils import secure_filename
 import logging
 
-from html_editor import HTMLEditor
+import sys
+import importlib.util
+from pathlib import Path
+# html_editor.pyモジュールをインポート（Djangoプロジェクト名と衝突を避けるため）
+html_editor_file = Path(__file__).resolve().parent.parent / 'html_editor.py'
+spec = importlib.util.spec_from_file_location("html_editor_module", html_editor_file)
+html_editor_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(html_editor_module)
+HTMLEditor = html_editor_module.HTMLEditor
 from bs4 import BeautifulSoup
 import yaml
 
