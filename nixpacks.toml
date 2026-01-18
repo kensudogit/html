@@ -7,12 +7,13 @@ cmds = [
   'cd frontend && npm ci || (echo "npm ci failed, trying npm install" && npm install)',
   'echo "=== Node.js dependencies installed ==="',
   'echo "=== Installing Python dependencies ==="',
-  'python3.12 -m pip install --upgrade pip || python3 -m pip install --upgrade pip || python -m pip install --upgrade pip || echo "pip upgrade failed, continuing..."',
-  'python3.12 -m pip install -r requirements.txt || python3 -m pip install -r requirements.txt || python -m pip install -r requirements.txt || echo "pip install failed, continuing..."',
+  'python3.12 -m ensurepip --upgrade --default-pip || python3 -m ensurepip --upgrade --default-pip || python -m ensurepip --upgrade --default-pip || echo "ensurepip failed, trying pip install"',
+  'python3.12 -m pip install --upgrade pip setuptools wheel || python3 -m pip install --upgrade pip setuptools wheel || python -m pip install --upgrade pip setuptools wheel || echo "pip upgrade failed"',
+  'python3.12 -m pip install -r requirements.txt || python3 -m pip install -r requirements.txt || python -m pip install -r requirements.txt || (echo "ERROR: pip install failed" && exit 1)',
   'echo "=== Verifying gunicorn installation ==="',
-  'python3.12 -m pip show gunicorn || python3 -m pip show gunicorn || python -m pip show gunicorn || echo "gunicorn not found"',
-  'which gunicorn || python3.12 -m gunicorn --version || python3 -m gunicorn --version || python -m gunicorn --version || echo "gunicorn command not found"',
-  'echo "=== Python dependencies installed ==="',
+  'python3.12 -m pip show gunicorn && echo "gunicorn found via pip show" || python3 -m pip show gunicorn && echo "gunicorn found via pip show" || python -m pip show gunicorn && echo "gunicorn found via pip show" || (echo "ERROR: gunicorn not installed" && exit 1)',
+  'python3.12 -m gunicorn --version && echo "gunicorn command works" || python3 -m gunicorn --version && echo "gunicorn command works" || python -m gunicorn --version && echo "gunicorn command works" || (echo "ERROR: gunicorn command not found" && exit 1)',
+  'echo "=== Python dependencies installed successfully ==="',
 ]
 
 [phases.build]
