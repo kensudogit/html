@@ -20,6 +20,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, content, onR
   const [searchType, setSearchType] = useState<'html' | 'excel'>('html')
   const [folderPath, setFolderPath] = useState<string>('')
   const [excelResults, setExcelResults] = useState<any[]>([])
+  const [htmlResults, setHtmlResults] = useState<any[]>([]) // HTML検索結果を追加
   const [loading, setLoading] = useState<boolean>(false)
 
   React.useEffect(() => {
@@ -74,7 +75,10 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, content, onR
       }
     } else {
       // HTML検索
-      // マッチを再計算
+      setLoading(true)
+      setHtmlResults([])
+      
+      // テキスト検索のマッチを再計算
       const allMatches: number[] = []
       if (content) {
         let match: RegExpExecArray | null
@@ -86,19 +90,34 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, content, onR
       setMatches(allMatches)
       setMatchCount(allMatches.length)
       
+      // HTML要素検索を実行（API経由）
+      try {
+        const response = await editorApi.searchElement(searchText)
+        if (response.success && response.results) {
+          setHtmlResults(response.results)
+        } else {
+          setHtmlResults([])
+        }
+      } catch (err) {
+        console.error('HTML要素検索エラー:', err)
+        setHtmlResults([])
+      }
+      
       if (allMatches.length > 0) {
         setCurrentMatchIndex(0)
         // マッチを設定した後、少し遅延してハイライト（状態更新を待つ）
         setTimeout(() => {
           highlightMatch(0, allMatches, searchText)
         }, 0)
-      } else {
+      } else if (htmlResults.length === 0) {
         alert('検索結果が見つかりませんでした')
       }
       
       if (onSearch) {
         onSearch(searchText)
       }
+      
+      setLoading(false)
     }
   }
 
@@ -265,6 +284,37 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, content, onR
                     >
                       次へ ▼
                     </button>
+                  </div>
+                </div>
+              )}
+              {searchType === 'html' && htmlResults.length > 0 && (
+                <div style={{ marginTop: '1rem' }}>
+                  <div style={{ fontSize: '0.875rem', color: '#666', marginBottom: '0.5rem', fontWeight: 600 }}>
+                    HTML要素検索結果: {htmlResults.length}件見つかりました
+                  </div>
+                  <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '0.5rem', background: '#f8f9fa' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                      <thead>
+                        <tr style={{ background: '#e2e8f0', fontWeight: 600 }}>
+                          <th style={{ padding: '8px', border: '1px solid #cbd5e0', textAlign: 'left' }}>タグ</th>
+                          <th style={{ padding: '8px', border: '1px solid #cbd5e0', textAlign: 'left' }}>ID</th>
+                          <th style={{ padding: '8px', border: '1px solid #cbd5e0', textAlign: 'left' }}>クラス</th>
+                          <th style={{ padding: '8px', border: '1px solid #cbd5e0', textAlign: 'left' }}>タイプ</th>
+                          <th style={{ padding: '8px', border: '1px solid #cbd5e0', textAlign: 'left' }}>テキスト</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {htmlResults.map((result, index) => (
+                          <tr key={index} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                            <td style={{ padding: '8px', border: '1px solid #e2e8f0' }}>{result.tag || '-'}</td>
+                            <td style={{ padding: '8px', border: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: '0.8rem' }}>{result.id || '-'}</td>
+                            <td style={{ padding: '8px', border: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: '0.8rem' }}>{result.class || '-'}</td>
+                            <td style={{ padding: '8px', border: '1px solid #e2e8f0' }}>{result.type || '-'}</td>
+                            <td style={{ padding: '8px', border: '1px solid #e2e8f0', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={result.text}>{result.text || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
