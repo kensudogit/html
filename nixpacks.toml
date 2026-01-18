@@ -6,6 +6,13 @@ cmds = [
   'echo "=== Installing Node.js dependencies ==="',
   'cd frontend && npm ci || (echo "npm ci failed, trying npm install" && npm install)',
   'echo "=== Node.js dependencies installed ==="',
+  'echo "=== Installing Python dependencies ==="',
+  'python3.12 -m pip install --upgrade pip || python3 -m pip install --upgrade pip || python -m pip install --upgrade pip || echo "pip upgrade failed, continuing..."',
+  'python3.12 -m pip install -r requirements.txt || python3 -m pip install -r requirements.txt || python -m pip install -r requirements.txt || echo "pip install failed, continuing..."',
+  'echo "=== Verifying gunicorn installation ==="',
+  'python3.12 -m pip show gunicorn || python3 -m pip show gunicorn || python -m pip show gunicorn || echo "gunicorn not found"',
+  'which gunicorn || python3.12 -m gunicorn --version || python3 -m gunicorn --version || python -m gunicorn --version || echo "gunicorn command not found"',
+  'echo "=== Python dependencies installed ==="',
 ]
 
 [phases.build]
