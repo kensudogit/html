@@ -2,10 +2,119 @@
 
 HTMLファイルを構文解析して編集するためのPythonプログラムです。
 
-## 必要なライブラリ
+## セットアップ
+
+### 1. 仮想環境の作成とアクティブ化
 
 ```bash
+# 仮想環境の作成（初回のみ）
+python -m venv venv
+
+# Windows (PowerShell)
+.\venv\Scripts\Activate.ps1
+
+# Windows (CMD)
+venv\Scripts\activate.bat
+```
+
+### 2. 依存関係のインストール
+
+```bash
+# 仮想環境がアクティブ化されていることを確認
+# プロンプトに (venv) が表示されているはずです
+
 pip install -r requirements.txt
+```
+
+## ローカル環境での起動方法（Django版）
+
+### 方法1: 起動スクリプトを使用（推奨）
+
+**⚠️ 重要: PowerShellを使用している場合は`.ps1`ファイルを使用してください**
+
+**Windows (CMD):**
+```bash
+start.bat
+```
+
+**Windows (PowerShell):**
+```powershell
+# PowerShellでは必ず.ps1ファイルを使用
+.\start.ps1
+
+# もし実行ポリシーのエラーが出る場合
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+**注意**: PowerShellから`.bat`ファイルを実行すると文字化けが発生する可能性があります。PowerShellでは`.ps1`ファイルを使用してください。
+
+起動スクリプトは自動的に以下を実行します：
+1. データベースマイグレーション
+2. 静的ファイルの収集
+3. Django開発サーバーの起動
+
+### 方法2: 手動で起動
+
+```bash
+# 1. データベースマイグレーション
+.\venv\Scripts\python.exe manage.py migrate
+
+# 2. 静的ファイルの収集（本番環境の場合）
+.\venv\Scripts\python.exe manage.py collectstatic --noinput
+
+# 3. Django開発サーバーを起動
+.\venv\Scripts\python.exe manage.py runserver 127.0.0.1:5000
+```
+
+### 方法3: 仮想環境をアクティブ化してから起動
+
+```bash
+# 仮想環境をアクティブ化
+.\venv\Scripts\Activate.ps1  # PowerShell
+# または
+venv\Scripts\activate.bat     # CMD
+
+# マイグレーション
+python manage.py migrate
+
+# 起動
+python manage.py runserver 127.0.0.1:5000
+```
+
+### アクセス方法
+
+起動後、ブラウザで以下のURLにアクセス：
+- http://127.0.0.1:5000
+
+## ⚠️ よくある問題と解決方法
+
+### 問題: `ModuleNotFoundError: No module named 'yaml'` などのエラー
+
+**原因:**
+仮想環境がアクティブ化されているように見えても（`(venv)`プレフィックスが表示されている）、実際にはシステムのPythonが使用されている可能性があります。
+
+**解決方法:**
+1. **起動スクリプトを使用する**（`start.bat`または`start.ps1`）
+2. **仮想環境のPythonを明示的に使用する**（`.\venv\Scripts\python.exe`）
+3. **仮想環境を正しくアクティブ化する**:
+   ```powershell
+   # PowerShellの場合
+   .\venv\Scripts\Activate.ps1
+   
+   # 実行ポリシーのエラーが出る場合
+   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+   ```
+
+**確認方法:**
+```bash
+# 現在使用されているPythonのパスを確認
+python -c "import sys; print(sys.executable)"
+
+# 仮想環境のPythonが使用されている場合:
+# C:\devlop\html\venv\Scripts\python.exe
+
+# システムのPythonが使用されている場合:
+# C:\Python314\python.exe など
 ```
 
 ## 使い方
