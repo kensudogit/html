@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ['nodejs-18_x', 'python39', 'python3Packages.pip']
+nixPkgs = ['nodejs-18_x', 'python39', 'python39Packages.pip']
 
 [phases.install]
 cmds = [
@@ -19,7 +19,10 @@ cmds = [
   'ls -la frontend/dist/assets || echo "assets directory not found"',
   'echo "=== Installing Python dependencies ==="',
   'python --version || python3 --version || python3.9 --version || echo "Python not found"',
-  'python3.9 -m pip --version || python -m pip --version || python3 -m pip --version || echo "pip not found"',
+  'echo "=== Installing pip for Python 3.9 ==="',
+  'python3.9 -m ensurepip --upgrade || python -m ensurepip --upgrade || python3 -m ensurepip --upgrade || echo "ensurepip failed, trying alternative methods"',
+  'python3.9 -m pip --version || python -m pip --version || python3 -m pip --version || (echo "ERROR: pip not available" && exit 1)',
+  'echo "=== Installing packages ==="',
   'python3.9 -m pip install --break-system-packages -r requirements.txt || python -m pip install --break-system-packages -r requirements.txt || python3 -m pip install --break-system-packages -r requirements.txt || (echo "ERROR: Failed to install Python packages" && exit 1)',
   'echo "=== Verifying Python packages ==="',
   'python3.9 -c "import yaml; print(\"PyYAML installed successfully\")" || python -c "import yaml; print(\"PyYAML installed successfully\")" || python3 -c "import yaml; print(\"PyYAML installed successfully\")" || (echo "ERROR: PyYAML not installed" && exit 1)',
