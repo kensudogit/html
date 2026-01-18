@@ -1,9 +1,7 @@
 {
   "version": 2,
-  "buildCommand": "npm run build",
-  "installCommand": "npm install --legacy-peer-deps",
-  "outputDirectory": "dist",
-  "rootDirectory": "frontend",
+  "buildCommand": "cd frontend && npm install --legacy-peer-deps && npm run build",
+  "outputDirectory": "frontend/dist",
   "routes": [
     {
       "src": "/static/(.*)",
@@ -18,28 +16,28 @@
     },
     {
       "src": "/assets/(.*)",
-      "dest": "/dist/assets/$1",
+      "dest": "/frontend/dist/assets/$1",
       "headers": {
         "Cache-Control": "public, max-age=31536000, immutable"
       }
     },
     {
       "src": "/logo\\.png",
-      "dest": "/dist/logo.png",
+      "dest": "/frontend/dist/logo.png",
       "headers": {
         "Cache-Control": "public, max-age=86400"
       }
     },
     {
       "src": "/favicon\\.ico",
-      "dest": "/dist/favicon.ico",
+      "dest": "/frontend/dist/favicon.ico",
       "headers": {
         "Cache-Control": "public, max-age=86400"
       }
     },
     {
       "src": "/(.*\\.(ico|png|jpg|jpeg|gif|svg|css|js|woff|woff2|ttf|eot))",
-      "dest": "/dist/$1",
+      "dest": "/frontend/dist/$1",
       "headers": {
         "Cache-Control": "public, max-age=31536000, immutable"
       }
