@@ -264,7 +264,10 @@ def index(request):
     print(msg, flush=True)
     try:
         response = _serve_index_html()
-        logger.info(f"index.html配信成功: {response.status_code}")
+        if response.status_code == 200:
+            logger.info(f"index.html配信成功: {response.status_code}")
+        else:
+            logger.warning(f"index.html配信警告: {response.status_code}")
         return response
     except Exception as e:
         error_msg = f"index() でエラーが発生: {e}"
@@ -274,6 +277,12 @@ def index(request):
         logger.error(tb)
         print(tb, flush=True)
         # エラー時でもHTMLを返す（404ではなく500エラーページ）
+        try:
+            # 再試行
+            response = _serve_index_html()
+            return response
+        except:
+            pass
         return HttpResponse(f"""
         <!DOCTYPE html>
         <html lang="ja">
