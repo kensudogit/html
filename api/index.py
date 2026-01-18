@@ -1,11 +1,11 @@
+"""
+Vercel用のDjango WSGIエントリポイント
+このファイルは、Vercel(Serverless)上でDjangoアプリを起動するためのエントリポイントです。
+"""
 import os
 import sys
-import tempfile
 import traceback
 from pathlib import Path
-
-# このファイルは、Vercel(Serverless)上でFlaskアプリを起動するためのエントリポイントです。
-# デプロイ環境のパスや一時ディレクトリ(/tmp)を先に設定してから、`web_html_editor.py` の `app` を読み込みます。
 
 # 環境変数を最初に設定（Vercel環境であることを示す）
 os.environ['VERCEL'] = '1'
@@ -21,31 +21,28 @@ try:
 except Exception as e:
     print(f"Warning: Could not change directory to {project_root}: {e}", file=sys.stderr)
 
-# Vercel環境では/tmpディレクトリを使用（インポート前に設定）
-UPLOAD_DIR = Path('/tmp/uploads')
+# Vercel環境では/tmpディレクトリを使用（メディアファイル用）
+MEDIA_ROOT = Path('/tmp/media')
 try:
-    UPLOAD_DIR.mkdir(exist_ok=True, parents=True)
+    MEDIA_ROOT.mkdir(exist_ok=True, parents=True)
 except Exception as e:
-    print(f"Warning: Could not create upload directory: {e}", file=sys.stderr)
+    print(f"Warning: Could not create media directory: {e}", file=sys.stderr)
 
-# 一時ファイル用のディレクトリも/tmpに設定
-tempfile.tempdir = '/tmp'
+# Django設定を環境変数で上書き（Vercel環境用）
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'html_editor.settings')
+os.environ.setdefault('MEDIA_ROOT', str(MEDIA_ROOT))
 
-# Flaskアプリをインポート
-app = None
+# Django WSGIアプリケーションをインポート
+application = None
 import_error = None
 
 try:
-    from web_html_editor import app
+    from html_editor.wsgi import application
     
-    # アップロードフォルダを設定（念のため再設定）
-    app.config['UPLOAD_FOLDER'] = str(UPLOAD_DIR)
+    if application is None:
+        raise ImportError("Django WSGI application is None")
     
-    # アップロードディレクトリを再作成（念のため）
-    try:
-        Path(app.config['UPLOAD_FOLDER']).mkdir(exist_ok=True, parents=True)
-    except Exception:
-        pass
+    print("Django WSGI application loaded successfully", file=sys.stderr)
     
 except ImportError as e:
     # インポートエラーの詳細を取得
@@ -57,14 +54,9 @@ except ImportError as e:
     print(f"Current dir: {os.getcwd()}", file=sys.stderr)
     print(error_trace, file=sys.stderr)
     
-    # エラー用の最小限のFlaskアプリを作成
-    from flask import Flask, jsonify
-    error_app = Flask(__name__)
-    
-    @error_app.route('/', defaults={'path': ''})
-    @error_app.route('/<path:path>')
-    def error_handler(path):
-        return jsonify({
+    # エラー用の最小限のWSGIアプリケーションを作成
+    def error_application(environ, start_response):
+        error_response = {
             'error': 'Application initialization failed',
             'type': 'ImportError',
             'message': str(e),
@@ -72,9 +64,15 @@ except ImportError as e:
             'project_root': project_root,
             'current_dir': os.getcwd(),
             'traceback': error_trace.split('\n')[-15:]  # 最後の15行
-        }), 500
+        }
+        import json
+        response_body = json.dumps(error_response, indent=2).encode('utf-8')
+        status = '500 Internal Server Error'
+        headers = [('Content-Type', 'application/json')]
+        start_response(status, headers)
+        return [response_body]
     
-    app = error_app
+    application = error_application
     
 except Exception as e:
     # その他のエラー
@@ -83,46 +81,46 @@ except Exception as e:
     print(f"Error: {e}", file=sys.stderr)
     print(error_trace, file=sys.stderr)
     
-    # エラー用の最小限のFlaskアプリを作成
-    from flask import Flask, jsonify
-    error_app = Flask(__name__)
-    
-    @error_app.route('/', defaults={'path': ''})
-    @error_app.route('/<path:path>')
-    def error_handler(path):
-        return jsonify({
+    # エラー用の最小限のWSGIアプリケーションを作成
+    def error_application(environ, start_response):
+        error_response = {
             'error': 'Application initialization failed',
             'type': type(e).__name__,
             'message': str(e),
             'traceback': error_trace.split('\n')[-15:]  # 最後の15行
-        }), 500
+        }
+        import json
+        response_body = json.dumps(error_response, indent=2).encode('utf-8')
+        status = '500 Internal Server Error'
+        headers = [('Content-Type', 'application/json')]
+        start_response(status, headers)
+        return [response_body]
     
-    app = error_app
+    application = error_application
 
 # アプリが正常に読み込まれたか確認
-if app is None:
-    from flask import Flask, jsonify
-    app = Flask(__name__)
-    
-    @app.route('/', defaults={'path': ''})
-    @app.route('/<path:path>')
-    def error_handler(path):
-        return jsonify({
+if application is None:
+    def error_application(environ, start_response):
+        error_response = {
             'error': 'Application is None',
-            'message': 'Failed to initialize application'
-        }), 500
+            'message': 'Failed to initialize Django application'
+        }
+        import json
+        response_body = json.dumps(error_response, indent=2).encode('utf-8')
+        status = '500 Internal Server Error'
+        headers = [('Content-Type', 'application/json')]
+        start_response(status, headers)
+        return [response_body]
+    
+    application = error_application
 
 # Vercel用にhandlerをエクスポート（必須）
-# VercelのPythonランタイムがhandlerをクラスとして扱おうとしている問題を回避するため、
-# handlerを関数として定義し、その中でFlaskアプリを呼び出す
-# VercelのPythonランタイムは、handlerが関数またはWSGIアプリケーションであることを期待している
-# しかし、内部実装がクラスを期待している可能性があるため、関数として定義する
+# VercelのPythonランタイムは、handlerがWSGIアプリケーションであることを期待している
 def handler(environ, start_response):
     """
     Vercel用のWSGIハンドラー
     environ: WSGI環境変数
     start_response: WSGI start_response関数
     """
-    # FlaskアプリはWSGIアプリケーションなので、直接呼び出す
-    return app(environ, start_response)
+    return application(environ, start_response)
 
