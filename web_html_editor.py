@@ -30,12 +30,26 @@ import secrets
 
 app = Flask(__name__)
 
+# リクエストログ（Railway環境でのデバッグ用）
+@app.before_request
+def log_request_info():
+    """すべてのリクエストをログに記録"""
+    app.logger.info(f"=== リクエスト受信 ===")
+    app.logger.info(f"Method: {request.method}")
+    app.logger.info(f"Path: {request.path}")
+    app.logger.info(f"URL: {request.url}")
+    app.logger.info(f"Remote Address: {request.remote_addr}")
+    app.logger.info(f"User Agent: {request.headers.get('User-Agent', 'N/A')}")
+
 # CORS設定（Railway環境でのAPIリクエストを許可）
 @app.after_request
 def after_request(response):
     response.headers.add('Access-Control-Allow-Origin', '*')
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    app.logger.info(f"=== レスポンス送信 ===")
+    app.logger.info(f"Status: {response.status_code}")
+    app.logger.info(f"Path: {request.path}")
     return response
 
 # セッション管理の設定
@@ -8160,14 +8174,27 @@ def _serve_index_html():
 @app.route('/')
 def index():
     """メインページ - Reactアプリケーションを配信"""
-    return _serve_index_html()
+    app.logger.info("=== ルートパス (/) へのリクエスト ===")
+    try:
+        result = _serve_index_html()
+        app.logger.info(f"index() の戻り値の型: {type(result)}")
+        return result
+    except Exception as e:
+        app.logger.error(f"index() でエラーが発生: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        raise
 
 
 @app.errorhandler(404)
 def handle_404(e):
     """404エラーハンドラー - APIルート以外はindex.htmlを返す（SPAルーティング）"""
     path = request.path
-    app.logger.info(f"404エラー: {path}")
+    app.logger.warning(f"=== 404エラー発生 ===")
+    app.logger.warning(f"Path: {path}")
+    app.logger.warning(f"Method: {request.method}")
+    app.logger.warning(f"URL: {request.url}")
+    app.logger.warning(f"Error: {e}")
     
     # 静的アセットの場合は404を返す（既にserve_assetsで処理されているが、念のため）
     if path.startswith('/assets/'):
@@ -10611,6 +10638,15 @@ def main():
         print("ファイルが指定されていません。ブラウザからファイルをアップロードしてください。")
     
     try:
+        # Flaskアプリケーションのログレベルを設定（Railway環境でのデバッグ用）
+        import logging
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        app.logger.setLevel(logging.INFO)
+        app.logger.info("FlaskアプリケーションのログレベルをINFOに設定しました")
+        
         # フロントエンドビルドディレクトリの確認
         print(f"\n{'='*60}")
         print(f"フロントエンドビルドディレクトリの確認:")
