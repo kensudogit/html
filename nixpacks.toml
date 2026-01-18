@@ -6,12 +6,8 @@ cmds = [
   'echo "=== Installing Node.js dependencies ==="',
   'cd frontend && npm ci || (echo "npm ci failed, trying npm install" && npm install)',
   'echo "=== Node.js dependencies installed ==="',
-  'echo "=== Installing Python dependencies ==="',
-  'python3.12 -m pip install --upgrade pip setuptools wheel || python3 -m pip install --upgrade pip setuptools wheel || python -m pip install --upgrade pip setuptools wheel || echo "pip upgrade failed, continuing..."',
-  'python3.12 -m pip install -r requirements.txt || python3 -m pip install -r requirements.txt || python -m pip install -r requirements.txt || (echo "ERROR: Failed to install Python packages" && exit 1)',
-  'echo "=== Verifying gunicorn installation ==="',
-  'python3.12 -m pip show gunicorn && echo "gunicorn installed successfully" || python3 -m pip show gunicorn && echo "gunicorn installed successfully" || python -m pip show gunicorn && echo "gunicorn installed successfully" || (echo "ERROR: gunicorn not installed" && exit 1)',
-  'echo "=== Python dependencies installed successfully ==="',
+  'echo "=== Nixpacks will automatically install Python packages from requirements.txt ==="',
+  'echo "=== Python packages will be installed in /opt/venv by Nixpacks ==="',
 ]
 
 [phases.build]
@@ -25,11 +21,10 @@ cmds = [
   'ls -la frontend/dist || echo "frontend/dist directory not found"',
   'ls -la frontend/dist/index.html || echo "index.html not found"',
   'ls -la frontend/dist/assets || echo "assets directory not found"',
-  'echo "=== Nixpacks automatically installs Python packages from requirements.txt ==="',
   'echo "=== Running Django migrations ==="',
-  'python3.12 manage.py migrate --noinput || python3 manage.py migrate --noinput || python manage.py migrate --noinput || (echo "WARNING: Migration failed, continuing..." && true)',
+  '/opt/venv/bin/python manage.py migrate --noinput 2>/dev/null || python3.12 manage.py migrate --noinput || python3 manage.py migrate --noinput || python manage.py migrate --noinput || (echo "WARNING: Migration failed, continuing..." && true)',
   'echo "=== Collecting static files ==="',
-  'python3.12 manage.py collectstatic --noinput || python3 manage.py collectstatic --noinput || python manage.py collectstatic --noinput || (echo "WARNING: Static file collection failed, continuing..." && true)',
+  '/opt/venv/bin/python manage.py collectstatic --noinput 2>/dev/null || python3.12 manage.py collectstatic --noinput || python3 manage.py collectstatic --noinput || python manage.py collectstatic --noinput || (echo "WARNING: Static file collection failed, continuing..." && true)',
   'echo "=== Build phase complete ==="',
 ]
 
