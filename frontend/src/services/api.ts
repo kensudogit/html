@@ -137,19 +137,39 @@ export const apiService = {
   /**
    * 比較レポートをエクスポート
    */
-  async exportComparisonReport(files: Array<{ name: string; path: string }>): Promise<string> {
+  async exportComparisonReport(files: Array<{ name: string; path: string }>): Promise<{
+    report: string
+    htmlDiffs?: number
+    cssDiffs?: number
+    htmlFiles?: string[]
+    cssFiles?: string[]
+  }> {
     if (files.length < 2) {
       throw new Error('2つ以上のファイルを指定してください')
     }
 
     try {
-      const response = await apiClient.post<{ success: boolean; report?: string; error?: string }>(
+      const response = await apiClient.post<{
+        success: boolean
+        report?: string
+        error?: string
+        html_diffs?: number
+        css_diffs?: number
+        html_files?: string[]
+        css_files?: string[]
+      }>(
         '/api/export-comparison-report',
         { files }
       )
 
       if (response.data.success && response.data.report) {
-        return response.data.report
+        return {
+          report: response.data.report,
+          htmlDiffs: response.data.html_diffs,
+          cssDiffs: response.data.css_diffs,
+          htmlFiles: response.data.html_files,
+          cssFiles: response.data.css_files,
+        }
       } else {
         throw new Error(response.data.error || 'レポートの生成に失敗しました')
       }

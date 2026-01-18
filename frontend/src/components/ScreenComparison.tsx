@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import ComparisonFileList from './ComparisonFileList'
 import ComparisonGrid from './ComparisonGrid'
 import ErrorMessage from './ErrorMessage'
@@ -15,6 +15,7 @@ const ScreenComparison: React.FC = () => {
   const [comparisonMode, setComparisonMode] = useState<boolean>(false)
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
+  const [comparisonResults, setComparisonResults] = useState<Map<string, { htmlDiffs: number; cssDiffs: number }>>(new Map())
 
   const loadFiles = useCallback(async () => {
     if (!directory.trim()) {
@@ -72,6 +73,34 @@ const ScreenComparison: React.FC = () => {
 
   const activeFiles = files.filter((_, index) => selectedFiles.has(index))
 
+  // 複数ファイルが選択されたときに自動的に比較を実行
+  useEffect(() => {
+    if (activeFiles.length >= 2 && comparisonMode) {
+      const performComparison = async () => {
+        try {
+          const response = await apiService.exportComparisonReport(
+            activeFiles.map(f => ({ name: f.name, path: f.path }))
+          )
+          
+          // 比較結果を各ファイルにマッピング
+          const results = new Map<string, { htmlDiffs: number; cssDiffs: number }>()
+          activeFiles.forEach((file) => {
+            results.set(file.path, {
+              htmlDiffs: response.htmlDiffs || 0,
+              cssDiffs: response.cssDiffs || 0,
+            })
+          })
+          setComparisonResults(results)
+        } catch (err) {
+          console.error('Error performing comparison:', err)
+        }
+      }
+      performComparison()
+    } else {
+      setComparisonResults(new Map())
+    }
+  }, [activeFiles, comparisonMode])
+
   const handleExportReport = useCallback(async () => {
     if (activeFiles.length < 2) {
       setError('比較するには2つ以上のファイルを選択してください')
@@ -79,12 +108,12 @@ const ScreenComparison: React.FC = () => {
     }
 
     try {
-      const report = await apiService.exportComparisonReport(
+      const response = await apiService.exportComparisonReport(
         activeFiles.map(f => ({ name: f.name, path: f.path }))
       )
       
       // CSVファイルをダウンロード
-      const blob = new Blob([report], { type: 'text/csv' })
+      const blob = new Blob([response.report], { type: 'text/csv' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -177,6 +206,7 @@ const ScreenComparison: React.FC = () => {
           files={activeFiles}
           layout={layout}
           comparisonMode={comparisonMode}
+          comparisonResults={comparisonResults}
         />
       )}
     </div>

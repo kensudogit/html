@@ -8,6 +8,8 @@ interface ComparisonScreenProps {
   isLoading: boolean
   error?: string
   comparisonMode: boolean
+  htmlDiffs?: number
+  cssDiffs?: number
 }
 
 const ComparisonScreen: React.FC<ComparisonScreenProps> = ({
@@ -16,6 +18,8 @@ const ComparisonScreen: React.FC<ComparisonScreenProps> = ({
   isLoading,
   error,
   comparisonMode,
+  htmlDiffs,
+  cssDiffs,
 }) => {
   const [selected, setSelected] = useState<boolean>(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -129,9 +133,21 @@ const ComparisonScreen: React.FC<ComparisonScreenProps> = ({
             </span>
           )}
         </div>
-        <span className={`diff-badge ${error ? 'error' : content ? 'loaded' : 'loading'}`}>
-          {error ? 'エラー' : content ? '読み込み済み' : '読み込み中...'}
-        </span>
+        <div className="diff-badges">
+          {(htmlDiffs !== undefined && htmlDiffs > 0) && (
+            <span className="diff-badge html-diff" title={`HTML差分: ${htmlDiffs}箇所`}>
+              HTML: {htmlDiffs}
+            </span>
+          )}
+          {(cssDiffs !== undefined && cssDiffs > 0) && (
+            <span className="diff-badge css-diff" title={`CSS差分: ${cssDiffs}箇所`}>
+              CSS: {cssDiffs}
+            </span>
+          )}
+          <span className={`diff-badge ${error ? 'error' : content ? 'loaded' : 'loading'}`}>
+            {error ? 'エラー' : content ? '読み込み済み' : '読み込み中...'}
+          </span>
+        </div>
       </div>
     </div>
   )

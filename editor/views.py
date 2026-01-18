@@ -29,6 +29,7 @@ spec.loader.exec_module(html_editor_module)
 HTMLEditor = html_editor_module.HTMLEditor
 from bs4 import BeautifulSoup
 import yaml
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -1693,23 +1694,270 @@ def api_compare_screens(request):
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
+def _compare_html_structure(html_contents):
+    """HTML構造を比較して差分を検出"""
+    from bs4 import BeautifulSoup
+    import re
+    
+    if len(html_contents) < 2:
+        return {'html_diffs': 0, 'details': []}
+    
+    # 最初のファイルを基準にする
+    base_soup = BeautifulSoup(html_contents[0], 'html.parser')
+    base_elements = {}
+    
+    # 基準ファイルの要素を収集（タグ、ID、クラス、属性）
+    for element in base_soup.find_all():
+        tag = element.name
+        elem_id = element.get('id', '')
+        classes = ' '.join(sorted(element.get('class', [])))
+        attrs = {k: v for k, v in element.attrs.items() if k not in ['id', 'class']}
+        
+        key = f"{tag}#{elem_id}.{classes}"
+        if key not in base_elements:
+            base_elements[key] = {
+                'tag': tag,
+                'id': elem_id,
+                'classes': classes,
+                'attrs': attrs,
+                'count': 0
+            }
+        base_elements[key]['count'] += 1
+    
+    diffs = []
+    for i, html_content in enumerate(html_contents[1:], 1):
+        soup = BeautifulSoup(html_content, 'html.parser')
+        compare_elements = {}
+        
+        for element in soup.find_all():
+            tag = element.name
+            elem_id = element.get('id', '')
+            classes = ' '.join(sorted(element.get('class', [])))
+            attrs = {k: v for k, v in element.attrs.items() if k not in ['id', 'class']}
+            
+            key = f"{tag}#{elem_id}.{classes}"
+            if key not in compare_elements:
+                compare_elements[key] = {
+                    'tag': tag,
+                    'id': elem_id,
+                    'classes': classes,
+                    'attrs': attrs,
+                    'count': 0
+                }
+            compare_elements[key]['count'] += 1
+        
+        # 差分を検出
+        file_diffs = 0
+        for key, base_elem in base_elements.items():
+            if key not in compare_elements:
+                file_diffs += base_elem['count']
+                diffs.append({
+                    'file_index': i,
+                    'type': 'missing',
+                    'element': base_elem
+                })
+            elif compare_elements[key]['count'] != base_elem['count']:
+                file_diffs += abs(compare_elements[key]['count'] - base_elem['count'])
+                diffs.append({
+                    'file_index': i,
+                    'type': 'count_diff',
+                    'base': base_elem,
+                    'compare': compare_elements[key]
+                })
+        
+        for key, compare_elem in compare_elements.items():
+            if key not in base_elements:
+                file_diffs += compare_elem['count']
+                diffs.append({
+                    'file_index': i,
+                    'type': 'extra',
+                    'element': compare_elem
+                })
+    
+    return {'html_diffs': len(diffs), 'details': diffs[:100]}  # 最初の100件のみ
+
+
+def _compare_css_structure(css_contents):
+    """CSS構造を比較して差分を検出"""
+    import re
+    
+    if len(css_contents) < 2:
+        return {'css_diffs': 0, 'details': []}
+    
+    # CSSパーサー（簡略版）
+    def parse_css(css_text):
+        selectors = {}
+        # セレクタとプロパティを抽出
+        pattern = r'([^{]+)\{([^}]+)\}'
+        for match in re.finditer(pattern, css_text):
+            selector = match.group(1).strip()
+            properties = {}
+            for prop_match in re.finditer(r'([^:]+):([^;]+);?', match.group(2)):
+                prop_name = prop_match.group(1).strip()
+                prop_value = prop_match.group(2).strip()
+                properties[prop_name] = prop_value
+            selectors[selector] = properties
+        return selectors
+    
+    base_css = parse_css(css_contents[0])
+    diffs = []
+    
+    for i, css_content in enumerate(css_contents[1:], 1):
+        compare_css = parse_css(css_content)
+        file_diffs = 0
+        
+        # 基準にないセレクタ
+        for selector, props in compare_css.items():
+            if selector not in base_css:
+                file_diffs += len(props)
+                diffs.append({
+                    'file_index': i,
+                    'type': 'extra_selector',
+                    'selector': selector,
+                    'properties': props
+                })
+            else:
+                # プロパティの差分
+                base_props = base_css[selector]
+                for prop_name, prop_value in props.items():
+                    if prop_name not in base_props:
+                        file_diffs += 1
+                        diffs.append({
+                            'file_index': i,
+                            'type': 'extra_property',
+                            'selector': selector,
+                            'property': prop_name,
+                            'value': prop_value
+                        })
+                    elif base_props[prop_name] != prop_value:
+                        file_diffs += 1
+                        diffs.append({
+                            'file_index': i,
+                            'type': 'value_diff',
+                            'selector': selector,
+                            'property': prop_name,
+                            'base_value': base_props[prop_name],
+                            'compare_value': prop_value
+                        })
+        
+        # 基準にあるが比較ファイルにないセレクタ
+        for selector, props in base_css.items():
+            if selector not in compare_css:
+                file_diffs += len(props)
+                diffs.append({
+                    'file_index': i,
+                    'type': 'missing_selector',
+                    'selector': selector,
+                    'properties': props
+                })
+    
+    return {'css_diffs': len(diffs), 'details': diffs[:100]}  # 最初の100件のみ
+
+
 @csrf_exempt
 @require_http_methods(["POST"])
 def api_export_comparison_report(request):
-    """比較レポートをエクスポート（簡略版）"""
+    """比較レポートをエクスポート（HTML/CSS比較を含む）"""
     try:
         data = json.loads(request.body)
-        report_data = data.get('report', {})
+        files = data.get('files', [])
         
-        # 簡略版: JSONとして返す
-        response = HttpResponse(
-            json.dumps(report_data, ensure_ascii=False, indent=2),
-            content_type='application/json'
-        )
-        response['Content-Disposition'] = 'attachment; filename="comparison_report.json"'
-        return response
+        if len(files) < 2:
+            return JsonResponse({'success': False, 'error': '2つ以上のファイルが必要です'}, status=400)
+        
+        html_files = []
+        css_files = []
+        html_contents = []
+        css_contents = []
+        
+        # ファイルを読み込んで分類
+        for file_info in files:
+            file_path_str = file_info.get('path', '')
+            if not file_path_str:
+                continue
+            
+            file_path = Path(file_path_str)
+            if not file_path.is_absolute():
+                file_path = UPLOAD_DIR / secure_filename(file_path_str)
+            
+            if not file_path.exists():
+                continue
+            
+            try:
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                
+                if file_path.suffix.lower() in ['.html', '.htm']:
+                    html_files.append(file_info.get('name', file_path.name))
+                    html_contents.append(content)
+                elif file_path.suffix.lower() == '.css':
+                    css_files.append(file_info.get('name', file_path.name))
+                    css_contents.append(content)
+            except Exception as e:
+                logger.warning(f"Failed to read file {file_path}: {e}")
+                continue
+        
+        # HTML/CSS比較を実行
+        html_comparison = _compare_html_structure(html_contents) if len(html_contents) >= 2 else {'html_diffs': 0, 'details': []}
+        css_comparison = _compare_css_structure(css_contents) if len(css_contents) >= 2 else {'css_diffs': 0, 'details': []}
+        
+        # CSVレポートを生成
+        import csv
+        import io
+        
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # ヘッダー
+        writer.writerow(['比較レポート'])
+        writer.writerow(['生成日時', str(datetime.now())])
+        writer.writerow(['比較ファイル数', len(files)])
+        writer.writerow(['HTMLファイル数', len(html_files)])
+        writer.writerow(['CSSファイル数', len(css_files)])
+        writer.writerow([])
+        
+        # HTML比較結果
+        writer.writerow(['HTML比較結果'])
+        writer.writerow(['差分数', html_comparison['html_diffs']])
+        if html_comparison['details']:
+            writer.writerow(['タイプ', 'ファイル', '要素情報'])
+            for diff in html_comparison['details'][:50]:  # 最初の50件のみ
+                file_name = html_files[diff.get('file_index', 0)] if diff.get('file_index', 0) < len(html_files) else 'Unknown'
+                writer.writerow([diff.get('type', ''), file_name, str(diff.get('element', {}))])
+        writer.writerow([])
+        
+        # CSS比較結果
+        writer.writerow(['CSS比較結果'])
+        writer.writerow(['差分数', css_comparison['css_diffs']])
+        if css_comparison['details']:
+            writer.writerow(['タイプ', 'ファイル', 'セレクタ/プロパティ', '詳細'])
+            for diff in css_comparison['details'][:50]:  # 最初の50件のみ
+                file_name = css_files[diff.get('file_index', 0)] if diff.get('file_index', 0) < len(css_files) else 'Unknown'
+                selector = diff.get('selector', '')
+                writer.writerow([diff.get('type', ''), file_name, selector, str(diff)])
+        writer.writerow([])
+        
+        # ファイル一覧
+        writer.writerow(['ファイル一覧'])
+        writer.writerow(['ファイル名', 'パス', 'タイプ'])
+        for file_info in files:
+            writer.writerow([file_info.get('name', ''), file_info.get('path', ''), 'HTML' if file_info.get('path', '').endswith(('.html', '.htm')) else 'CSS'])
+        
+        csv_content = output.getvalue()
+        output.close()
+        
+        return JsonResponse({
+            'success': True,
+            'report': csv_content,
+            'html_diffs': html_comparison['html_diffs'],
+            'css_diffs': css_comparison['css_diffs'],
+            'html_files': html_files,
+            'css_files': css_files
+        })
     except Exception as e:
         logger.error(f"api_export_comparison_report error: {e}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 

@@ -8,12 +8,14 @@ interface ComparisonGridProps {
   files: ComparisonFile[]
   layout: LayoutMode
   comparisonMode: boolean
+  comparisonResults?: Map<string, { htmlDiffs: number; cssDiffs: number }>
 }
 
 const ComparisonGrid: React.FC<ComparisonGridProps> = ({
   files,
   layout,
   comparisonMode,
+  comparisonResults,
 }) => {
   const [fileContents, setFileContents] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState<Set<string>>(new Set())
@@ -93,16 +95,21 @@ const ComparisonGrid: React.FC<ComparisonGridProps> = ({
 
   return (
     <div className={`comparison-grid comparison-grid-${layout} ${comparisonMode ? 'comparison-mode' : ''}`}>
-      {files.map((file) => (
-        <ComparisonScreen
-          key={file.path}
-          file={file}
-          content={fileContents.get(file.path) || ''}
-          isLoading={loading.has(file.path)}
-          error={errors.get(file.path)}
-          comparisonMode={comparisonMode}
-        />
-      ))}
+      {files.map((file) => {
+        const result = comparisonResults?.get(file.path)
+        return (
+          <ComparisonScreen
+            key={file.path}
+            file={file}
+            content={fileContents.get(file.path) || ''}
+            isLoading={loading.has(file.path)}
+            error={errors.get(file.path)}
+            comparisonMode={comparisonMode}
+            htmlDiffs={result?.htmlDiffs}
+            cssDiffs={result?.cssDiffs}
+          />
+        )
+      })}
     </div>
   )
 }
