@@ -95,6 +95,7 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [
     BASE_DIR / 'templates',  # CSSファイル
     BASE_DIR / 'frontend' / 'dist',  # フロントエンドビルドファイル
+    BASE_DIR / 'frontend' / 'public',  # ロゴなどの静的ファイル
 ]
 
 # Media files (uploads)
