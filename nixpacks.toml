@@ -6,8 +6,13 @@ cmds = [
   'echo "=== Installing Node.js dependencies ==="',
   'cd frontend && npm ci || (echo "npm ci failed, trying npm install" && npm install)',
   'echo "=== Node.js dependencies installed ==="',
-  'echo "=== Nixpacks will automatically install Python packages from requirements.txt ==="',
-  'echo "=== Python packages will be installed in /opt/venv by Nixpacks ==="',
+  'echo "=== Installing Python dependencies ==="',
+  'python3.12 -m venv /opt/venv || python3 -m venv /opt/venv || python -m venv /opt/venv || echo "venv creation failed"',
+  '/opt/venv/bin/pip install --upgrade pip setuptools wheel || echo "pip upgrade failed"',
+  '/opt/venv/bin/pip install -r requirements.txt || (echo "ERROR: Failed to install Python packages" && exit 1)',
+  'echo "=== Verifying gunicorn installation ==="',
+  '/opt/venv/bin/pip show gunicorn && echo "gunicorn installed successfully" || (echo "ERROR: gunicorn not installed" && exit 1)',
+  'echo "=== Python dependencies installed successfully ==="',
 ]
 
 [phases.build]
