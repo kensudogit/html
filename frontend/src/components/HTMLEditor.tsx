@@ -38,10 +38,15 @@ const HTMLEditor: React.FC = () => {
     try {
       await editorApi.uploadFile(file)
       setFilename(file.name)
-      // アップロード後、コンテンツを取得
-      const response = await editorApi.getContent()
-      if (response.success && response.content) {
-        setContent(response.content)
+      
+      // Excelファイルの場合はコンテンツを取得しない
+      const isExcel = file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')
+      if (!isExcel) {
+        // HTMLファイルの場合のみコンテンツを取得
+        const response = await editorApi.getContent()
+        if (response.success && response.content) {
+          setContent(response.content)
+        }
       }
       setSuccess('ファイルをアップロードしました')
     } catch (err) {
@@ -218,7 +223,7 @@ const HTMLEditor: React.FC = () => {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".html,.htm"
+            accept=".html,.htm,.xlsx,.xls"
             onChange={handleFileUpload}
             style={{ display: 'none' }}
           />

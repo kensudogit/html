@@ -576,8 +576,13 @@ def upload(request):
                 f.write(chunk)
         
         # セッションにファイル情報を保存
-        html_editor = HTMLEditor(str(file_path))
-        set_session_file_info(request, html_editor, file_path)
+        if not is_excel:
+            # HTMLファイルの場合のみHTMLEditorを初期化
+            html_editor = HTMLEditor(str(file_path))
+            set_session_file_info(request, html_editor, file_path)
+        else:
+            # Excelファイルの場合はファイルパスのみ保存
+            set_session_file_info(request, None, file_path)
         
         return JsonResponse({'success': True, 'filename': filename})
     except Exception as e:
