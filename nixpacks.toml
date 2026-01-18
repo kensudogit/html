@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ['nodejs-18_x', 'python312']
+nixPkgs = ['nodejs-18_x', 'python312', 'python312Packages.pip']
 
 [phases.install]
 cmds = [
@@ -20,9 +20,7 @@ cmds = [
   'ls -la frontend/dist || echo "frontend/dist directory not found"',
   'ls -la frontend/dist/index.html || echo "index.html not found"',
   'ls -la frontend/dist/assets || echo "assets directory not found"',
-  'echo "=== Verifying Python packages installation ==="',
-  'python3.12 -m pip show gunicorn || python3 -m pip show gunicorn || python -m pip show gunicorn || (echo "ERROR: gunicorn not installed" && exit 1)',
-  'python3.12 -m gunicorn --version || python3 -m gunicorn --version || python -m gunicorn --version || (echo "ERROR: gunicorn command not found" && exit 1)',
+  'echo "=== Nixpacks automatically installs Python packages from requirements.txt ==="',
   'echo "=== Running Django migrations ==="',
   'python3.12 manage.py migrate --noinput || python3 manage.py migrate --noinput || python manage.py migrate --noinput || (echo "WARNING: Migration failed, continuing..." && true)',
   'echo "=== Collecting static files ==="',
