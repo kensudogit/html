@@ -25,10 +25,10 @@ cmds = [
   'python3.9 -m pip install --user -r requirements.txt || python -m pip install --user -r requirements.txt || python3 -m pip install --user -r requirements.txt || python3.9 -m pip install --break-system-packages -r requirements.txt || python -m pip install --break-system-packages -r requirements.txt || python3 -m pip install --break-system-packages -r requirements.txt || (echo "ERROR: Failed to install Python packages" && exit 1)',
   'echo "=== Verifying Python packages ==="',
   'python3.9 -c "import yaml; print(\"PyYAML installed successfully\")" || python -c "import yaml; print(\"PyYAML installed successfully\")" || python3 -c "import yaml; print(\"PyYAML installed successfully\")" || (echo "ERROR: PyYAML not installed" && exit 1)',
-  'python3.9 -c "import flask; print(\"Flask installed successfully\")" || python -c "import flask; print(\"Flask installed successfully\")" || python3 -c "import flask; print(\"Flask installed successfully\")" || (echo "ERROR: Flask not installed" && exit 1)',
+  'python3.9 -c "import django; print(\"Django installed successfully\")" || python -c "import django; print(\"Django installed successfully\")" || python3 -c "import django; print(\"Django installed successfully\")" || (echo "ERROR: Django not installed" && exit 1)',
   'python3.9 -c "import bs4; print(\"BeautifulSoup4 installed successfully\")" || python -c "import bs4; print(\"BeautifulSoup4 installed successfully\")" || python3 -c "import bs4; print(\"BeautifulSoup4 installed successfully\")" || (echo "ERROR: BeautifulSoup4 not installed" && exit 1)',
   'echo "=== Build phase complete ==="',
 ]
 
 [phases.start]
-cmd = 'python3.9 web_html_editor.py || python web_html_editor.py || python3 web_html_editor.py'
+cmd = 'python3.9 manage.py runserver 0.0.0.0:$PORT || python manage.py runserver 0.0.0.0:$PORT || python3 manage.py runserver 0.0.0.0:$PORT'

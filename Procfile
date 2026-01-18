@@ -1,2 +1,2 @@
-web: python web_html_editor.py
+web: python manage.py runserver 0.0.0.0:$PORT
 
