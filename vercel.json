@@ -1,12 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "cd frontend && npm install && npm run build",
-  "builds": [
-    {
-      "src": "api/index.py",
-      "use": "@vercel/python"
-    }
-  ],
+  "buildCommand": "cd frontend && npm install && npm run build && cd .. && python manage.py migrate --noinput && python manage.py collectstatic --noinput",
   "routes": [
     {
       "src": "/static/(.*)",
