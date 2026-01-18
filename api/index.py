@@ -37,6 +37,14 @@ application = None
 import_error = None
 
 try:
+    # デバッグ情報を出力
+    print(f"=== Django WSGI Loading ===", file=sys.stderr)
+    print(f"Project root: {project_root}", file=sys.stderr)
+    print(f"Current dir: {os.getcwd()}", file=sys.stderr)
+    print(f"Python path (first 5): {sys.path[:5]}", file=sys.stderr)
+    print(f"DJANGO_SETTINGS_MODULE: {os.environ.get('DJANGO_SETTINGS_MODULE')}", file=sys.stderr)
+    
+    # Django WSGIアプリケーションをインポート
     from html_editor.wsgi import application
     
     if application is None:
@@ -122,5 +130,26 @@ def handler(environ, start_response):
     environ: WSGI環境変数
     start_response: WSGI start_response関数
     """
-    return application(environ, start_response)
+    try:
+        return application(environ, start_response)
+    except Exception as e:
+        # 実行時エラーをキャッチして詳細なエラーメッセージを返す
+        error_trace = traceback.format_exc()
+        print(f"Handler error: {e}", file=sys.stderr)
+        print(error_trace, file=sys.stderr)
+        
+        error_response = {
+            'error': 'Handler execution failed',
+            'type': type(e).__name__,
+            'message': str(e),
+            'path': environ.get('PATH_INFO', 'N/A'),
+            'method': environ.get('REQUEST_METHOD', 'N/A'),
+            'traceback': error_trace.split('\n')[-20:]  # 最後の20行
+        }
+        import json
+        response_body = json.dumps(error_response, indent=2).encode('utf-8')
+        status = '500 Internal Server Error'
+        headers = [('Content-Type', 'application/json')]
+        start_response(status, headers)
+        return [response_body]
 
