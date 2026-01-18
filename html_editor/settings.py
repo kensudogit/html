@@ -119,6 +119,9 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # 50MB
 # Frontend dist directory
 FRONTEND_DIST_DIR = BASE_DIR / 'frontend' / 'dist'
 
+# X-Frame-Options設定（iframeで表示できるようにする）
+X_FRAME_OPTIONS = 'SAMEORIGIN'
+
 # Logging
 LOGGING = {
     'version': 1,

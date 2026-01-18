@@ -270,6 +270,12 @@ const HTMLEditor: React.FC = () => {
             srcDoc={previewContent}
             className="preview-iframe"
             title="HTML Preview"
+            sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+            onError={(e) => {
+              // iframe内のエラーを抑制
+              e.preventDefault()
+              e.stopPropagation()
+            }}
           />
         </div>
       </div>

@@ -43,7 +43,11 @@ window.addEventListener('error', (event) => {
     errorSource.includes('chrome-extension') ||
     errorSource.includes('moz-extension') ||
     errorMessage.includes('SVG attribute') ||
-    errorMessage.includes('Expected length')
+    errorMessage.includes('Expected length') ||
+    // jQuery関連のエラーを抑制（HTMLコンテンツ内でjQueryが使用されている場合）
+    errorMessage.includes('$ is not defined') ||
+    errorMessage.includes('jQuery is not defined') ||
+    errorSource.includes('about:srcdoc')
   ) {
     event.preventDefault();
     event.stopPropagation();
