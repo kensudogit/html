@@ -2208,17 +2208,307 @@ def _load_yaml_config():
 
 
 def _generate_page_html(page_config, university_config, generation_settings):
-    """ページHTMLを生成（簡略版）"""
+    """ページHTMLを生成（YAML設定に基づいてカスタマイズ）"""
     page_title = page_config.get('title', '')
+    page_id = page_config.get('id', '')
+    form_fields = page_config.get('form_fields', [])
+    
+    # 大学設定からレイアウト情報を取得
+    layout_config = {}
+    custom_css = ''
+    custom_js = ''
+    custom_pages_config = []
+    
+    if university_config:
+        layout_config = university_config.get('layout', {})
+        custom_css = layout_config.get('custom_css', '')
+        custom_js = layout_config.get('custom_js', '')
+        custom_pages_config = university_config.get('custom_pages', [])
+    
+    # このページのカスタム設定を取得
+    page_custom_config = None
+    for custom_page in custom_pages_config:
+        if custom_page.get('page_title_id') == page_id:
+            page_custom_config = custom_page
+            break
+    
+    # カスタムフィールドをマージ
+    merged_fields = list(form_fields)
+    if page_custom_config:
+        custom_fields = page_custom_config.get('custom_fields', [])
+        for custom_field in custom_fields:
+            position = custom_field.get('position', 'append')
+            target_field = custom_field.get('target_field', '')
+            
+            if position == 'before' and target_field:
+                # ターゲットフィールドの前に挿入
+                for i, field in enumerate(merged_fields):
+                    if field.get('name') == target_field:
+                        merged_fields.insert(i, custom_field)
+                        break
+                else:
+                    merged_fields.append(custom_field)
+            elif position == 'after' and target_field:
+                # ターゲットフィールドの後に挿入
+                for i, field in enumerate(merged_fields):
+                    if field.get('name') == target_field:
+                        merged_fields.insert(i + 1, custom_field)
+                        break
+                else:
+                    merged_fields.append(custom_field)
+            else:
+                # 末尾に追加
+                merged_fields.append(custom_field)
+    
+    # フォームフィールドのHTMLを生成
+    form_fields_html = ''
+    for field in merged_fields:
+        field_type = field.get('type', 'text')
+        field_name = field.get('name', '')
+        field_label = field.get('label', '')
+        field_required = field.get('required', False)
+        
+        if field_type == 'section':
+            form_fields_html += f'<div class="form-section"><h2>{field_label}</h2></div>\n'
+        elif field_type == 'navigation':
+            form_fields_html += f'<div class="form-navigation">{field_label}</div>\n'
+        else:
+            required_attr = 'required' if field_required else ''
+            required_class = 'required' if field_required else ''
+            
+            if field_type == 'text':
+                form_fields_html += f'''<div class="form-group {required_class}">
+    <label for="{field_name}">{field_label}{' <span class="required-mark">*</span>' if field_required else ''}</label>
+    <input type="text" id="{field_name}" name="{field_name}" class="form-control" {required_attr} />
+</div>
+'''
+            elif field_type == 'textarea':
+                form_fields_html += f'''<div class="form-group {required_class}">
+    <label for="{field_name}">{field_label}{' <span class="required-mark">*</span>' if field_required else ''}</label>
+    <textarea id="{field_name}" name="{field_name}" class="form-control" rows="4" {required_attr}></textarea>
+</div>
+'''
+            elif field_type == 'select':
+                options = field.get('options', [])
+                options_html = ''.join([f'<option value="{opt}">{opt}</option>' for opt in options])
+                form_fields_html += f'''<div class="form-group {required_class}">
+    <label for="{field_name}">{field_label}{' <span class="required-mark">*</span>' if field_required else ''}</label>
+    <select id="{field_name}" name="{field_name}" class="form-control" {required_attr}>
+        <option value="">選択してください</option>
+        {options_html}
+    </select>
+</div>
+'''
+            elif field_type == 'checkbox':
+                form_fields_html += f'''<div class="form-group {required_class}">
+    <label>
+        <input type="checkbox" id="{field_name}" name="{field_name}" {required_attr} />
+        {field_label}{' <span class="required-mark">*</span>' if field_required else ''}
+    </label>
+</div>
+'''
+            elif field_type == 'radio':
+                options = field.get('options', [])
+                radio_html = ''.join([f'''<label class="radio-label">
+        <input type="radio" name="{field_name}" value="{opt}" {required_attr} />
+        {opt}
+    </label>''' for opt in options])
+                form_fields_html += f'''<div class="form-group {required_class}">
+    <label class="form-label">{field_label}{' <span class="required-mark">*</span>' if field_required else ''}</label>
+    <div class="radio-group">
+        {radio_html}
+    </div>
+</div>
+'''
+            elif field_type == 'date':
+                form_fields_html += f'''<div class="form-group {required_class}">
+    <label for="{field_name}">{field_label}{' <span class="required-mark">*</span>' if field_required else ''}</label>
+    <input type="date" id="{field_name}" name="{field_name}" class="form-control" {required_attr} />
+</div>
+'''
+            elif field_type == 'email':
+                form_fields_html += f'''<div class="form-group {required_class}">
+    <label for="{field_name}">{field_label}{' <span class="required-mark">*</span>' if field_required else ''}</label>
+    <input type="email" id="{field_name}" name="{field_name}" class="form-control" {required_attr} />
+</div>
+'''
+            elif field_type == 'tel':
+                form_fields_html += f'''<div class="form-group {required_class}">
+    <label for="{field_name}">{field_label}{' <span class="required-mark">*</span>' if field_required else ''}</label>
+    <input type="tel" id="{field_name}" name="{field_name}" class="form-control" {required_attr} />
+</div>
+'''
+            elif field_type == 'file':
+                accept = field.get('accept', '')
+                multiple = 'multiple' if field.get('multiple', False) else ''
+                form_fields_html += f'''<div class="form-group {required_class}">
+    <label for="{field_name}">{field_label}{' <span class="required-mark">*</span>' if field_required else ''}</label>
+    <input type="file" id="{field_name}" name="{field_name}" class="form-control" accept="{accept}" {multiple} {required_attr} />
+</div>
+'''
+            elif field_type == 'number':
+                form_fields_html += f'''<div class="form-group {required_class}">
+    <label for="{field_name}">{field_label}{' <span class="required-mark">*</span>' if field_required else ''}</label>
+    <input type="number" id="{field_name}" name="{field_name}" class="form-control" {required_attr} />
+</div>
+'''
+    
+    # レイアウト設定からテーマとカラースキームを取得
+    theme = layout_config.get('theme', 'default')
+    color_scheme = layout_config.get('color_scheme', 'blue')
+    
+    # テーマに基づくベースCSS
+    base_css = f'''
+    <style>
+        * {{
+            box-sizing: border-box;
+        }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }}
+        .container {{
+            max-width: {generation_settings.get('layout', {}).get('container_width', '1200px')};
+            margin: 0 auto;
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }}
+        .university-header {{
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            border-radius: 8px;
+        }}
+        h1 {{
+            margin-top: 0;
+            color: #333;
+        }}
+        .form-group {{
+            margin-bottom: 1.5rem;
+        }}
+        .form-group label {{
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #555;
+        }}
+        .form-control {{
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }}
+        .form-control:focus {{
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }}
+        .required-mark {{
+            color: #e74c3c;
+        }}
+        .btn-primary {{
+            background-color: #667eea;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 4px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 1rem;
+        }}
+        .btn-primary:hover {{
+            background-color: #5568d3;
+        }}
+        .is-invalid {{
+            border-color: #e74c3c;
+        }}
+        .form-section {{
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #eee;
+        }}
+        .form-section h2 {{
+            margin-top: 0;
+            color: #667eea;
+        }}
+        .radio-group {{
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }}
+        .radio-label {{
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: normal;
+        }}
+        {custom_css}
+    </style>
+    '''
+    
+    # JavaScript（カスタムJSを含む）
+    base_js = f'''
+    <script>
+        // ベースのフォームバリデーション
+        document.addEventListener('DOMContentLoaded', function() {{
+            const forms = document.querySelectorAll('form');
+            forms.forEach(form => {{
+                form.addEventListener('submit', function(e) {{
+                    const requiredFields = form.querySelectorAll('[required]');
+                    let isValid = true;
+                    
+                    requiredFields.forEach(field => {{
+                        if (!field.value && field.type !== 'checkbox') {{
+                            isValid = false;
+                            field.classList.add('is-invalid');
+                        }} else if (field.type === 'checkbox' && !field.checked) {{
+                            isValid = false;
+                            field.classList.add('is-invalid');
+                        }} else {{
+                            field.classList.remove('is-invalid');
+                        }}
+                    }});
+                    
+                    if (!isValid) {{
+                        e.preventDefault();
+                        alert('必須項目を入力してください');
+                        return false;
+                    }}
+                }});
+            }});
+        }});
+        
+        {custom_js}
+    </script>
+    '''
+    
+    # HTMLを生成
     html = f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{page_title}</title>
+    {base_css}
 </head>
 <body>
-    <h1>{page_title}</h1>
-    <p>このページは自動生成されました。</p>
+    <div class="container">
+        <div class="university-header">
+            <h1>{page_title}</h1>
+        </div>
+        <form id="university-form" method="post" action="#">
+            {form_fields_html}
+            <button type="submit" class="btn-primary">送信</button>
+        </form>
+    </div>
+    {base_js}
 </body>
 </html>
 """

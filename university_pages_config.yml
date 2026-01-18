@@ -386,6 +386,57 @@ universities:
     layout:
       theme: default
       color_scheme: blue
+      # カスタムCSS（大学特有のデザイン）
+      custom_css: |
+        /* 大学A専用のスタイル */
+        .university-header {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          padding: 2rem;
+          border-radius: 8px;
+          margin-bottom: 2rem;
+        }
+        .form-group {
+          margin-bottom: 1.5rem;
+        }
+        .form-group label {
+          font-weight: 600;
+          color: #333;
+        }
+        .btn-primary {
+          background-color: #667eea;
+          border-color: #667eea;
+        }
+        .btn-primary:hover {
+          background-color: #5568d3;
+          border-color: #5568d3;
+        }
+      # カスタムJavaScript（大学特有の処理）
+      custom_js: |
+        // 大学A専用のJavaScript処理
+        document.addEventListener('DOMContentLoaded', function() {
+          // フォームバリデーションのカスタマイズ
+          const forms = document.querySelectorAll('form');
+          forms.forEach(form => {
+            form.addEventListener('submit', function(e) {
+              // カスタムバリデーション処理
+              const studentNumber = form.querySelector('[name="student_number"]');
+              if (studentNumber && !studentNumber.value.match(/^[0-9]{8}$/)) {
+                e.preventDefault();
+                alert('学生番号は8桁の数字で入力してください');
+                return false;
+              }
+            });
+          });
+          
+          // 学生番号の自動フォーマット
+          const studentNumberInput = document.querySelector('[name="student_number"]');
+          if (studentNumberInput) {
+            studentNumberInput.addEventListener('input', function(e) {
+              e.target.value = e.target.value.replace(/[^0-9]/g, '');
+            });
+          }
+        });
     display_order: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
   
   # 大学Bの設定例
@@ -401,6 +452,62 @@ universities:
     layout:
       theme: modern
       color_scheme: green
+      # カスタムCSS（大学特有のデザイン）
+      custom_css: |
+        /* 大学B専用のスタイル */
+        .university-header {
+          background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+          color: white;
+          padding: 2rem;
+          border-radius: 8px;
+          margin-bottom: 2rem;
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .form-container {
+          background: #f8f9fa;
+          padding: 2rem;
+          border-radius: 8px;
+        }
+        .btn-primary {
+          background-color: #11998e;
+          border-color: #11998e;
+          transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+          background-color: #0d7a6f;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+      # カスタムJavaScript（大学特有の処理）
+      custom_js: |
+        // 大学B専用のJavaScript処理
+        document.addEventListener('DOMContentLoaded', function() {
+          // アニメーション効果
+          const elements = document.querySelectorAll('.form-group');
+          elements.forEach((el, index) => {
+            setTimeout(() => {
+              el.style.opacity = '0';
+              el.style.transform = 'translateY(20px)';
+              el.style.transition = 'all 0.5s ease';
+              setTimeout(() => {
+                el.style.opacity = '1';
+                el.style.transform = 'translateY(0)';
+              }, 100);
+            }, index * 100);
+          });
+          
+          // リアルタイムバリデーション
+          const inputs = document.querySelectorAll('input, textarea, select');
+          inputs.forEach(input => {
+            input.addEventListener('blur', function() {
+              if (this.hasAttribute('required') && !this.value) {
+                this.classList.add('is-invalid');
+              } else {
+                this.classList.remove('is-invalid');
+              }
+            });
+          });
+        });
     display_order: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
   
   # 大学Cの設定例（全ページカスタマイズ）
@@ -410,6 +517,40 @@ universities:
     layout:
       theme: classic
       color_scheme: purple
+      # カスタムCSS（大学特有のデザイン）
+      custom_css: |
+        /* 大学C専用のスタイル */
+        body {
+          font-family: 'Georgia', serif;
+        }
+        .university-header {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          padding: 2rem;
+          border-radius: 0;
+          margin-bottom: 2rem;
+          border-left: 5px solid #764ba2;
+        }
+        .form-group label {
+          font-weight: 700;
+          color: #764ba2;
+          text-transform: uppercase;
+          font-size: 0.875rem;
+          letter-spacing: 1px;
+        }
+        .btn-primary {
+          background-color: #764ba2;
+          border-color: #764ba2;
+          padding: 0.75rem 2rem;
+          font-weight: 600;
+        }
+      # カスタムJavaScript（大学特有の処理）
+      custom_js: |
+        // 大学C専用のJavaScript処理
+        document.addEventListener('DOMContentLoaded', function() {
+          // クラシックなスタイルの適用
+          console.log('大学Cのページが読み込まれました');
+        });
     display_order: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
 
 # 画面生成の共通設定
