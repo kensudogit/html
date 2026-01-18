@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ['nodejs-18_x', 'python39']
+nixPkgs = ['nodejs-18_x', 'python39', 'python39Packages.pip']
 
 [phases.install]
 cmds = [
@@ -19,12 +19,10 @@ cmds = [
   'ls -la frontend/dist/assets || echo "assets directory not found"',
   'echo "=== Installing Python dependencies ==="',
   'python --version || python3 --version || python3.9 --version || echo "Python not found"',
-  'echo "=== Installing pip for Python 3.9 ==="',
-  'curl -sS https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py || wget -q https://bootstrap.pypa.io/get-pip.py -O /tmp/get-pip.py || (echo "ERROR: Failed to download get-pip.py" && exit 1)',
-  'python3.9 /tmp/get-pip.py --break-system-packages || python /tmp/get-pip.py --break-system-packages || python3 /tmp/get-pip.py --break-system-packages || (echo "ERROR: get-pip.py failed" && exit 1)',
-  'python3.9 -m pip --version || python -m pip --version || python3 -m pip --version || (echo "ERROR: pip not available after installation" && exit 1)',
+  'echo "=== Checking if pip is available ==="',
+  'python3.9 -m pip --version 2>/dev/null && echo "pip is already available" || python -m pip --version 2>/dev/null && echo "pip is already available" || python3 -m pip --version 2>/dev/null && echo "pip is already available" || (echo "ERROR: pip not available. python39Packages.pip should be installed in setup phase." && exit 1)',
   'echo "=== Installing packages ==="',
-  'python3.9 -m pip install --break-system-packages -r requirements.txt || python -m pip install --break-system-packages -r requirements.txt || python3 -m pip install --break-system-packages -r requirements.txt || (echo "ERROR: Failed to install Python packages" && exit 1)',
+  'python3.9 -m pip install --user -r requirements.txt || python -m pip install --user -r requirements.txt || python3 -m pip install --user -r requirements.txt || python3.9 -m pip install --break-system-packages -r requirements.txt || python -m pip install --break-system-packages -r requirements.txt || python3 -m pip install --break-system-packages -r requirements.txt || (echo "ERROR: Failed to install Python packages" && exit 1)',
   'echo "=== Verifying Python packages ==="',
   'python3.9 -c "import yaml; print(\"PyYAML installed successfully\")" || python -c "import yaml; print(\"PyYAML installed successfully\")" || python3 -c "import yaml; print(\"PyYAML installed successfully\")" || (echo "ERROR: PyYAML not installed" && exit 1)',
   'python3.9 -c "import flask; print(\"Flask installed successfully\")" || python -c "import flask; print(\"Flask installed successfully\")" || python3 -c "import flask; print(\"Flask installed successfully\")" || (echo "ERROR: Flask not installed" && exit 1)',
