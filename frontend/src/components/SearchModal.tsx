@@ -57,34 +57,65 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, content, onR
           setMatchCount(response.results.length)
         } else {
           alert(response.error || 'Excelファイルの検索に失敗しました')
+          setExcelResults([])
+          setMatchCount(0)
         }
       } catch (err) {
         alert(err instanceof Error ? err.message : 'Excelファイルの検索に失敗しました')
+        setExcelResults([])
+        setMatchCount(0)
       } finally {
         setLoading(false)
       }
     } else {
       // HTML検索
+      // マッチを再計算
+      const allMatches: number[] = []
+      if (content) {
+        let match: RegExpExecArray | null
+        const regexGlobal = new RegExp(searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+        while ((match = regexGlobal.exec(content)) !== null) {
+          allMatches.push(match.index)
+        }
+      }
+      setMatches(allMatches)
+      setMatchCount(allMatches.length)
+      
+      if (allMatches.length > 0) {
+        setCurrentMatchIndex(0)
+        // マッチを設定した後、少し遅延してハイライト（状態更新を待つ）
+        setTimeout(() => {
+          highlightMatch(0, allMatches, searchText)
+        }, 0)
+      } else {
+        alert('検索結果が見つかりませんでした')
+      }
+      
       if (onSearch) {
         onSearch(searchText)
-      }
-      if (matches.length > 0) {
-        setCurrentMatchIndex(0)
-        highlightMatch(0)
       }
     }
   }
 
-  const highlightMatch = (index: number) => {
-    if (matches.length === 0 || index < 0 || index >= matches.length) return
+  const highlightMatch = (index: number, matchesArray?: number[], searchQuery?: string) => {
+    const matchesToUse = matchesArray || matches
+    const queryToUse = searchQuery || searchText
     
-    const matchIndex = matches[index]
+    if (matchesToUse.length === 0 || index < 0 || index >= matchesToUse.length) return
+    if (!queryToUse.trim()) return
+    
+    const matchIndex = matchesToUse[index]
     // エディタ内のテキストエリアで検索結果をハイライト
     const textarea = document.querySelector('.editor-textarea') as HTMLTextAreaElement
     if (textarea) {
       textarea.focus()
-      textarea.setSelectionRange(matchIndex, matchIndex + searchText.length)
-      textarea.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      const startPos = matchIndex
+      const endPos = matchIndex + queryToUse.length
+      textarea.setSelectionRange(startPos, endPos)
+      // テキストエリアをスクロールして選択範囲を表示
+      const lineHeight = parseInt(window.getComputedStyle(textarea).lineHeight) || 20
+      const linesBefore = textarea.value.substring(0, startPos).split('\n').length - 1
+      textarea.scrollTop = linesBefore * lineHeight - textarea.clientHeight / 2
     }
   }
 
@@ -92,14 +123,18 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, content, onR
     if (matches.length === 0) return
     const nextIndex = (currentMatchIndex + 1) % matches.length
     setCurrentMatchIndex(nextIndex)
-    highlightMatch(nextIndex)
+    setTimeout(() => {
+      highlightMatch(nextIndex)
+    }, 0)
   }
 
   const handlePrevMatch = () => {
     if (matches.length === 0) return
     const prevIndex = currentMatchIndex <= 0 ? matches.length - 1 : currentMatchIndex - 1
     setCurrentMatchIndex(prevIndex)
-    highlightMatch(prevIndex)
+    setTimeout(() => {
+      highlightMatch(prevIndex)
+    }, 0)
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
