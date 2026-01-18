@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { editorApi } from '../services/editorApi'
 import RemoteControl from './RemoteControl'
+import StructureModal from './StructureModal'
+import ValidateModal from './ValidateModal'
+import SearchModal from './SearchModal'
+import FileListModal from './FileListModal'
 import './HTMLEditor.css'
 
 const HTMLEditor: React.FC = () => {
@@ -10,6 +14,10 @@ const HTMLEditor: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [showStructureModal, setShowStructureModal] = useState<boolean>(false)
+  const [showValidateModal, setShowValidateModal] = useState<boolean>(false)
+  const [showSearchModal, setShowSearchModal] = useState<boolean>(false)
+  const [showFileListModal, setShowFileListModal] = useState<boolean>(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
@@ -18,7 +26,7 @@ const HTMLEditor: React.FC = () => {
     setPreviewContent(content)
   }, [content])
 
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
@@ -99,42 +107,88 @@ const HTMLEditor: React.FC = () => {
   }
 
   const handleShowStructure = () => {
-    // TODO: 構造情報モーダルを表示
-    alert('構造情報機能は実装中です')
+    setShowStructureModal(true)
   }
 
-  const handleValidate = async () => {
-    if (!filename) return
+  const handleValidate = () => {
+    setShowValidateModal(true)
+  }
+
+  const handleSearch = () => {
+    setShowSearchModal(true)
+  }
+
+  const handleShowFileList = () => {
+    setShowFileListModal(true)
+  }
+
+  const handleSearchElement = async (query: string) => {
+    if (!query.trim()) {
+      setError('検索文字列を入力してください')
+      return
+    }
 
     setLoading(true)
     setError(null)
     setSuccess(null)
 
     try {
-      // TODO: バリデーションAPIを呼び出す
-      alert('構文チェック機能は実装中です')
+      const response = await editorApi.searchElement(query)
+      if (response.success && response.results) {
+        if (response.results.length === 0) {
+          setSuccess('検索結果が見つかりませんでした')
+        } else {
+          setSuccess(`${response.results.length}件の要素が見つかりました`)
+          // TODO: 検索結果をハイライト表示
+          console.log('検索結果:', response.results)
+        }
+      } else {
+        setError(response.error || '要素の検索に失敗しました')
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '構文チェックに失敗しました')
+      setError(err instanceof Error ? err.message : '要素の検索に失敗しました')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleSearch = () => {
-    // TODO: 検索・置換モーダルを表示
-    alert('検索・置換機能は実装中です')
+  const handleFileSelect = async (selectedFilename: string) => {
+    setLoading(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const response = await editorApi.loadFile(selectedFilename)
+      if (response.success && response.content) {
+        setContent(response.content)
+        setFilename(selectedFilename)
+        setSuccess('ファイルを読み込みました')
+      } else {
+        setError(response.error || 'ファイルの読み込みに失敗しました')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'ファイルの読み込みに失敗しました')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleShowFileList = () => {
-    // TODO: ファイル一覧モーダルを表示
-    alert('ファイル一覧機能は実装中です')
-  }
+  const handleSearchReplace = (searchText: string, replaceText: string) => {
+    if (!searchText.trim()) {
+      setError('検索文字列を入力してください')
+      return
+    }
 
-  const handleSearchElement = (query: string) => {
-    if (!query.trim()) return
+    const regex = new RegExp(searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
+    const newContent = content.replace(regex, replaceText)
+    
+    if (newContent === content) {
+      setError('置換対象が見つかりませんでした')
+      return
+    }
 
-    // TODO: 要素検索機能を実装
-    alert(`要素検索: ${query}`)
+    setContent(newContent)
+    setSuccess('置換が完了しました')
   }
 
   return (
@@ -158,7 +212,7 @@ const HTMLEditor: React.FC = () => {
             ref={fileInputRef}
             type="file"
             accept=".html,.htm"
-            onChange={handleFileSelect}
+            onChange={handleFileUpload}
             style={{ display: 'none' }}
           />
           {filename && (
@@ -207,6 +261,28 @@ const HTMLEditor: React.FC = () => {
           />
         </div>
       </div>
+
+      {/* モーダル */}
+      <StructureModal
+        isOpen={showStructureModal}
+        onClose={() => setShowStructureModal(false)}
+      />
+      <ValidateModal
+        isOpen={showValidateModal}
+        onClose={() => setShowValidateModal(false)}
+        content={content}
+      />
+      <SearchModal
+        isOpen={showSearchModal}
+        onClose={() => setShowSearchModal(false)}
+        content={content}
+        onReplace={handleSearchReplace}
+      />
+      <FileListModal
+        isOpen={showFileListModal}
+        onClose={() => setShowFileListModal(false)}
+        onSelectFile={handleFileSelect}
+      />
     </div>
   )
 }

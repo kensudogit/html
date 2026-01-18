@@ -104,4 +104,68 @@ export const editorApi = {
       throw new Error('コンテンツの取得に失敗しました')
     }
   },
+
+  /**
+   * 構造情報を取得
+   */
+  async getStructure(): Promise<{ success: boolean; info?: any; error?: string }> {
+    try {
+      const response = await apiClient.get<{ success: boolean; info?: any; error?: string }>('/structure')
+      return response.data
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error
+      }
+      throw new Error('構造情報の取得に失敗しました')
+    }
+  },
+
+  /**
+   * HTMLを検証
+   */
+  async validateHTML(content: string): Promise<{ success: boolean; errors?: any[]; error?: string }> {
+    try {
+      const response = await apiClient.post<{ success: boolean; errors?: any[]; error?: string }>('/validate', {
+        content,
+      })
+      return response.data
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error
+      }
+      throw new Error('HTMLの検証に失敗しました')
+    }
+  },
+
+  /**
+   * 要素を検索
+   */
+  async searchElement(query: string): Promise<{ success: boolean; results?: any[]; error?: string }> {
+    try {
+      const response = await apiClient.post<{ success: boolean; results?: any[]; error?: string }>('/search', {
+        query,
+      })
+      return response.data
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error
+      }
+      throw new Error('要素の検索に失敗しました')
+    }
+  },
+
+  /**
+   * ファイル一覧を取得
+   */
+  async getFiles(): Promise<{ success: boolean; files?: Array<{ name: string; size: number }>; error?: string }> {
+    try {
+      const response = await apiClient.get<{ success: boolean; files?: Array<{ name: string; size: number }>; error?: string }>('/files')
+      return response.data
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error
+      }
+      throw new Error('ファイル一覧の取得に失敗しました')
+    }
+  },
 }
