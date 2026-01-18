@@ -40,7 +40,12 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, content, onR
     }
   }, [searchText, content, isOpen, searchType])
 
-  const handleSearch = async () => {
+  const handleSearch = async (e?: React.MouseEvent) => {
+    e?.preventDefault()
+    e?.stopPropagation()
+    
+    console.log('検索ボタンがクリックされました', { searchText, searchType, folderPath })
+    
     if (!searchText.trim()) {
       alert('検索文字列を入力してください')
       return
@@ -222,7 +227,16 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, content, onR
                   className="form-input"
                   style={{ flex: 1 }}
                 />
-                <button className="btn btn-info btn-sm" onClick={handleSearch} disabled={loading}>
+                <button 
+                  type="button"
+                  className="btn btn-info btn-sm" 
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    handleSearch(e)
+                  }} 
+                  disabled={loading}
+                >
                   {loading ? '検索中...' : '検索'}
                 </button>
               </div>
