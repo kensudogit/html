@@ -387,19 +387,26 @@ def structure(request):
 @csrf_exempt
 @require_http_methods(["POST"])
 def search(request):
-    """要素を検索"""
+    """要素を検索（HTML）またはExcelファイルを検索"""
     try:
+        data = json.loads(request.body)
+        query = data.get('query', '').strip()
+        search_type = data.get('type', 'html')  # 'html' or 'excel'
+        folder_path = data.get('folder_path', '')  # Excel検索用のフォルダパス
+        
+        if not query:
+            return JsonResponse({'success': False, 'error': '検索文字列が空です'})
+        
+        # Excelファイル検索
+        if search_type == 'excel':
+            return _search_excel_files(query, folder_path, request)
+        
+        # HTML要素検索（既存の処理）
         file_info = get_session_file_info(request)
         html_editor = file_info.get('html_editor')
         
         if html_editor is None:
             return JsonResponse({'success': False, 'error': 'HTMLエディタが初期化されていません'}, status=500)
-        
-        data = json.loads(request.body)
-        query = data.get('query', '').strip()
-        
-        if not query:
-            return JsonResponse({'success': False, 'error': '検索文字列が空です'})
         
         results = []
         
@@ -458,6 +465,87 @@ def search(request):
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
+def _search_excel_files(query: str, folder_path: str, request):
+    """Excelファイルを検索"""
+    try:
+        import pandas as pd
+        
+        results = []
+        excel_files = []
+        
+        # 検索対象のExcelファイルを決定
+        if folder_path:
+            # フォルダが指定されている場合、フォルダ内の全Excelファイルを検索
+            folder = Path(folder_path)
+            if not folder.exists() or not folder.is_dir():
+                return JsonResponse({'success': False, 'error': f'フォルダが見つかりません: {folder_path}'}, status=404)
+            
+            excel_files = list(folder.glob('*.xlsx')) + list(folder.glob('*.xls'))
+        else:
+            # フォルダが指定されていない場合、選択されているExcelファイルを検索
+            file_info = get_session_file_info(request)
+            file_path = file_info.get('html_file_path')
+            
+            if file_path:
+                file_path = Path(file_path)
+                if file_path.exists() and (file_path.suffix.lower() in ['.xlsx', '.xls']):
+                    excel_files = [file_path]
+                else:
+                    return JsonResponse({'success': False, 'error': '選択されているファイルがExcelファイルではありません'}, status=400)
+            else:
+                # ファイルが選択されていない場合、アップロードフォルダ内の全Excelファイルを検索
+                excel_files = list(UPLOAD_DIR.glob('*.xlsx')) + list(UPLOAD_DIR.glob('*.xls'))
+        
+        if not excel_files:
+            return JsonResponse({'success': True, 'results': [], 'message': '検索対象のExcelファイルが見つかりませんでした'})
+        
+        # 各Excelファイルを検索
+        for excel_file in excel_files:
+            try:
+                # Excelファイルを読み込み
+                df = pd.read_excel(excel_file, sheet_name=None, engine='openpyxl')
+                
+                file_results = []
+                
+                # 各シートを検索
+                for sheet_name, sheet_df in df.items():
+                    # データフレーム内でキーワードを検索
+                    for row_idx, row in sheet_df.iterrows():
+                        for col_idx, cell_value in enumerate(row):
+                            if pd.notna(cell_value) and query.lower() in str(cell_value).lower():
+                                file_results.append({
+                                    'file': excel_file.name,
+                                    'sheet': sheet_name,
+                                    'row': int(row_idx) + 2,  # Excelの行番号（1ベース、ヘッダー行を考慮）
+                                    'column': sheet_df.columns[col_idx] if col_idx < len(sheet_df.columns) else f'Column{col_idx + 1}',
+                                    'value': str(cell_value)[:100],  # 最初の100文字
+                                    'full_row': row.to_dict()
+                                })
+                
+                if file_results:
+                    results.extend(file_results)
+                    
+            except Exception as e:
+                logger.error(f"Excelファイル検索エラー ({excel_file.name}): {e}")
+                results.append({
+                    'file': excel_file.name,
+                    'error': f'ファイルの読み込みに失敗しました: {str(e)}'
+                })
+        
+        return JsonResponse({
+            'success': True,
+            'results': results,
+            'total_files': len(excel_files),
+            'matched_files': len(set(r.get('file') for r in results if 'file' in r))
+        })
+        
+    except ImportError:
+        return JsonResponse({'success': False, 'error': 'pandasまたはopenpyxlがインストールされていません'}, status=500)
+    except Exception as e:
+        logger.error(f"Excel検索エラー: {e}")
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
 @csrf_exempt
 @require_http_methods(["POST"])
 def upload(request):
@@ -473,9 +561,13 @@ def upload(request):
         # ファイル名を安全にする
         filename = secure_filename(file.name)
         
-        # HTMLファイルかチェック
-        if not (filename.lower().endswith('.html') or filename.lower().endswith('.htm')):
-            return JsonResponse({'success': False, 'error': 'HTMLファイルのみアップロード可能です'}, status=400)
+        # HTMLファイルまたはExcelファイルかチェック
+        if not (filename.lower().endswith('.html') or filename.lower().endswith('.htm') or 
+                filename.lower().endswith('.xlsx') or filename.lower().endswith('.xls')):
+            return JsonResponse({'success': False, 'error': 'HTMLファイルまたはExcelファイルのみアップロード可能です'}, status=400)
+        
+        # Excelファイルの場合はHTMLEditorを初期化しない
+        is_excel = filename.lower().endswith('.xlsx') or filename.lower().endswith('.xls')
         
         # アップロードフォルダに保存
         file_path = UPLOAD_DIR / filename

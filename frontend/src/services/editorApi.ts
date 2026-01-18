@@ -138,12 +138,13 @@ export const editorApi = {
   },
 
   /**
-   * 要素を検索
+   * 要素を検索（HTML）
    */
   async searchElement(query: string): Promise<{ success: boolean; results?: any[]; error?: string }> {
     try {
       const response = await apiClient.post<{ success: boolean; results?: any[]; error?: string }>('/search', {
         query,
+        type: 'html',
       })
       return response.data
     } catch (error) {
@@ -151,6 +152,25 @@ export const editorApi = {
         throw error
       }
       throw new Error('要素の検索に失敗しました')
+    }
+  },
+
+  /**
+   * Excelファイルを検索
+   */
+  async searchExcelFiles(query: string, folderPath?: string): Promise<{ success: boolean; results?: any[]; total_files?: number; matched_files?: number; error?: string }> {
+    try {
+      const response = await apiClient.post<{ success: boolean; results?: any[]; total_files?: number; matched_files?: number; error?: string }>('/search', {
+        query,
+        type: 'excel',
+        folder_path: folderPath || '',
+      })
+      return response.data
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error
+      }
+      throw new Error('Excelファイルの検索に失敗しました')
     }
   },
 

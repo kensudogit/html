@@ -192,6 +192,11 @@ const HTMLEditor: React.FC = () => {
     setSuccess('置換が完了しました')
   }
 
+  const handleSearchInModal = (_searchText: string) => {
+    // 検索モーダル内での検索処理（ハイライト表示など）
+    // 実際のハイライトはSearchModal内で処理される
+  }
+
   return (
     <div className="html-editor">
       <RemoteControl
@@ -279,6 +284,8 @@ const HTMLEditor: React.FC = () => {
         onClose={() => setShowSearchModal(false)}
         content={content}
         onReplace={handleSearchReplace}
+        onSearch={handleSearchInModal}
+        filename={filename}
       />
       <FileListModal
         isOpen={showFileListModal}
