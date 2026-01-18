@@ -10,7 +10,7 @@ export const getApiBaseUrl = (): string => {
   
   // 開発環境のデフォルト
   if (import.meta.env.DEV) {
-    return 'http://localhost:5000'
+    return 'http://localhost:8000'
   }
   
   // 本番環境では現在のオリジンを使用

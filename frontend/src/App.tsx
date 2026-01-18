@@ -1,12 +1,12 @@
 import ErrorBoundary from './components/ErrorBoundary'
-import ScreenComparison from './components/ScreenComparison'
+import HTMLEditor from './components/HTMLEditor'
 import './App.css'
 
 function App() {
   return (
     <ErrorBoundary>
       <div className="app">
-        <ScreenComparison />
+        <HTMLEditor />
       </div>
     </ErrorBoundary>
   )
