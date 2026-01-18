@@ -23,12 +23,17 @@ import io
 from datetime import datetime
 from pathlib import Path
 from werkzeug.utils import secure_filename
-from flask import Flask, render_template_string, request, jsonify, send_from_directory, redirect, url_for, send_file, session
+from flask import Flask, render_template_string, request, jsonify, send_from_directory, redirect, url_for, send_file, session, render_template
 from html_editor import HTMLEditor
 from bs4 import BeautifulSoup
 import secrets
 
-app = Flask(__name__)
+# テンプレートディレクトリと静的ファイルディレクトリを設定
+BASE_DIR = Path(__file__).parent
+TEMPLATES_DIR = BASE_DIR / 'templates'
+STATIC_DIR = BASE_DIR / 'templates'  # CSSファイルもtemplatesディレクトリに配置
+
+app = Flask(__name__, template_folder=str(TEMPLATES_DIR), static_folder=str(STATIC_DIR), static_url_path='/static')
 
 # リクエストログ（Railway環境でのデバッグ用）
 @app.before_request
@@ -87,7 +92,6 @@ except Exception as e:
         print(f"Warning: Could not create upload directory: {e}", file=sys.stderr)
 
 # フロントエンドのビルドディレクトリ
-BASE_DIR = Path(__file__).parent
 # Railway環境でのパス解決を改善（複数のパスを試す）
 FRONTEND_DIST_DIR = BASE_DIR / 'frontend' / 'dist'
 # 代替パス（Railway環境でのパス解決の問題に対応）
@@ -8076,6 +8080,27 @@ def favicon():
         return send_file(io.BytesIO(b''), mimetype='image/x-icon')
 
 
+def _load_template(template_name, **kwargs):
+    """テンプレートファイルを読み込んで変数を置換"""
+    try:
+        template_path = TEMPLATES_DIR / template_name
+        if not template_path.exists():
+            app.logger.error(f"テンプレートファイルが見つかりません: {template_path}")
+            return None
+        
+        with open(template_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # 変数を置換
+        for key, value in kwargs.items():
+            content = content.replace(f'{{{key}}}', str(value))
+        
+        return content
+    except Exception as e:
+        app.logger.error(f"テンプレート読み込みエラー ({template_name}): {e}")
+        return None
+
+
 def _find_index_html():
     """index.htmlを複数のパスから検索"""
     # まずFRONTEND_DIST_DIRをチェック
@@ -8118,58 +8143,81 @@ def _serve_index_html():
         else:
             # ビルドファイルが存在しない場合は、エラーメッセージを返す
             app.logger.error(f"Reactビルドファイルが見つかりません。試したパス: {[str(p / 'index.html') for p in _ALTERNATIVE_PATHS]}")
-            error_html = f"""
+            tried_paths_html = ''.join([f'<li>{str(p / "index.html")}</li>' for p in _ALTERNATIVE_PATHS])
+            error_html = _load_template(
+                'build_not_found.html',
+                work_dir=os.getcwd(),
+                script_dir=Path(__file__).parent,
+                tried_paths=tried_paths_html
+            )
+            if error_html:
+                return error_html, 500
+            else:
+                # フォールバック: テンプレートが読み込めない場合はインラインHTMLを返す
+                return f"""
+                <!DOCTYPE html>
+                <html lang="ja">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>ビルドファイルが見つかりません</title>
+                    <style>
+                        body {{ font-family: monospace; padding: 20px; background: #f5f5f5; }}
+                        .error {{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }}
+                        .error h1 {{ color: #e53e3e; margin-top: 0; }}
+                        .error p {{ margin: 10px 0; color: #4a5568; }}
+                        .error ul {{ margin: 10px 0; padding-left: 20px; }}
+                        .error li {{ margin: 5px 0; color: #4a5568; }}
+                    </style>
+                </head>
+                <body>
+                    <div class="error">
+                        <h1>ビルドファイルが見つかりません</h1>
+                        <p>frontend/dist/index.html が存在しません。ビルドを実行してください。</p>
+                        <p><strong>作業ディレクトリ:</strong> {os.getcwd()}</p>
+                        <p><strong>スクリプトのディレクトリ:</strong> {Path(__file__).parent}</p>
+                        <p><strong>試したパス:</strong></p>
+                        <ul>{tried_paths_html}</ul>
+                    </div>
+                </body>
+                </html>
+                """, 500
+    except Exception as e:
+        error_details = traceback.format_exc()
+        app.logger.error(f"index.html配信エラー: {error_details}")
+        error_html = _load_template(
+            'error_page.html',
+            error_message=str(e),
+            error_details=error_details
+        )
+        if error_html:
+            return error_html, 500
+        else:
+            # フォールバック: テンプレートが読み込めない場合はインラインHTMLを返す
+            return f"""
             <!DOCTYPE html>
             <html lang="ja">
             <head>
                 <meta charset="UTF-8">
-                <title>ビルドファイルが見つかりません</title>
+                <title>エラー</title>
                 <style>
                     body {{ font-family: monospace; padding: 20px; background: #f5f5f5; }}
                     .error {{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }}
+                    .error h1 {{ color: #e53e3e; margin-top: 0; }}
+                    .error h2 {{ color: #2d3748; margin-top: 20px; }}
+                    .error p {{ margin: 10px 0; color: #4a5568; }}
+                    .error pre {{ background: #f0f0f0; padding: 15px; border-radius: 4px; overflow-x: auto; }}
                 </style>
             </head>
             <body>
                 <div class="error">
-                    <h1>ビルドファイルが見つかりません</h1>
-                    <p>frontend/dist/index.html が存在しません。ビルドを実行してください。</p>
-                    <p><strong>作業ディレクトリ:</strong> {os.getcwd()}</p>
-                    <p><strong>スクリプトのディレクトリ:</strong> {Path(__file__).parent}</p>
-                    <p><strong>試したパス:</strong></p>
-                    <ul>
-                        {''.join([f'<li>{str(p / "index.html")}</li>' for p in _ALTERNATIVE_PATHS])}
-                    </ul>
+                    <h1>エラーが発生しました</h1>
+                    <p><strong>エラーメッセージ:</strong> {str(e)}</p>
+                    <h2>詳細:</h2>
+                    <pre>{error_details}</pre>
                 </div>
             </body>
             </html>
-            """
-            return error_html, 500
-    except Exception as e:
-        error_details = traceback.format_exc()
-        app.logger.error(f"index.html配信エラー: {error_details}")
-        error_html = f"""
-        <!DOCTYPE html>
-        <html lang="ja">
-        <head>
-            <meta charset="UTF-8">
-            <title>エラー</title>
-            <style>
-                body {{ font-family: monospace; padding: 20px; background: #f5f5f5; }}
-                .error {{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }}
-                pre {{ background: #f0f0f0; padding: 15px; border-radius: 4px; overflow-x: auto; }}
-            </style>
-        </head>
-        <body>
-            <div class="error">
-                <h1>エラーが発生しました</h1>
-                <p><strong>エラーメッセージ:</strong> {str(e)}</p>
-                <h2>詳細:</h2>
-                <pre>{error_details}</pre>
-            </div>
-        </body>
-        </html>
-        """
-        return error_html, 500
+            """, 500
 
 
 @app.route('/')
