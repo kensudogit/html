@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ['nodejs-18_x', 'python39', 'python39Packages.pip']
+nixPkgs = ['nodejs-18_x', 'python39']
 
 [phases.install]
 cmds = [
@@ -20,8 +20,8 @@ cmds = [
   'echo "=== Installing Python dependencies ==="',
   'python --version || python3 --version || python3.9 --version || echo "Python not found"',
   'echo "=== Installing pip for Python 3.9 ==="',
-  'python3.9 -m ensurepip --upgrade || python -m ensurepip --upgrade || python3 -m ensurepip --upgrade || echo "ensurepip failed, trying alternative methods"',
-  'python3.9 -m pip --version || python -m pip --version || python3 -m pip --version || (echo "ERROR: pip not available" && exit 1)',
+  'python3.9 -m ensurepip --upgrade --default-pip || python -m ensurepip --upgrade --default-pip || python3 -m ensurepip --upgrade --default-pip || (echo "ERROR: ensurepip failed" && exit 1)',
+  'python3.9 -m pip --version || python -m pip --version || python3 -m pip --version || (echo "ERROR: pip not available after ensurepip" && exit 1)',
   'echo "=== Installing packages ==="',
   'python3.9 -m pip install --break-system-packages -r requirements.txt || python -m pip install --break-system-packages -r requirements.txt || python3 -m pip install --break-system-packages -r requirements.txt || (echo "ERROR: Failed to install Python packages" && exit 1)',
   'echo "=== Verifying Python packages ==="',
