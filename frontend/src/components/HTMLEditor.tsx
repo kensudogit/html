@@ -40,21 +40,6 @@ const HTMLEditor: React.FC = () => {
     }
   }
 
-  const loadFile = async (name: string) => {
-    setLoading(true)
-    setError(null)
-    try {
-      const response = await editorApi.loadFile(name)
-      if (response.success && response.content) {
-        setContent(response.content)
-        setFilename(name)
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'ファイルの読み込みに失敗しました')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleSave = async () => {
     if (!filename) {
