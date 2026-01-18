@@ -27,4 +27,8 @@ if FRONTEND_DIST_DIR.exists():
         re_path(r'^assets/(?P<path>.*)$', serve, {
             'document_root': FRONTEND_DIST_DIR / 'assets',
         }),
+        # ロゴ画像などのルートレベルの静的ファイルを配信
+        re_path(r'^(?P<path>logo\.png|favicon\.ico)$', serve, {
+            'document_root': FRONTEND_DIST_DIR,
+        }),
     ]
