@@ -10,12 +10,13 @@ from . import views
 app_name = 'editor'
 
 urlpatterns = [
-    # メインページ - Reactアプリケーションを配信
-    path('', views.index, name='index'),
-    
-    # 静的アセット
+    # 静的アセット（メインページより前に定義）
     path('assets/<path:filename>', views.serve_assets, name='serve_assets'),
     path('favicon.ico', views.favicon, name='favicon'),
+    path('logo.png', views.serve_logo, name='serve_logo'),
+    
+    # メインページ - Reactアプリケーションを配信
+    path('', views.index, name='index'),
     
     # ファイル操作
     path('save', views.save, name='save'),

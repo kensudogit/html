@@ -297,6 +297,19 @@ def favicon(request):
         return HttpResponse(b'', content_type='image/x-icon')
 
 
+def serve_logo(request):
+    """ロゴ画像を返す"""
+    try:
+        for dist_dir in _ALTERNATIVE_PATHS:
+            logo_path = dist_dir / 'logo.png'
+            if logo_path.exists():
+                return FileResponse(open(logo_path, 'rb'), content_type='image/png')
+        return HttpResponse('Logo not found', status=404)
+    except Exception as e:
+        logger.error(f"ロゴ画像配信エラー: {e}")
+        return HttpResponse('Logo not found', status=404)
+
+
 @csrf_exempt
 @require_http_methods(["POST"])
 def save(request):
