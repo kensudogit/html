@@ -8199,11 +8199,9 @@ def index():
 def handle_404(e):
     """404エラーハンドラー - APIルート以外はindex.htmlを返す（SPAルーティング）"""
     path = request.path
-    app.logger.warning(f"=== 404エラー発生 ===")
-    app.logger.warning(f"Path: {path}")
-    app.logger.warning(f"Method: {request.method}")
-    app.logger.warning(f"URL: {request.url}")
-    app.logger.warning(f"Error: {e}")
+    msg = f"=== 404エラー発生 ===\nPath: {path}\nMethod: {request.method}\nURL: {request.url}\nError: {e}"
+    app.logger.warning(msg)
+    print(msg, flush=True)  # printも追加して確実にログを出力
     
     # 静的アセットの場合は404を返す（既にserve_assetsで処理されているが、念のため）
     if path.startswith('/assets/'):
@@ -8221,7 +8219,9 @@ def handle_404(e):
         return jsonify({'error': 'Not found'}), 404
     
     # それ以外はReactアプリを返す（SPAルーティング）
-    app.logger.info(f"404エラーをキャッチ: {path} -> index.htmlを返します")
+    msg = f"404エラーをキャッチ: {path} -> index.htmlを返します"
+    app.logger.info(msg)
+    print(msg, flush=True)  # printも追加して確実にログを出力
     return _serve_index_html()
 
 
@@ -10657,6 +10657,21 @@ def main():
         )
         app.logger.setLevel(logging.INFO)
         app.logger.info("FlaskアプリケーションのログレベルをINFOに設定しました")
+        print("FlaskアプリケーションのログレベルをINFOに設定しました", flush=True)
+        
+        # 登録されているルートを確認
+        routes = []
+        for rule in app.url_map.iter_rules():
+            routes.append(f"{rule.rule} -> {rule.endpoint} ({', '.join(rule.methods)})")
+        routes_msg = "登録されているルート:\n" + "\n".join(routes)
+        app.logger.info(routes_msg)
+        print(routes_msg, flush=True)
+        
+        # before_requestハンドラーが登録されているか確認
+        before_request_handlers = len(app.before_request_funcs.get(None, []))
+        msg = f"before_requestハンドラーの数: {before_request_handlers}"
+        app.logger.info(msg)
+        print(msg, flush=True)
         
         # フロントエンドビルドディレクトリの確認
         print(f"\n{'='*60}")
