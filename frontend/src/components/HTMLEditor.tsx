@@ -6,6 +6,7 @@ import StructureModal from './StructureModal'
 import ValidateModal from './ValidateModal'
 import SearchModal from './SearchModal'
 import FileListModal from './FileListModal'
+import ScreenComparisonModal from './ScreenComparisonModal'
 import './HTMLEditor.css'
 
 const HTMLEditor: React.FC = () => {
@@ -19,6 +20,7 @@ const HTMLEditor: React.FC = () => {
   const [showValidateModal, setShowValidateModal] = useState<boolean>(false)
   const [showSearchModal, setShowSearchModal] = useState<boolean>(false)
   const [showFileListModal, setShowFileListModal] = useState<boolean>(false)
+  const [showScreenComparison, setShowScreenComparison] = useState<boolean>(false)
   const [freeMode, setFreeMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('htmlEditorFreeMode')
     return saved === 'true'
@@ -313,6 +315,7 @@ const HTMLEditor: React.FC = () => {
         onSearchElement={handleSearchElement}
         onToggleFreeMode={toggleFreeMode}
         freeMode={freeMode}
+        onShowScreenComparison={() => setShowScreenComparison(true)}
       />
       <UsageGuide />
       <header className="html-editor-header">
@@ -439,6 +442,10 @@ const HTMLEditor: React.FC = () => {
         isOpen={showFileListModal}
         onClose={() => setShowFileListModal(false)}
         onSelectFile={handleFileSelect}
+      />
+      <ScreenComparisonModal
+        isOpen={showScreenComparison}
+        onClose={() => setShowScreenComparison(false)}
       />
     </div>
   )

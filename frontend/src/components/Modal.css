@@ -27,6 +27,12 @@
   max-width: 800px;
 }
 
+.modal-content.screen-comparison-modal {
+  max-width: 95%;
+  width: 95%;
+  max-height: 95vh;
+}
+
 .modal-header {
   padding: 1rem 1.5rem;
   border-bottom: 1px solid #e2e8f0;

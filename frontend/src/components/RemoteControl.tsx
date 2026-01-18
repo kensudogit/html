@@ -14,6 +14,7 @@ interface RemoteControlProps {
   onSearchElement: (query: string) => void
   onToggleFreeMode?: () => void
   freeMode?: boolean
+  onShowScreenComparison?: () => void
 }
 
 const RemoteControl: React.FC<RemoteControlProps> = ({
@@ -29,6 +30,7 @@ const RemoteControl: React.FC<RemoteControlProps> = ({
   onSearchElement,
   onToggleFreeMode,
   freeMode = false,
+  onShowScreenComparison,
 }) => {
   const [collapsed, setCollapsed] = useState<boolean>(false)
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null)
@@ -284,6 +286,30 @@ const RemoteControl: React.FC<RemoteControlProps> = ({
                   {freeMode ? '📐 通常モード' : '🪟 自由配置モード'}
                 </button>
               )}
+            </div>
+          </div>
+
+          {/* テンプレート統合セクション */}
+          <div className="remote-control-section">
+            <div className="remote-control-section-title">テンプレート統合</div>
+            <div className="remote-control-buttons">
+              {onShowScreenComparison && (
+                <button
+                  className="btn btn-primary"
+                  onClick={onShowScreenComparison}
+                  style={{
+                    fontWeight: 600,
+                    background: '#9333ea',
+                    border: '2px solid #7e22ce',
+                    color: 'white',
+                  }}
+                >
+                  🖼️ 画面比較
+                </button>
+              )}
+              <span style={{ fontSize: '12px', color: '#666', textAlign: 'center' }}>
+                （その他の機能は実装中）
+              </span>
             </div>
           </div>
 
