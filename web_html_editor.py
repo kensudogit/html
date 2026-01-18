@@ -80,7 +80,11 @@ _ALTERNATIVE_PATHS = [
     BASE_DIR / 'frontend' / 'dist',
     Path('frontend') / 'dist',
     Path('/app') / 'frontend' / 'dist',
+    Path('/app') / 'dist',
     Path(os.getcwd()) / 'frontend' / 'dist',
+    Path(os.getcwd()) / 'dist',
+    Path('/usr/src/app') / 'frontend' / 'dist',
+    Path('/usr/src/app') / 'dist',
 ]
 
 # 大学データ管理用のデータベースパス
@@ -8002,11 +8006,24 @@ def set_session_file_info(html_editor_obj, file_path):
 
 def _find_assets_dir():
     """assetsディレクトリを複数のパスから検索"""
+    # まずFRONTEND_DIST_DIRをチェック
+    assets_dir = FRONTEND_DIST_DIR / 'assets'
+    if assets_dir.exists() and assets_dir.is_dir():
+        app.logger.info(f"assetsディレクトリを見つけました（FRONTEND_DIST_DIR）: {assets_dir}")
+        return assets_dir
+    
+    # 次に代替パスを試す
     for dist_dir in _ALTERNATIVE_PATHS:
         assets_dir = dist_dir / 'assets'
         if assets_dir.exists() and assets_dir.is_dir():
-            app.logger.info(f"assetsディレクトリを見つけました: {assets_dir}")
+            app.logger.info(f"assetsディレクトリを見つけました（代替パス）: {assets_dir}")
             return assets_dir
+    
+    # 見つからない場合はログを出力
+    app.logger.error(f"assetsディレクトリが見つかりません。試したパス:")
+    app.logger.error(f"  - FRONTEND_DIST_DIR: {FRONTEND_DIST_DIR / 'assets'}")
+    for dist_dir in _ALTERNATIVE_PATHS:
+        app.logger.error(f"  - {dist_dir / 'assets'}")
     return None
 
 
@@ -8046,12 +8063,24 @@ def favicon():
 
 def _find_index_html():
     """index.htmlを複数のパスから検索"""
-    # 複数のパスを試す
+    # まずFRONTEND_DIST_DIRをチェック
+    index_path = FRONTEND_DIST_DIR / 'index.html'
+    if index_path.exists():
+        app.logger.info(f"index.htmlを見つけました（FRONTEND_DIST_DIR）: {index_path}")
+        return index_path
+    
+    # 次に代替パスを試す
     for dist_dir in _ALTERNATIVE_PATHS:
         index_path = dist_dir / 'index.html'
         if index_path.exists():
-            app.logger.info(f"index.htmlを見つけました: {index_path}")
+            app.logger.info(f"index.htmlを見つけました（代替パス）: {index_path}")
             return index_path
+    
+    # 見つからない場合はログを出力
+    app.logger.error(f"index.htmlが見つかりません。試したパス:")
+    app.logger.error(f"  - FRONTEND_DIST_DIR: {FRONTEND_DIST_DIR / 'index.html'}")
+    for dist_dir in _ALTERNATIVE_PATHS:
+        app.logger.error(f"  - {dist_dir / 'index.html'}")
     return None
 
 
@@ -10585,15 +10614,33 @@ def main():
         # フロントエンドビルドディレクトリの確認
         print(f"\n{'='*60}")
         print(f"フロントエンドビルドディレクトリの確認:")
+        print(f"  現在の作業ディレクトリ: {os.getcwd()}")
+        print(f"  スクリプトのディレクトリ: {Path(__file__).parent}")
         print(f"  FRONTEND_DIST_DIR: {FRONTEND_DIST_DIR}")
         print(f"  存在確認: {FRONTEND_DIST_DIR.exists()}")
-        index_path = FRONTEND_DIST_DIR / 'index.html'
-        print(f"  index.html パス: {index_path}")
-        print(f"  index.html 存在確認: {index_path.exists()}")
+        
+        # _find_index_html()でindex.htmlを検索
+        index_path = _find_index_html()
+        if index_path:
+            print(f"  ✓ index.html が見つかりました: {index_path}")
+        else:
+            print(f"  ✗ index.html が見つかりませんでした")
+            print(f"    試したパス:")
+            print(f"      - FRONTEND_DIST_DIR: {FRONTEND_DIST_DIR / 'index.html'}")
+            for dist_dir in _ALTERNATIVE_PATHS:
+                print(f"      - {dist_dir / 'index.html'}")
+        
+        # _find_assets_dir()でassetsディレクトリを検索
+        assets_dir = _find_assets_dir()
+        if assets_dir:
+            print(f"  ✓ assetsディレクトリが見つかりました: {assets_dir}")
+        else:
+            print(f"  ✗ assetsディレクトリが見つかりませんでした")
+        
         if FRONTEND_DIST_DIR.exists():
             try:
                 contents = list(FRONTEND_DIST_DIR.iterdir())
-                print(f"  ディレクトリの内容: {[str(c.name) for c in contents]}")
+                print(f"  FRONTEND_DIST_DIRの内容: {[str(c.name) for c in contents]}")
             except Exception as e:
                 print(f"  ディレクトリの内容を取得できませんでした: {e}")
         print(f"{'='*60}")
