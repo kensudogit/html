@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { editorApi } from '../services/editorApi'
 import RemoteControl from './RemoteControl'
+import UsageGuide from './UsageGuide'
 import StructureModal from './StructureModal'
 import ValidateModal from './ValidateModal'
 import SearchModal from './SearchModal'
@@ -205,6 +206,7 @@ const HTMLEditor: React.FC = () => {
         onShowFileList={handleShowFileList}
         onSearchElement={handleSearchElement}
       />
+      <UsageGuide />
       <header className="html-editor-header">
         <h1>HTMLエディタ</h1>
         <div className="html-editor-actions">
