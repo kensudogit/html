@@ -124,6 +124,11 @@
   display: flex;
   flex: 1;
   overflow: hidden;
+  position: relative;
+}
+
+.html-editor-content.free-mode {
+  overflow: visible;
 }
 
 .editor-panel,
@@ -136,6 +141,41 @@
   border-radius: 4px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   overflow: hidden;
+  position: relative;
+}
+
+.html-editor-content.free-mode .editor-panel,
+.html-editor-content.free-mode .preview-panel {
+  margin: 0;
+  min-width: 300px;
+  min-height: 200px;
+}
+
+.html-editor-content.free-mode .editor-panel.dragging,
+.html-editor-content.free-mode .preview-panel.dragging {
+  opacity: 0.8;
+  cursor: move;
+}
+
+.html-editor-content.free-mode .editor-panel.resizing,
+.html-editor-content.free-mode .preview-panel.resizing {
+  cursor: nwse-resize;
+}
+
+.panel-resize-handle {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 20px;
+  height: 20px;
+  background: rgba(99, 102, 241, 0.3);
+  cursor: nwse-resize;
+  z-index: 10;
+  border-radius: 4px 0 4px 0;
+}
+
+.panel-resize-handle:hover {
+  background: rgba(99, 102, 241, 0.5);
 }
 
 .editor-panel h2,

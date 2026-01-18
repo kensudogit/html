@@ -19,8 +19,26 @@ const HTMLEditor: React.FC = () => {
   const [showValidateModal, setShowValidateModal] = useState<boolean>(false)
   const [showSearchModal, setShowSearchModal] = useState<boolean>(false)
   const [showFileListModal, setShowFileListModal] = useState<boolean>(false)
+  const [freeMode, setFreeMode] = useState<boolean>(() => {
+    const saved = localStorage.getItem('htmlEditorFreeMode')
+    return saved === 'true'
+  })
+  const [panelPositions, setPanelPositions] = useState<{
+    editor: { x: number; y: number; width: number; height: number }
+    preview: { x: number; y: number; width: number; height: number }
+  }>(() => {
+    const saved = localStorage.getItem('htmlEditorPanelPositions')
+    return saved ? JSON.parse(saved) : {
+      editor: { x: 0, y: 0, width: 600, height: 400 },
+      preview: { x: 620, y: 0, width: 600, height: 400 }
+    }
+  })
+  const [draggingPanel, setDraggingPanel] = useState<'editor' | 'preview' | null>(null)
+  const [resizingPanel, setResizingPanel] = useState<'editor' | 'preview' | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const editorPanelRef = useRef<HTMLDivElement>(null)
+  const previewPanelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     // プレビューを更新
@@ -202,6 +220,84 @@ const HTMLEditor: React.FC = () => {
     // 実際のハイライトはSearchModal内で処理される
   }
 
+  const toggleFreeMode = () => {
+    const newFreeMode = !freeMode
+    setFreeMode(newFreeMode)
+    localStorage.setItem('htmlEditorFreeMode', String(newFreeMode))
+  }
+
+  // 自由配置モード用のドラッグハンドラー
+  const handlePanelMouseDown = (panel: 'editor' | 'preview', e: React.MouseEvent) => {
+    if (!freeMode || (e.target as HTMLElement).closest('.panel-resize-handle')) return
+    setDraggingPanel(panel)
+    e.preventDefault()
+  }
+
+  // 自由配置モード用のリサイズハンドラー
+  const handleResizeMouseDown = (panel: 'editor' | 'preview', e: React.MouseEvent) => {
+    if (!freeMode) return
+    setResizingPanel(panel)
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  // マウス移動とマウスアップのハンドラー
+  useEffect(() => {
+    if (!freeMode || (!draggingPanel && !resizingPanel)) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (draggingPanel) {
+        setPanelPositions(prev => ({
+          ...prev,
+          [draggingPanel]: {
+            ...prev[draggingPanel],
+            x: e.clientX - prev[draggingPanel].width / 2,
+            y: e.clientY - 50, // ヘッダー分を考慮
+          }
+        }))
+      } else if (resizingPanel) {
+        const panel = resizingPanel
+        setPanelPositions(prev => {
+          const rect = panel === 'editor' 
+            ? editorPanelRef.current?.getBoundingClientRect()
+            : previewPanelRef.current?.getBoundingClientRect()
+          if (rect) {
+            return {
+              ...prev,
+              [panel]: {
+                ...prev[panel],
+                width: Math.max(300, e.clientX - rect.left),
+                height: Math.max(200, e.clientY - rect.top),
+              }
+            }
+          }
+          return prev
+        })
+      }
+    }
+
+    const handleMouseUp = () => {
+      setDraggingPanel(null)
+      setResizingPanel(null)
+      localStorage.setItem('htmlEditorPanelPositions', JSON.stringify(panelPositions))
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [freeMode, draggingPanel, resizingPanel, panelPositions])
+
+  // パネル位置を保存
+  useEffect(() => {
+    if (freeMode && panelPositions) {
+      localStorage.setItem('htmlEditorPanelPositions', JSON.stringify(panelPositions))
+    }
+  }, [freeMode, panelPositions])
+
   return (
     <div className="html-editor">
       <RemoteControl
@@ -215,6 +311,8 @@ const HTMLEditor: React.FC = () => {
         onSearch={handleSearch}
         onShowFileList={handleShowFileList}
         onSearchElement={handleSearchElement}
+        onToggleFreeMode={toggleFreeMode}
+        freeMode={freeMode}
       />
       <UsageGuide />
       <header className="html-editor-header">
@@ -256,9 +354,27 @@ const HTMLEditor: React.FC = () => {
         </div>
       )}
 
-      <div className="html-editor-content">
-        <div className="editor-panel">
-          <h2>エディタ</h2>
+      <div className={`html-editor-content ${freeMode ? 'free-mode' : ''}`}>
+        <div
+          ref={editorPanelRef}
+          className={`editor-panel ${draggingPanel === 'editor' ? 'dragging' : ''} ${resizingPanel === 'editor' ? 'resizing' : ''}`}
+          style={freeMode ? {
+            position: 'absolute',
+            left: `${panelPositions.editor.x}px`,
+            top: `${panelPositions.editor.y}px`,
+            width: `${panelPositions.editor.width}px`,
+            height: `${panelPositions.editor.height}px`,
+            zIndex: draggingPanel === 'editor' ? 1000 : 1,
+          } : {}}
+          onMouseDown={(e) => handlePanelMouseDown('editor', e)}
+        >
+          <h2 style={{ cursor: freeMode ? 'move' : 'default' }}>エディタ</h2>
+          {freeMode && (
+            <div
+              className="panel-resize-handle"
+              onMouseDown={(e) => handleResizeMouseDown('editor', e)}
+            />
+          )}
           <textarea
             value={content}
             onChange={handleContentChange}
@@ -266,8 +382,26 @@ const HTMLEditor: React.FC = () => {
             placeholder="HTMLファイルを選択するか、直接HTMLコードを入力してください"
           />
         </div>
-        <div className="preview-panel">
-          <h2>プレビュー</h2>
+        <div
+          ref={previewPanelRef}
+          className={`preview-panel ${draggingPanel === 'preview' ? 'dragging' : ''} ${resizingPanel === 'preview' ? 'resizing' : ''}`}
+          style={freeMode ? {
+            position: 'absolute',
+            left: `${panelPositions.preview.x}px`,
+            top: `${panelPositions.preview.y}px`,
+            width: `${panelPositions.preview.width}px`,
+            height: `${panelPositions.preview.height}px`,
+            zIndex: draggingPanel === 'preview' ? 1000 : 1,
+          } : {}}
+          onMouseDown={(e) => handlePanelMouseDown('preview', e)}
+        >
+          <h2 style={{ cursor: freeMode ? 'move' : 'default' }}>プレビュー</h2>
+          {freeMode && (
+            <div
+              className="panel-resize-handle"
+              onMouseDown={(e) => handleResizeMouseDown('preview', e)}
+            />
+          )}
           <iframe
             ref={iframeRef}
             srcDoc={previewContent}

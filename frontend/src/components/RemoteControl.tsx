@@ -12,6 +12,8 @@ interface RemoteControlProps {
   onSearch: () => void
   onShowFileList: () => void
   onSearchElement: (query: string) => void
+  onToggleFreeMode?: () => void
+  freeMode?: boolean
 }
 
 const RemoteControl: React.FC<RemoteControlProps> = ({
@@ -25,6 +27,8 @@ const RemoteControl: React.FC<RemoteControlProps> = ({
   onSearch,
   onShowFileList,
   onSearchElement,
+  onToggleFreeMode,
+  freeMode = false,
 }) => {
   const [collapsed, setCollapsed] = useState<boolean>(false)
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null)
@@ -266,6 +270,20 @@ const RemoteControl: React.FC<RemoteControlProps> = ({
               >
                 🔍 検索・置換
               </button>
+              {onToggleFreeMode && (
+                <button
+                  className="btn btn-warning"
+                  onClick={onToggleFreeMode}
+                  style={{
+                    fontWeight: 600,
+                    background: freeMode ? '#f59e0b' : '#fbbf24',
+                    border: `2px solid ${freeMode ? '#d97706' : '#f59e0b'}`,
+                    color: 'white',
+                  }}
+                >
+                  {freeMode ? '📐 通常モード' : '🪟 自由配置モード'}
+                </button>
+              )}
             </div>
           </div>
 
