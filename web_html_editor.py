@@ -3023,6 +3023,10 @@ def main():
         if railway_env or dyno or port_env:
             host = '0.0.0.0'
             print(f"Railway環境を検出しました。host={host}, port={args.port}", flush=True)
+            # 本番環境ではGunicornを使用することを推奨（Procfileで設定）
+            # 開発環境でのみFlaskの開発サーバーを使用
+            if os.environ.get('FLASK_ENV') != 'production':
+                print("警告: 本番環境ではGunicornなどのWSGIサーバーの使用を推奨します", flush=True)
         
         app.run(host=host, port=args.port, debug=args.debug)
     
