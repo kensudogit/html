@@ -10659,16 +10659,16 @@ def main():
         default='127.0.0.1',
         help='ホストアドレス (デフォルト: 127.0.0.1)'
     )
-        # RailwayやHerokuなどのクラウド環境では環境変数PORTを使用
-        port_env = os.environ.get('PORT')
-        default_port = int(port_env) if port_env else 5000
-        print(f"環境変数PORT: {port_env}, デフォルトポート: {default_port}", flush=True)
-        parser.add_argument(
-            '--port',
-            type=int,
-            default=default_port,
-            help=f'ポート番号 (デフォルト: {default_port}, 環境変数PORTが設定されている場合はそれを使用)'
-        )
+    # RailwayやHerokuなどのクラウド環境では環境変数PORTを使用
+    port_env = os.environ.get('PORT')
+    default_port = int(port_env) if port_env else 5000
+    print(f"環境変数PORT: {port_env}, デフォルトポート: {default_port}", flush=True)
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=default_port,
+        help=f'ポート番号 (デフォルト: {default_port}, 環境変数PORTが設定されている場合はそれを使用)'
+    )
     parser.add_argument(
         '--debug',
         action='store_true',
