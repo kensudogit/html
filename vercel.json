@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "cd frontend && npm install && npm run build && cd .. && python manage.py migrate --noinput && python manage.py collectstatic --noinput",
+  "buildCommand": "cd frontend && npm install && npm run build",
   "routes": [
     {
       "src": "/static/(.*)",

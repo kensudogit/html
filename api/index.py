@@ -50,6 +50,18 @@ try:
     if application is None:
         raise ImportError("Django WSGI application is None")
     
+    # Vercel環境では初回リクエスト時にマイグレーションを実行（データベースが存在しない場合）
+    try:
+        from django.core.management import call_command
+        db_path = Path('/tmp/db.sqlite3')
+        if not db_path.exists():
+            print("Running Django migrations (first request)...", file=sys.stderr)
+            call_command('migrate', verbosity=0, interactive=False)
+            print("Migrations completed", file=sys.stderr)
+    except Exception as migration_error:
+        print(f"Migration warning: {migration_error}", file=sys.stderr)
+        # マイグレーションエラーは続行（データベースが既に存在する可能性がある）
+    
     print("Django WSGI application loaded successfully", file=sys.stderr)
     
 except ImportError as e:
