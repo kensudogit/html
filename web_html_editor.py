@@ -191,7 +191,6 @@ def init_database():
 init_database()
 
 # HTMLエディタのテンプレート（外部ファイルから読み込み）
-# HTMLエディタのテンプレート（外部ファイルから読み込み）
 def _load_editor_template():
     """エディタテンプレートをファイルから読み込む"""
     template_path = TEMPLATES_DIR / 'editor_template.html'
