@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ['nodejs-18_x', 'python39', 'python39Packages.pip']
+nixPkgs = ['nodejs-18_x', 'python312', 'python312Packages.pip', 'gcc', 'make', 'libffi', 'zlib', 'libxml2', 'libxslt']
 
 [phases.install]
 cmds = [
@@ -18,17 +18,19 @@ cmds = [
   'ls -la frontend/dist/index.html || echo "index.html not found"',
   'ls -la frontend/dist/assets || echo "assets directory not found"',
   'echo "=== Installing Python dependencies ==="',
-  'python --version || python3 --version || python3.9 --version || echo "Python not found"',
+  'python3.12 --version || python3 --version || python --version || echo "Python not found"',
   'echo "=== Checking if pip is available ==="',
-  'python3.9 -m pip --version 2>/dev/null && echo "pip is already available" || python -m pip --version 2>/dev/null && echo "pip is already available" || python3 -m pip --version 2>/dev/null && echo "pip is already available" || (echo "ERROR: pip not available. python39Packages.pip should be installed in setup phase." && exit 1)',
+  'python3.12 -m pip --version 2>/dev/null && echo "pip is already available" || python3 -m pip --version 2>/dev/null && echo "pip is already available" || python -m pip --version 2>/dev/null && echo "pip is already available" || (echo "ERROR: pip not available" && exit 1)',
+  'echo "=== Upgrading pip ==="',
+  'python3.12 -m pip install --upgrade pip setuptools wheel || python3 -m pip install --upgrade pip setuptools wheel || python -m pip install --upgrade pip setuptools wheel',
   'echo "=== Installing packages ==="',
-  'python3.9 -m pip install --user -r requirements.txt || python -m pip install --user -r requirements.txt || python3 -m pip install --user -r requirements.txt || python3.9 -m pip install --break-system-packages -r requirements.txt || python -m pip install --break-system-packages -r requirements.txt || python3 -m pip install --break-system-packages -r requirements.txt || (echo "ERROR: Failed to install Python packages" && exit 1)',
+  'python3.12 -m pip install --user -r requirements.txt || python3 -m pip install --user -r requirements.txt || python -m pip install --user -r requirements.txt || (echo "ERROR: Failed to install Python packages" && exit 1)',
   'echo "=== Verifying Python packages ==="',
-  'python3.9 -c "import yaml; print(\"PyYAML installed successfully\")" || python -c "import yaml; print(\"PyYAML installed successfully\")" || python3 -c "import yaml; print(\"PyYAML installed successfully\")" || (echo "ERROR: PyYAML not installed" && exit 1)',
-  'python3.9 -c "import django; print(\"Django installed successfully\")" || python -c "import django; print(\"Django installed successfully\")" || python3 -c "import django; print(\"Django installed successfully\")" || (echo "ERROR: Django not installed" && exit 1)',
-  'python3.9 -c "import bs4; print(\"BeautifulSoup4 installed successfully\")" || python -c "import bs4; print(\"BeautifulSoup4 installed successfully\")" || python3 -c "import bs4; print(\"BeautifulSoup4 installed successfully\")" || (echo "ERROR: BeautifulSoup4 not installed" && exit 1)',
+  'python3.12 -c "import yaml; print(\"PyYAML installed successfully\")" || python3 -c "import yaml; print(\"PyYAML installed successfully\")" || python -c "import yaml; print(\"PyYAML installed successfully\")" || (echo "ERROR: PyYAML not installed" && exit 1)',
+  'python3.12 -c "import flask; print(\"Flask installed successfully\")" || python3 -c "import flask; print(\"Flask installed successfully\")" || python -c "import flask; print(\"Flask installed successfully\")" || (echo "ERROR: Flask not installed" && exit 1)',
+  'python3.12 -c "import bs4; print(\"BeautifulSoup4 installed successfully\")" || python3 -c "import bs4; print(\"BeautifulSoup4 installed successfully\")" || python -c "import bs4; print(\"BeautifulSoup4 installed successfully\")" || (echo "ERROR: BeautifulSoup4 not installed" && exit 1)',
   'echo "=== Build phase complete ==="',
 ]
 
 [phases.start]
-cmd = 'python3.9 manage.py runserver 0.0.0.0:$PORT || python manage.py runserver 0.0.0.0:$PORT || python3 manage.py runserver 0.0.0.0:$PORT'
+cmd = 'gunicorn --bind 0.0.0.0:$PORT --workers 2 --threads 2 --timeout 120 --access-logfile - --error-logfile - --log-level info web_html_editor:app'

@@ -3713,5 +3713,18 @@ def catch_all(path):
 
 
 if __name__ == "__main__":
+    # Railway環境で直接実行された場合の警告
+    railway_env = os.environ.get('RAILWAY_ENVIRONMENT')
+    port_env = os.environ.get('PORT')
+    if railway_env or port_env:
+        print("=" * 60, flush=True)
+        print("警告: Railway環境ではProcfileを使用してください", flush=True)
+        print("Procfileが設定されていない場合は、Gunicornを使用してください:", flush=True)
+        print("  gunicorn --bind 0.0.0.0:$PORT --workers 2 --threads 2", flush=True)
+        print("  --timeout 120 --access-logfile - --error-logfile -", flush=True)
+        print("  --log-level info web_html_editor:app", flush=True)
+        print("=" * 60, flush=True)
+        # Railway環境では直接実行を許可しない（Procfileを使用）
+        # ただし、開発環境でのテストのため、警告のみで続行
     main()
 
