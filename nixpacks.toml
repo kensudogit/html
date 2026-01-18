@@ -33,6 +33,10 @@ cmds = [
   'python3.12 -c "import yaml; print(\"PyYAML installed successfully\")" || python3 -c "import yaml; print(\"PyYAML installed successfully\")" || python -c "import yaml; print(\"PyYAML installed successfully\")" || (echo "ERROR: PyYAML not installed" && exit 1)',
   'python3.12 -c "import django; print(\"Django installed successfully\")" || python3 -c "import django; print(\"Django installed successfully\")" || python -c "import django; print(\"Django installed successfully\")" || (echo "ERROR: Django not installed" && exit 1)',
   'python3.12 -c "import bs4; print(\"BeautifulSoup4 installed successfully\")" || python3 -c "import bs4; print(\"BeautifulSoup4 installed successfully\")" || python -c "import bs4; print(\"BeautifulSoup4 installed successfully\")" || (echo "ERROR: BeautifulSoup4 not installed" && exit 1)',
+  'echo "=== Running Django migrations ==="',
+  'python3.12 manage.py migrate --noinput || python3 manage.py migrate --noinput || python manage.py migrate --noinput || (echo "WARNING: Migration failed, continuing..." && true)',
+  'echo "=== Collecting static files ==="',
+  'python3.12 manage.py collectstatic --noinput || python3 manage.py collectstatic --noinput || python manage.py collectstatic --noinput || (echo "WARNING: Static file collection failed, continuing..." && true)',
   'echo "=== Build phase complete ==="',
 ]
 
