@@ -217,19 +217,6 @@ if EDITOR_TEMPLATE is None:
 </body>
 </html>"""
 
-                    showStatus('レポートの生成に失敗しました', 'error');
-                }
-            } catch (error) {
-                showStatus('レポートのエクスポート中にエラーが発生しました', 'error');
-                console.error('Error exporting comparison report:', error);
-            }
-        };
-        
-    </script>
-</body>
-</html>
-"""
-
 
 def get_session_file_info():
     """
