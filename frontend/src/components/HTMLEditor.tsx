@@ -218,7 +218,10 @@ const HTMLEditor: React.FC = () => {
       />
       <UsageGuide />
       <header className="html-editor-header">
-        <h1>HTMLエディタ</h1>
+        <div className="html-editor-logo-title">
+          <img src="/logo.png" alt="ロゴ" className="html-editor-logo" />
+          <h1>HTMLエディタ</h1>
+        </div>
         <div className="html-editor-actions">
           <input
             ref={fileInputRef}

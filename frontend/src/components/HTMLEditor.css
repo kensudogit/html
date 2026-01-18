@@ -15,6 +15,18 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+.html-editor-logo-title {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.html-editor-logo {
+  height: 40px;
+  width: auto;
+  object-fit: contain;
+}
+
 .html-editor-header h1 {
   margin: 0;
   font-size: 1.5rem;
