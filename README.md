@@ -1,6 +1,21 @@
-# HTML構文解析・編集ツール
+# HTML Structure Editor — Django / Python Automation
 
-HTMLファイルを構文解析して編集するためのPythonプログラムです。
+> **Document Engineering Tool** — HTMLを構文解析し、要素検索・属性編集・構造可視化・JSONエクスポート・Webベース編集を行うPython/Djangoツールです。
+>
+> **Stack:** Python · Django · BeautifulSoup · HTML Parsing · Web Editor
+
+## Engineering Focus
+
+- HTML DOMの構造解析と検索
+- ID / class / tag / attributeベースの編集
+- Web UIとCLIの両方から利用できる編集機能
+- HTML構造情報のJSONエクスポート
+- ファイルアップロード・保存・プレビューを含むWebエディタ
+- ドキュメント変換・移行・品質確認への応用
+
+## Portfolio Context
+
+This repository represents the **Document Engineering / HTML Automation** track of my portfolio. The repository name is generic, but the implementation is a practical HTML parsing and editing application rather than an HTML tutorial.
 
 ## セットアップ
 
@@ -339,5 +354,3 @@ python web_html_editor.py suikankyo.html
 - **ダウンロード**: 編集したファイルを「ダウンロード」ボタンでダウンロード
 
 **注意**: アップロードされたファイルは `uploads/` フォルダに保存されます。
-
-"# html" 
